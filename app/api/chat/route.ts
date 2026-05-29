@@ -31,7 +31,8 @@ export async function POST(req: Request) {
       // Best-effort persistence: save the conversation and messages on stream finish.
       // Do not let DB errors break the stream — just log them.
       try {
-        // Extract user messages from the request (those are the new ones in this turn)
+        // Extract user messages from the request (inbound array includes entire conversation history)
+        // saveTurn will persist only the last user message to avoid duplicate rows on each POST
         const userMessages: PersistentMessage[] = messages
           .filter((m) => m.role === "user")
           .map((m) => ({

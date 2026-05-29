@@ -72,14 +72,16 @@ export async function initDb(dbPath: string = DEFAULT_DB_PATH): Promise<Database
 }
 
 /**
- * Save a turn (user messages + assistant response) to the database.
+ * Save a turn (latest user message + assistant response) to the database.
  * Best-effort: returns the conversation ID on success.
  *
- * Creates a new conversation if one doesn't exist, then persists all user
- * messages (in order) followed by the single assistant message.
+ * Creates a new conversation and persists ONLY the LAST user message
+ * (to avoid duplicating prior messages on each turn) followed by the
+ * assistant response. The userMessages array may contain prior history
+ * from the client, but we persist only the newest turn.
  *
  * @param db - The database instance (from initDb)
- * @param userMessages - Array of user messages to save before the assistant response
+ * @param userMessages - Array of user messages; only the last one is persisted
  * @param assistantMessage - The assistant response message
  * @returns The conversation ID (unique identifier for this chat thread)
  */
@@ -99,11 +101,12 @@ export async function saveTurn(
         "INSERT INTO conversations (id, createdAt) VALUES (?, ?)"
       ).run(conversationId, now);
 
-      // Insert user messages in order
-      for (const msg of userMessages) {
+      // Insert ONLY the last user message (avoid duplicates on repeated POSTs)
+      if (userMessages.length > 0) {
+        const lastUserMessage = userMessages[userMessages.length - 1];
         db.prepare(
           "INSERT INTO messages (id, conversationId, role, content, createdAt) VALUES (?, ?, ?, ?, ?)"
-        ).run(randomUUID(), conversationId, msg.role, msg.content, now);
+        ).run(randomUUID(), conversationId, lastUserMessage.role, lastUserMessage.content, now);
       }
 
       // Insert assistant message

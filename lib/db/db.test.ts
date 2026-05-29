@@ -54,7 +54,7 @@ describe("saveTurn persistence", () => {
     expect(mockDb.prepare).toHaveBeenCalled();
   });
 
-  it("saves multiple user messages in order before the assistant response", async () => {
+  it("persists only the LAST user message (not all prior history)", async () => {
     const userMessages: PersistentMessage[] = [
       { role: "user", content: "First?" },
       { role: "user", content: "Second?" },
@@ -65,11 +65,28 @@ describe("saveTurn persistence", () => {
       content: "Answer.",
     };
 
+    const preparedStatements: string[] = [];
+    mockDb.prepare = vi.fn((sql: string) => {
+      preparedStatements.push(sql);
+      return {
+        run: vi.fn(() => ({ changes: 1 })),
+      };
+    });
     mockDb.transaction = vi.fn((fn: () => void) => fn);
-    const result = await saveTurn(mockDb as never, userMessages, assistantMessage);
 
-    expect(result).toBeDefined();
-    expect(mockDb.prepare).toHaveBeenCalled();
+    await saveTurn(mockDb as never, userMessages, assistantMessage);
+
+    // Count how many INSERT statements were prepared for messages table
+    const messageInserts = preparedStatements.filter((sql) =>
+      sql.includes("INSERT INTO messages")
+    );
+
+    // Should be exactly 2: one for the last user message, one for assistant
+    expect(messageInserts).toHaveLength(2);
+
+    // Verify the order: user then assistant
+    expect(messageInserts[0]).toContain("INSERT INTO messages");
+    expect(messageInserts[1]).toContain("INSERT INTO messages");
   });
 
   it("handles optional toolCalls in assistant messages", async () => {
