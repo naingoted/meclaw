@@ -1,8 +1,9 @@
-import { streamText, type UIMessage, type ModelMessage } from "ai";
+import { streamText, type UIMessage, type ModelMessage, stepCountIs } from "ai";
 import { getModel } from "@/lib/ai/provider";
 import { buildSystemPrompt } from "@/lib/ai/persona";
 import { loadKnowledge } from "@/lib/content";
 import { initDb, saveTurn, type PersistentMessage } from "@/lib/db";
+import { tools } from "@/lib/ai/tools";
 
 // Allow streaming responses up to 30 seconds.
 export const maxDuration = 30;
@@ -35,6 +36,8 @@ export async function POST(req: Request) {
     model: getModel(),
     system: systemPrompt(),
     messages: messages as unknown as ModelMessage[],
+    tools,
+    stopWhen: stepCountIs(2),
     onFinish: async (event) => {
       // Best-effort persistence: save the conversation and messages on stream finish.
       // Do not let DB errors break the stream — just log them.
@@ -55,7 +58,8 @@ export async function POST(req: Request) {
         const assistantMessage: PersistentMessage = {
           role: "assistant",
           content: assistantContent,
-          // TODO: handle toolCalls from event if tools are added (M5)
+          // Note: Tool calls are executed by streamText and their results are incorporated
+          // into the model's final text response (event.text), so we persist only the final text.
         };
 
         await saveTurn(await getDb(), userMessages, assistantMessage);
