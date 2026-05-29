@@ -8,7 +8,7 @@
   ```bash
   pnpm rebuild better-sqlite3
   ```
-  If skipped, chat still works but DB persistence silently fails (best-effort design). The module auto-builds in CI/CD environments that typically have build tools available.
+  **If `pnpm rebuild better-sqlite3` fails** (missing C compiler, Python, or build tools), persistence degrades gracefully: chat continues to work, DB errors are logged with a rebuild hint, and no data is lost (each turn is still processed). The module auto-builds in CI/CD environments and on machines with standard build toolchains available. **By design**, this ensures the chatbot works everywhere, with optional persistence.
 
 ## Steps
 

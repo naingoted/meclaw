@@ -1,11 +1,13 @@
 import Database from "better-sqlite3";
+import { drizzle } from "drizzle-orm/better-sqlite3";
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { randomUUID } from "node:crypto";
+import * as schema from "./schema";
 
 /**
  * Database initialization and persistence for echo-clone.
- * Uses better-sqlite3 with programmatic schema creation (no separate migrations).
+ * Uses better-sqlite3 with Drizzle ORM for type-safe queries.
  *
  * Tables are created on first connection if they don't exist. The DB file lives
  * at `data/echo.db` (gitignored); the `data/` dir is created at runtime if absent.
@@ -33,9 +35,9 @@ export type PersistentMessage = {
  * and create tables if they don't exist.
  *
  * @param dbPath - Optional override path; defaults to `data/echo.db`
- * @returns A better-sqlite3 Database instance
+ * @returns A Drizzle ORM database instance
  */
-export async function initDb(dbPath: string = DEFAULT_DB_PATH): Promise<Database.Database> {
+export async function initDb(dbPath: string = DEFAULT_DB_PATH) {
   // Ensure the data directory exists
   const dir = dirname(dbPath);
   try {
@@ -44,11 +46,11 @@ export async function initDb(dbPath: string = DEFAULT_DB_PATH): Promise<Database
     // Directory may already exist; ignore
   }
 
-  const db = new Database(dbPath);
-  db.pragma("journal_mode = WAL");
+  const sqlite = new Database(dbPath);
+  sqlite.pragma("journal_mode = WAL");
 
-  // Create tables if they don't exist
-  db.exec(`
+  // Create tables if they don't exist (programmatic, no migration files)
+  sqlite.exec(`
     CREATE TABLE IF NOT EXISTS conversations (
       id TEXT PRIMARY KEY,
       createdAt INTEGER NOT NULL,
@@ -68,7 +70,7 @@ export async function initDb(dbPath: string = DEFAULT_DB_PATH): Promise<Database
       ON messages(conversationId);
   `);
 
-  return db;
+  return drizzle(sqlite, { schema });
 }
 
 /**
@@ -80,51 +82,49 @@ export async function initDb(dbPath: string = DEFAULT_DB_PATH): Promise<Database
  * assistant response. The userMessages array may contain prior history
  * from the client, but we persist only the newest turn.
  *
- * @param db - The database instance (from initDb)
+ * @param db - The Drizzle ORM database instance (from initDb)
  * @param userMessages - Array of user messages; only the last one is persisted
  * @param assistantMessage - The assistant response message
  * @returns The conversation ID (unique identifier for this chat thread)
  */
 export async function saveTurn(
-  db: Database.Database,
+  db: Awaited<ReturnType<typeof initDb>>,
   userMessages: PersistentMessage[],
   assistantMessage: PersistentMessage
 ): Promise<string> {
-  try {
-    const conversationId = randomUUID();
-    const now = Date.now();
+  const conversationId = randomUUID();
+  const now = Date.now();
 
-    // Use a transaction to ensure atomic writes
-    const insert = db.transaction(() => {
-      // Insert the conversation
-      db.prepare(
-        "INSERT INTO conversations (id, createdAt) VALUES (?, ?)"
-      ).run(conversationId, now);
+  // Note: better-sqlite3 transactions are synchronous but wrapped in async for API consistency
+  db.transaction(() => {
+    // Insert the conversation
+    db.insert(schema.conversations).values({
+      id: conversationId,
+      createdAt: now,
+    }).execute();
 
-      // Insert ONLY the last user message (avoid duplicates on repeated POSTs)
-      if (userMessages.length > 0) {
-        const lastUserMessage = userMessages[userMessages.length - 1];
-        db.prepare(
-          "INSERT INTO messages (id, conversationId, role, content, createdAt) VALUES (?, ?, ?, ?, ?)"
-        ).run(randomUUID(), conversationId, lastUserMessage.role, lastUserMessage.content, now);
-      }
-
-      // Insert assistant message
-      db.prepare(
-        "INSERT INTO messages (id, conversationId, role, content, toolCalls, createdAt) VALUES (?, ?, ?, ?, ?, ?)"
-      ).run(
-        randomUUID(),
+    // Insert ONLY the last user message (avoid duplicates on repeated POSTs)
+    if (userMessages.length > 0) {
+      const lastUserMessage = userMessages[userMessages.length - 1];
+      db.insert(schema.messages).values({
+        id: randomUUID(),
         conversationId,
-        assistantMessage.role,
-        assistantMessage.content,
-        assistantMessage.toolCalls || null,
-        now
-      );
-    });
+        role: lastUserMessage.role,
+        content: lastUserMessage.content,
+        createdAt: now,
+      }).execute();
+    }
 
-    insert();
-    return conversationId;
-  } catch (error) {
-    throw error;
-  }
+    // Insert assistant message
+    db.insert(schema.messages).values({
+      id: randomUUID(),
+      conversationId,
+      role: assistantMessage.role,
+      content: assistantMessage.content,
+      toolCalls: assistantMessage.toolCalls || null,
+      createdAt: now,
+    }).execute();
+  });
+
+  return conversationId;
 }

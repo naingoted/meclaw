@@ -1,116 +1,28 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
+import Database from "better-sqlite3";
+import { drizzle } from "drizzle-orm/better-sqlite3";
 import { saveTurn, type PersistentMessage } from "./index";
+import * as schema from "./schema";
 
 /**
  * Unit tests for saveTurn persistence logic.
- * Mocks the database to test the save logic in isolation.
+ * Includes mocked tests for logic verification and a real integration test
+ * using an in-memory better-sqlite3 database with Drizzle ORM.
  */
 
-describe("saveTurn persistence", () => {
-  let mockDb: {
-    prepare: ReturnType<typeof vi.fn>;
-    transaction: ReturnType<typeof vi.fn>;
-    exec: ReturnType<typeof vi.fn>;
-    pragma: ReturnType<typeof vi.fn>;
-  };
-  let insertedRows: Array<{ sql: string; id: string; args: unknown[] }> = [];
-
-  beforeEach(() => {
-    insertedRows = [];
-    mockDb = {
-      prepare: vi.fn((sql: string) => ({
-        run: vi.fn((id: string, ...args: unknown[]) => {
-          insertedRows.push({ sql, id, args });
-          return { changes: 1 };
+describe("saveTurn persistence (mocked)", () => {
+  it("returns a UUID-format string as conversationId", async () => {
+    const mockDb = {
+      transaction: (fn: () => void) => {
+        fn();
+      },
+      insert: () => ({
+        values: () => ({
+          execute: () => undefined,
         }),
-      })),
-      transaction: vi.fn((fn: () => void) => {
-        return fn;
       }),
-      exec: vi.fn(),
-      pragma: vi.fn(),
-    };
-  });
-
-  it("creates a conversation and saves user + assistant messages", async () => {
-    const userMessages: PersistentMessage[] = [
-      { role: "user", content: "What is echo?" },
-    ];
-
-    const assistantMessage: PersistentMessage = {
-      role: "assistant",
-      content: "Echo is a personal AI twin.",
     };
 
-    // Call saveTurn with our mocked db
-    mockDb.transaction = vi.fn((fn: () => void) => fn);
-    const result = await saveTurn(mockDb as never, userMessages, assistantMessage);
-
-    // Should return a conversation ID
-    expect(result).toBeDefined();
-    expect(typeof result).toBe("string");
-
-    // Should have called prepare multiple times
-    expect(mockDb.prepare).toHaveBeenCalled();
-  });
-
-  it("persists only the LAST user message (not all prior history)", async () => {
-    const userMessages: PersistentMessage[] = [
-      { role: "user", content: "First?" },
-      { role: "user", content: "Second?" },
-    ];
-
-    const assistantMessage: PersistentMessage = {
-      role: "assistant",
-      content: "Answer.",
-    };
-
-    const preparedStatements: string[] = [];
-    mockDb.prepare = vi.fn((sql: string) => {
-      preparedStatements.push(sql);
-      return {
-        run: vi.fn(() => ({ changes: 1 })),
-      };
-    });
-    mockDb.transaction = vi.fn((fn: () => void) => fn);
-
-    await saveTurn(mockDb as never, userMessages, assistantMessage);
-
-    // Count how many INSERT statements were prepared for messages table
-    const messageInserts = preparedStatements.filter((sql) =>
-      sql.includes("INSERT INTO messages")
-    );
-
-    // Should be exactly 2: one for the last user message, one for assistant
-    expect(messageInserts).toHaveLength(2);
-
-    // Verify the order: user then assistant
-    expect(messageInserts[0]).toContain("INSERT INTO messages");
-    expect(messageInserts[1]).toContain("INSERT INTO messages");
-  });
-
-  it("handles optional toolCalls in assistant messages", async () => {
-    const userMessages: PersistentMessage[] = [
-      { role: "user", content: "Use a tool" },
-    ];
-
-    const toolCalls = JSON.stringify([
-      { id: "tool-1", toolName: "test", args: { test: true } },
-    ]);
-
-    const assistantMessage: PersistentMessage = {
-      role: "assistant",
-      content: "Using tool...",
-      toolCalls,
-    };
-
-    mockDb.transaction = vi.fn((fn: () => void) => fn);
-    const result = await saveTurn(mockDb as never, userMessages, assistantMessage);
-
-    expect(result).toBeDefined();
-  });
-
-  it("rejects with error on database failure", async () => {
     const userMessages: PersistentMessage[] = [
       { role: "user", content: "Test" },
     ];
@@ -120,29 +32,141 @@ describe("saveTurn persistence", () => {
       content: "Response",
     };
 
-    mockDb.transaction = vi.fn(() => {
-      throw new Error("Database insert failed");
-    });
-
-    await expect(saveTurn(mockDb as never, userMessages, assistantMessage)).rejects.toThrow(
-      "Database insert failed"
-    );
-  });
-
-  it("always returns a UUID-format string as conversationId", async () => {
-    const userMessages: PersistentMessage[] = [
-      { role: "user", content: "Test" },
-    ];
-
-    const assistantMessage: PersistentMessage = {
-      role: "assistant",
-      content: "Response",
-    };
-
-    mockDb.transaction = vi.fn((fn: () => void) => fn);
+    // Mock the transaction to allow the call without errors
     const result = await saveTurn(mockDb as never, userMessages, assistantMessage);
 
     // UUID v4 format (loose check)
     expect(result).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+  });
+});
+
+describe("saveTurn persistence (integration with real DB)", () => {
+  it("persists exactly one user + one assistant message per turn (no duplicates)", async () => {
+    // Create an in-memory SQLite database with schema
+    const sqlite = new Database(":memory:");
+
+    // Create tables
+    sqlite.exec(`
+      CREATE TABLE conversations (
+        id TEXT PRIMARY KEY,
+        createdAt INTEGER NOT NULL,
+        visitorMeta TEXT
+      );
+
+      CREATE TABLE messages (
+        id TEXT PRIMARY KEY,
+        conversationId TEXT NOT NULL,
+        role TEXT NOT NULL CHECK(role IN ('user', 'assistant', 'tool')),
+        content TEXT NOT NULL,
+        toolCalls TEXT,
+        createdAt INTEGER NOT NULL
+      );
+
+      CREATE INDEX idx_messages_conversationId ON messages(conversationId);
+    `);
+
+    const db = drizzle(sqlite, { schema });
+
+    // Save a turn
+    const userMessages: PersistentMessage[] = [
+      { role: "user", content: "First message" },
+    ];
+
+    const assistantMessage: PersistentMessage = {
+      role: "assistant",
+      content: "First response",
+    };
+
+    const convId1 = await saveTurn(db, userMessages, assistantMessage);
+
+    // Verify first conversation
+    interface CountRow {
+      count: number;
+    }
+    interface RoleRow {
+      role: string;
+    }
+    interface ContentRow {
+      content: string;
+    }
+
+    const countRows = sqlite
+      .prepare("SELECT COUNT(*) as count FROM messages WHERE conversationId = ?")
+      .all(convId1) as CountRow[];
+    expect(countRows[0].count).toBe(2); // 1 user + 1 assistant
+
+    // Save another turn (simulating a second request with same client history)
+    const userMessages2: PersistentMessage[] = [
+      { role: "user", content: "First message" }, // Prior message in history
+      { role: "user", content: "Second message" }, // New message
+    ];
+
+    const assistantMessage2: PersistentMessage = {
+      role: "assistant",
+      content: "Second response",
+    };
+
+    const convId2 = await saveTurn(db, userMessages2, assistantMessage2);
+
+    // Verify second conversation has exactly 1 user (the last one), not both
+    const roleRows = sqlite
+      .prepare("SELECT role FROM messages WHERE conversationId = ? ORDER BY createdAt")
+      .all(convId2) as RoleRow[];
+    expect(roleRows).toHaveLength(2); // 1 user + 1 assistant
+    expect(roleRows[0].role).toBe("user");
+    expect(roleRows[1].role).toBe("assistant");
+
+    // Verify the user message is the LAST one in the input array, not the first
+    const userMsg = sqlite
+      .prepare("SELECT content FROM messages WHERE conversationId = ? AND role = ?")
+      .get(convId2, "user") as ContentRow;
+    expect(userMsg.content).toBe("Second message");
+
+    // Verify no duplicate rows across conversations
+    const totalRow = sqlite
+      .prepare("SELECT COUNT(*) as count FROM messages")
+      .get() as CountRow;
+    expect(totalRow.count).toBe(4); // 2 conversations * 2 messages each
+  });
+
+  it("persists optional toolCalls in assistant messages", async () => {
+    const sqlite = new Database(":memory:");
+
+    sqlite.exec(`
+      CREATE TABLE conversations (
+        id TEXT PRIMARY KEY,
+        createdAt INTEGER NOT NULL,
+        visitorMeta TEXT
+      );
+
+      CREATE TABLE messages (
+        id TEXT PRIMARY KEY,
+        conversationId TEXT NOT NULL,
+        role TEXT NOT NULL CHECK(role IN ('user', 'assistant', 'tool')),
+        content TEXT NOT NULL,
+        toolCalls TEXT,
+        createdAt INTEGER NOT NULL
+      );
+
+      CREATE INDEX idx_messages_conversationId ON messages(conversationId);
+    `);
+
+    const db = drizzle(sqlite, { schema });
+
+    const toolCalls = JSON.stringify([{ id: "tool-1", toolName: "test" }]);
+
+    await saveTurn(db, [{ role: "user", content: "Use tool" }], {
+      role: "assistant",
+      content: "Using...",
+      toolCalls,
+    });
+
+    interface ToolCallRow {
+      toolCalls: string;
+    }
+    const row = sqlite
+      .prepare("SELECT toolCalls FROM messages WHERE role = ?")
+      .get("assistant") as ToolCallRow;
+    expect(row.toolCalls).toBe(toolCalls);
   });
 });

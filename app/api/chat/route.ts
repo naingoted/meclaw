@@ -1,4 +1,4 @@
-import { convertToModelMessages, streamText, type UIMessage } from "ai";
+import { streamText, type UIMessage, type ModelMessage } from "ai";
 import { getModel } from "@/lib/ai/provider";
 import { buildSystemPrompt } from "@/lib/ai/persona";
 import { loadKnowledge } from "@/lib/content";
@@ -21,12 +21,20 @@ async function getDb(): Promise<Awaited<ReturnType<typeof initDb>>> {
 }
 
 export async function POST(req: Request) {
-  const { messages }: { messages: UIMessage[] } = await req.json();
+  let body: Record<string, unknown>;
+  try {
+    body = await req.json();
+  } catch (e) {
+    console.error("[chat] Failed to parse JSON:", e);
+    return Response.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  const messages: UIMessage[] = (body?.messages as UIMessage[]) || [];
 
   const result = streamText({
     model: getModel(),
     system: systemPrompt(),
-    messages: await convertToModelMessages(messages),
+    messages: messages as unknown as ModelMessage[],
     onFinish: async (event) => {
       // Best-effort persistence: save the conversation and messages on stream finish.
       // Do not let DB errors break the stream — just log them.
@@ -52,8 +60,23 @@ export async function POST(req: Request) {
 
         await saveTurn(await getDb(), userMessages, assistantMessage);
       } catch (error) {
-        // Log the error but don't throw — persistence is best-effort
-        console.error("[db] Failed to persist conversation:", error instanceof Error ? error.message : error);
+        // Persistence is best-effort — don't break the stream
+        // Distinguish native module issues from real errors for better debugging
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        if (
+          errorMsg.includes("better-sqlite3") ||
+          errorMsg.includes("bindings") ||
+          errorMsg.includes("Cannot find module")
+        ) {
+          // Native module not built — expected in dev without build tools
+          console.warn(
+            "[db] Native SQLite module not available. Persistence skipped. " +
+              "If this is unexpected, run: pnpm rebuild better-sqlite3"
+          );
+        } else {
+          // Real error — log for investigation
+          console.error("[db] Failed to persist conversation:", errorMsg);
+        }
       }
     },
   });
@@ -63,12 +86,23 @@ export async function POST(req: Request) {
 
 /**
  * Extract text content from a UIMessage.
- * Looks for the first text part; falls back to empty string.
+ * Messages from client requests have `content` as a string;
+ * internal parts-based messages have `parts` array.
  */
-function extractTextContent(msg: UIMessage): string {
-  const textPart = msg.parts?.find((p) => p.type === "text");
-  if (textPart && "text" in textPart) {
-    return textPart.text;
+function extractTextContent(msg: UIMessage | Record<string, unknown>): string {
+  // If the message has a direct content property (string), use it
+  if (typeof (msg as Record<string, unknown>).content === "string") {
+    return ((msg as Record<string, unknown>).content as string) || "";
+  }
+  // Otherwise, look for the first text part in the parts array
+  if (Array.isArray((msg as Record<string, unknown>).parts)) {
+    const parts = (msg as Record<string, unknown>).parts as unknown[];
+    const textPart = parts.find(
+      (p) => (p as Record<string, unknown>).type === "text"
+    );
+    if (textPart && "text" in (textPart as Record<string, unknown>)) {
+      return ((textPart as Record<string, string>).text) || "";
+    }
   }
   return "";
 }
