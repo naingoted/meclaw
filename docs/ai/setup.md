@@ -1,0 +1,43 @@
+# Local setup
+
+## Prerequisites
+
+- Node 22+ (`.nvmrc` not enforced; repo built on Node 22).
+- pnpm 10+ (`corepack enable` if missing).
+
+## Steps
+
+```bash
+pnpm install
+cp .env.example .env.local   # then fill ANTHROPIC_API_KEY
+pnpm dev                     # http://localhost:3000
+```
+
+## Environment variables
+
+Set in `.env.local` (gitignored — never commit real values):
+
+| Var | Purpose |
+|-----|---------|
+| `ANTHROPIC_API_KEY` | Gateway key. Required. Owner's earlier key is exposed — rotate it. |
+| `ANTHROPIC_BASE_URL` | `https://coding-intl.dashscope.aliyuncs.com/apps/anthropic` |
+| `ANTHROPIC_MODEL` | `qwen3.6-plus` |
+
+## Scripts
+
+| Command | Does |
+|---------|------|
+| `pnpm dev` | Dev server. |
+| `pnpm build` | Production build. |
+| `pnpm start` | Serve the production build. |
+| `pnpm lint` | ESLint (next config). |
+| `pnpm typecheck` | `tsc --noEmit`. |
+| `pnpm verify` | lint + typecheck + build — the pre-merge gate. |
+| `pnpm test` | Vitest (run once). |
+| `pnpm test:watch` | Vitest watch mode. |
+
+## Adding a shadcn component
+
+```bash
+pnpm dlx shadcn@latest add <component>
+```

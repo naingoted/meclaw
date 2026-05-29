@@ -9,7 +9,7 @@ Personal AI-twin chatbot (single user). Public chat page; AI answers about the o
 
 ## Locked decisions (do not re-litigate)
 
-- Flat single Next.js 15 app (App Router, React 19, TS).
+- Flat single Next.js app (App Router, React 19, TS). **Next 16** (current latest; user approved bump from the originally-locked 15 during M0).
 - LLM: `qwen3.6-plus` via Anthropic-compatible gateway. Use Vercel AI SDK `@ai-sdk/anthropic` with custom `baseURL`.
 - No embeddings (gateway is chat-only). Knowledge = context-stuffing from `content/*.md`.
 - Persistence: SQLite + Drizzle + `better-sqlite3`. Zero Docker.
@@ -33,9 +33,9 @@ ANTHROPIC_MODEL=qwen3.6-plus
 
 ## Build order (milestones)
 
-Status: **M0 not started.** Build sequentially; each must run in the browser before moving on. Use TDD (Vitest) where logic exists.
+Status: **M0 done. Next: M1.** Build sequentially; each must run in the browser before moving on. Use TDD (Vitest) where logic exists.
 
-- **M0 — Repo + agentic harness** ← START HERE
+- **M0 — Repo + agentic harness** ✅ DONE
   - Scaffold Next.js 15 (App Router, TS, Tailwind, ESLint) into this existing dir (flat).
   - shadcn/ui init. Add scripts: `dev`, `build`, `lint`, `typecheck`, `verify` (lint+typecheck+build), `test`.
   - Agentic files: `CLAUDE.md`, `AGENTS.md`, `CODEX.md`, `docs/ai/{repo-index,architecture,setup,conventions}.md`.
@@ -71,3 +71,4 @@ Vector RAG (pgvector/Qdrant + Docker), admin UI + auth, deploy (VPS/Docker/Caddy
 ## Progress log
 
 - 2026-05-29: Brainstorming complete. Spec + handoff written. Git initialized. **Next: M0.**
+- 2026-05-29: **M0 complete.** Scaffolded Next 16 (App Router/TS/Tailwind 4) flat into repo; shadcn/ui init (button, lib/utils, components.json). Scripts dev/build/lint/typecheck/verify/test. Vitest wired (jsdom, native tsconfig paths) — 3 tests green. Agentic files: CLAUDE.md/CODEX.md → `@AGENTS.md`; docs/ai/{repo-index,architecture,setup,conventions}.md. `.env.example`, CI workflow, PR template added. `pnpm verify` green; `pnpm dev` renders 200 at :3000. Note: dropped shadcn `base-nova` `@import "shadcn/tailwind.css"` (needed runtime `shadcn` dep). **Next: M1.**
