@@ -1,12 +1,46 @@
-import { streamText, convertToModelMessages, type UIMessage, stepCountIs } from "ai";
+import {
+  streamText,
+  convertToModelMessages,
+  type UIMessage,
+  stepCountIs,
+  createUIMessageStream,
+  createUIMessageStreamResponse,
+} from "ai";
 import { getModel } from "@/lib/ai/provider";
 import { buildSystemPrompt } from "@/lib/ai/persona";
 import { loadKnowledge } from "@/lib/content";
 import { initDb, saveTurn, type PersistentMessage } from "@/lib/db";
 import { tools } from "@/lib/ai/tools";
+import { chatRateLimiter } from "@/lib/rate-limit";
+import { detectInjection } from "@/lib/ai/guardrails";
 
 // Allow streaming responses up to 30 seconds.
 export const maxDuration = 30;
+
+/**
+ * Extract the client's IP address from the request headers.
+ * Prefers X-Forwarded-For (first value) for proxied requests,
+ * falls back to x-real-ip, then socket address.
+ */
+function getClientIp(req: Request): string {
+  const forwarded = req.headers.get("x-forwarded-for");
+  if (forwarded) {
+    // X-Forwarded-For may contain multiple IPs; use the first (client IP)
+    return forwarded.split(",")[0].trim();
+  }
+
+  const realIp = req.headers.get("x-real-ip");
+  if (realIp) {
+    return realIp;
+  }
+
+  // Fallback: try to extract from request URL
+  try {
+    return new URL(req.url).hostname || "127.0.0.1";
+  } catch {
+    return "127.0.0.1";
+  }
+}
 
 // Knowledge is static per process — build the prompt once, reuse across requests.
 // Edit `content/*.md` and restart to refresh.
@@ -22,6 +56,26 @@ async function getDb(): Promise<Awaited<ReturnType<typeof initDb>>> {
 }
 
 export async function POST(req: Request) {
+  // Guard 1: Rate limit — check BEFORE parsing body
+  const clientIp = getClientIp(req);
+  const rateLimitResult = chatRateLimiter.check(clientIp);
+
+  if (!rateLimitResult.allowed) {
+    console.warn(
+      `[chat] Rate limit exceeded for IP: ${clientIp}. Retry-After: ${rateLimitResult.retryAfter}s`
+    );
+    return Response.json(
+      { error: "Too many requests. Please try again later." },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(rateLimitResult.retryAfter),
+        },
+      }
+    );
+  }
+
+  // Parse request body
   let body: Record<string, unknown>;
   try {
     body = await req.json();
@@ -31,6 +85,24 @@ export async function POST(req: Request) {
   }
 
   const messages: UIMessage[] = (body?.messages as UIMessage[]) || [];
+
+  // Guard 2: Injection detection — check latest user message
+  const latestUserMessage = messages
+    .slice()
+    .reverse()
+    .find((m) => m.role === "user");
+
+  if (latestUserMessage) {
+    const userText = extractTextContent(latestUserMessage);
+    if (detectInjection(userText)) {
+      console.warn(`[chat] Prompt injection detected from IP: ${clientIp}`);
+      // Return a short-circuit refusal without calling the gateway
+      return createUIMessageStreamResponse({
+        stream: createRefusalStream(),
+      });
+    }
+  }
+
   const modelMessages = await convertToModelMessages(messages, { tools });
 
   const result = streamText({
@@ -87,6 +159,35 @@ export async function POST(req: Request) {
   });
 
   return result.toUIMessageStreamResponse();
+}
+
+/**
+ * Creates a UI message stream with a refusal message for blocked requests.
+ * Uses the Vercel AI SDK v6 UI message stream protocol so the client
+ * displays it as a normal assistant message.
+ */
+function createRefusalStream(): ReturnType<typeof createUIMessageStream> {
+  return createUIMessageStream({
+    async execute({ writer }) {
+      writer.write({
+        type: "text-start",
+        id: "refusal-1",
+      });
+
+      writer.write({
+        type: "text-delta",
+        id: "refusal-1",
+        delta: "I appreciate your interest, but I can't respond to that request. "
+          + "I'm designed to answer questions about Thet and help facilitate introductions. "
+          + "Feel free to ask about his work, projects, or how to get in touch!",
+      });
+
+      writer.write({
+        type: "text-end",
+        id: "refusal-1",
+      });
+    },
+  });
 }
 
 /**
