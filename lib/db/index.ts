@@ -16,7 +16,7 @@ import { randomUUID } from "node:crypto";
  */
 
 const DB_DIR = "data";
-const DEFAULT_DB_PATH = join(DB_DIR, "echo.db");
+const DEFAULT_DB_PATH = join(process.cwd(), DB_DIR, "echo.db");
 
 /**
  * Represents a message as persisted (before sending to AI SDK).

@@ -4,6 +4,11 @@
 
 - Node 22+ (`.nvmrc` not enforced; repo built on Node 22).
 - pnpm 10+ (`corepack enable` if missing).
+- **Build tools required for native modules:** SQLite persistence uses `better-sqlite3`, which includes a native module (`.node` binary). pnpm (v9+) blocks build scripts by default; the repo's `package.json` explicitly allows `better-sqlite3` via `pnpm.onlyBuiltDependencies`. On first install, run:
+  ```bash
+  pnpm rebuild better-sqlite3
+  ```
+  If skipped, chat still works but DB persistence silently fails (best-effort design). The module auto-builds in CI/CD environments that typically have build tools available.
 
 ## Steps
 
