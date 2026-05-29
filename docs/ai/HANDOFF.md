@@ -22,9 +22,11 @@ Personal AI-twin chatbot (single user). Public chat page; AI answers about the o
 
 ```
 ANTHROPIC_API_KEY=<provided by user — paste into .env.local only>
-ANTHROPIC_BASE_URL=https://coding-intl.dashscope.aliyuncs.com/apps/anthropic
+ANTHROPIC_BASE_URL=https://coding-intl.dashscope.aliyuncs.com/apps/anthropic/v1
 ANTHROPIC_MODEL=qwen3.6-plus
 ```
+
+> ✅ **M1 resolved the base-URL gotcha:** the AI SDK appends `/messages` (NOT `/v1/messages`). Base URL therefore MUST end in `/v1` → full path `.../apps/anthropic/v1/messages`. Without `/v1` the gateway 404s.
 
 `.env.example` (committed) holds the same keys with empty/placeholder values.
 
@@ -33,7 +35,7 @@ ANTHROPIC_MODEL=qwen3.6-plus
 
 ## Build order (milestones)
 
-Status: **M0 done. Next: M1.** Build sequentially; each must run in the browser before moving on. Use TDD (Vitest) where logic exists.
+Status: **M1 done. Next: M2.** Build sequentially; each must run in the browser before moving on. Use TDD (Vitest) where logic exists. **Browser-verify each milestone with the Playwright MCP via the Docker MCP toolkit** (`MCP_DOCKER` `browser_*` tools, already connected) — see `conventions.md`. Browser runs in Docker, so reach the host at `http://host.docker.internal:3000` (already allow-listed via `allowedDevOrigins` in `next.config.ts`).
 
 - **M0 — Repo + agentic harness** ✅ DONE
   - Scaffold Next.js 15 (App Router, TS, Tailwind, ESLint) into this existing dir (flat).
@@ -42,9 +44,9 @@ Status: **M0 done. Next: M1.** Build sequentially; each must run in the browser 
   - `.env.example`, `.gitignore` (cover `.env.local`, `data/*.db`, `node_modules`, `.next`).
   - `.github/workflows/ci.yml` (corepack→pnpm install→typecheck→lint→build) + `.github/pull_request_template.md`.
   - Acceptance: `pnpm dev` → placeholder page renders at localhost:3000; `pnpm verify` green.
-- **M1 — Echo chat (core loop)**
+- **M1 — Echo chat (core loop)** ✅ DONE
   - `lib/ai/provider.ts` (anthropic + baseURL + model from env). `app/api/chat/route.ts` streaming via `streamText`. Chat UI with `useChat`, markdown render, auto-scroll. Hardcoded system prompt.
-  - Acceptance: type in browser, get streamed reply.
+  - Acceptance: type in browser, get streamed reply. ✅ Verified end-to-end in Dockerized Playwright (real gateway, streamed answer).
 - **M2 — Persona + knowledge**
   - `content/persona.md`, `content/resume.md`, `content/projects/*.md`. `lib/content.ts` loader. `lib/ai/persona.ts` builds system prompt (persona + stuffed knowledge). Anti-"As an AI" rules (doc 08).
   - Acceptance: bot answers about the owner.
@@ -72,3 +74,4 @@ Vector RAG (pgvector/Qdrant + Docker), admin UI + auth, deploy (VPS/Docker/Caddy
 
 - 2026-05-29: Brainstorming complete. Spec + handoff written. Git initialized. **Next: M0.**
 - 2026-05-29: **M0 complete.** Scaffolded Next 16 (App Router/TS/Tailwind 4) flat into repo; shadcn/ui init (button, lib/utils, components.json). Scripts dev/build/lint/typecheck/verify/test. Vitest wired (jsdom, native tsconfig paths) — 3 tests green. Agentic files: CLAUDE.md/CODEX.md → `@AGENTS.md`; docs/ai/{repo-index,architecture,setup,conventions}.md. `.env.example`, CI workflow, PR template added. `pnpm verify` green; `pnpm dev` renders 200 at :3000. Note: dropped shadcn `base-nova` `@import "shadcn/tailwind.css"` (needed runtime `shadcn` dep). **Next: M1.**
+- 2026-05-29: **M1 complete.** Installed `ai`@6 / `@ai-sdk/anthropic` / `@ai-sdk/react`@3 / `zod`@4 / `react-markdown`. TDD: `lib/ai/provider.ts` (`parseAiEnv` zod + lazy `getModel`, 3 tests) and `app/api/chat/route.ts` (`streamText` + `convertToModelMessages` → `toUIMessageStreamResponse`, mocked test). `lib/ai/system-prompt.ts` hardcoded persona (M2 replaces). Client `components/chat/chat.tsx` (`useChat` v6 — local input state + `sendMessage({text})`, `message.parts`, markdown, auto-scroll). 7 tests green, `pnpm verify` green. **Base-URL fix:** AI SDK appends `/messages` not `/v1/messages` → added `/v1` to `ANTHROPIC_BASE_URL` (gateway 404'd without it). **Dev-origin fix:** added `allowedDevOrigins:['host.docker.internal']` to `next.config.ts` so the Dockerized Playwright browser can hydrate. Verified streamed reply in-browser. **Next: M2.**
