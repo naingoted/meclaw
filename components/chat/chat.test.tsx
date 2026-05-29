@@ -5,7 +5,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 let mockState: {
   messages: unknown[];
   sendMessage: ReturnType<typeof vi.fn>;
-  status: "ready";
+  status: "ready" | "submitted" | "streaming" | "error";
 } = {
   messages: [],
   sendMessage: vi.fn(),
@@ -105,5 +105,15 @@ describe("Chat component — M4 behavioral tests", () => {
     // Assert messages are still rendered
     expect(screen.getByText("Hello there")).toBeInTheDocument();
     expect(screen.getByText("Hi! How can I help?")).toBeInTheDocument();
+  });
+
+  it("disables Send button when streaming", () => {
+    mockState.status = "streaming";
+
+    render(<Chat />);
+
+    // Assert Send button is disabled during streaming
+    const sendButton = screen.getByRole("button", { name: "Send" });
+    expect(sendButton).toBeDisabled();
   });
 });
