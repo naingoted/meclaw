@@ -1,4 +1,4 @@
-import { streamText, type UIMessage, type ModelMessage, stepCountIs } from "ai";
+import { streamText, convertToModelMessages, type UIMessage, stepCountIs } from "ai";
 import { getModel } from "@/lib/ai/provider";
 import { buildSystemPrompt } from "@/lib/ai/persona";
 import { loadKnowledge } from "@/lib/content";
@@ -31,13 +31,14 @@ export async function POST(req: Request) {
   }
 
   const messages: UIMessage[] = (body?.messages as UIMessage[]) || [];
+  const modelMessages = await convertToModelMessages(messages, { tools });
 
   const result = streamText({
     model: getModel(),
     system: systemPrompt(),
-    messages: messages as unknown as ModelMessage[],
+    messages: modelMessages,
     tools,
-    stopWhen: stepCountIs(2),
+    stopWhen: stepCountIs(5),
     onFinish: async (event) => {
       // Best-effort persistence: save the conversation and messages on stream finish.
       // Do not let DB errors break the stream — just log them.

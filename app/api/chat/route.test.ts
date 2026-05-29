@@ -1,12 +1,45 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
+import { streamText, convertToModelMessages } from "ai";
+
+// Mock the ai module
+vi.mock("ai", async () => {
+  const actual = await vi.importActual("ai");
+  return {
+    ...actual,
+    streamText: vi.fn(),
+    convertToModelMessages: vi.fn(),
+  };
+});
+
+// Mock other dependencies
+vi.mock("@/lib/ai/provider", () => ({
+  getModel: vi.fn(() => ({ name: "mock-model" })),
+}));
+
+vi.mock("@/lib/content", () => ({
+  loadKnowledge: vi.fn(() => []),
+}));
+
+vi.mock("@/lib/ai/persona", () => ({
+  buildSystemPrompt: vi.fn(() => "mock system prompt"),
+}));
+
+vi.mock("@/lib/db", () => ({
+  initDb: vi.fn(async () => ({})),
+  saveTurn: vi.fn(async () => {}),
+}));
 
 /**
  * Tests for the chat route handler.
  * The actual integration is tested via the browser (Playwright MCP).
- * Unit tests verify that tools are configured correctly.
+ * Unit tests verify that tools are wired correctly and messages are converted.
  */
 
 describe("POST /api/chat", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("route exports POST handler", async () => {
     // Import the actual route to verify it exports POST
     const routeModule = await import("./route");
@@ -30,5 +63,64 @@ describe("POST /api/chat", () => {
       "showResume",
       "howThisWorks",
     ]);
+  });
+
+  it("converts UIMessages to ModelMessages and passes tools to streamText", async () => {
+    // Setup mocks
+    const mockConvertToModelMessages = convertToModelMessages as ReturnType<
+      typeof vi.fn
+    >;
+    const mockStreamText = streamText as ReturnType<typeof vi.fn>;
+    const mockConvertedMessages = [
+      { role: "user", content: "Hello" },
+    ] as never;
+
+    mockConvertToModelMessages.mockResolvedValue(mockConvertedMessages);
+    mockStreamText.mockReturnValue({
+      toUIMessageStreamResponse: vi.fn(() => new Response("stream")),
+    });
+
+    // Import and call the route
+    const { POST } = await import("./route");
+    const uiMessages = [
+      {
+        id: "1",
+        role: "user" as const,
+        content: "How do I get in touch?",
+      },
+    ];
+
+    const request = new Request("http://localhost/api/chat", {
+      method: "POST",
+      body: JSON.stringify({ messages: uiMessages }),
+    });
+
+    const response = await POST(request);
+
+    // Assertions
+    expect(mockConvertToModelMessages).toHaveBeenCalledWith(uiMessages, {
+      tools: expect.any(Object),
+    });
+
+    // Verify tools object contains all 4 tools
+    const callArgs = mockConvertToModelMessages.mock.calls[0];
+    const toolsArg = callArgs[1].tools;
+    expect(Object.keys(toolsArg)).toEqual([
+      "getContactInfo",
+      "scheduleCall",
+      "showResume",
+      "howThisWorks",
+    ]);
+
+    // Verify streamText was called with converted messages
+    expect(mockStreamText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messages: mockConvertedMessages,
+        tools: expect.any(Object),
+        stopWhen: expect.any(Function), // stepCountIs(5)
+      })
+    );
+
+    expect(response.status).toBe(200);
   });
 });
