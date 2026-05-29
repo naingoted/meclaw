@@ -21,6 +21,11 @@ export const maxDuration = 30;
  * Extract the client's IP address from the request headers.
  * Prefers X-Forwarded-For (first value) for proxied requests,
  * falls back to x-real-ip, then socket address.
+ *
+ * ⚠️ SECURITY NOTE: X-Forwarded-For is attacker-controllable in v1 (no proxy validation).
+ * The per-IP rate limit is best-effort for v1 only.
+ * Production: Only trust X-Forwarded-For from a known, validated reverse proxy.
+ * Consider validating the Forwarded header (RFC 7239) or configuring trusted proxies.
  */
 function getClientIp(req: Request): string {
   const forwarded = req.headers.get("x-forwarded-for");

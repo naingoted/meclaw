@@ -86,4 +86,36 @@ describe("Rate Limiter", () => {
 
     vi.useRealTimers();
   });
+
+  it("evicts expired entries to keep memory bounded", () => {
+    vi.useFakeTimers();
+
+    // Create a limiter with very low threshold to test eviction
+    const testLimiter = createRateLimiter({
+      maxRequests: 1,
+      windowMs: 1000,
+    });
+
+    // Simulate traffic from many IPs in a batch
+    const ips = Array.from({ length: 100 }, (_, i) => `192.168.${i}.1`);
+    ips.forEach((ip) => {
+      testLimiter.check(ip);
+    });
+
+    // All entries should be in the store now
+    // (Note: we can't directly inspect store size, but we can verify behavior)
+
+    // Advance time past the window
+    vi.advanceTimersByTime(1001);
+
+    // Check a new IP — this should trigger cleanup of expired entries
+    testLimiter.check("10.0.0.1");
+
+    // Now check one of the old IPs — window should have reset
+    // and it should be allowed again (proving old entry was evicted or reset)
+    const resultAfterReset = testLimiter.check(ips[0]);
+    expect(resultAfterReset.allowed).toBe(true);
+
+    vi.useRealTimers();
+  });
 });

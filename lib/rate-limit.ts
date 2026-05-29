@@ -1,12 +1,13 @@
 /**
- * In-memory IP-based rate limiter.
+ * In-memory IP-based rate limiter with bounded memory.
  *
  * ⚠️ NOTE: This implementation is per-process and resets on restart.
  * It is NOT multi-instance safe. For production or multi-process deployments,
  * use Redis or a distributed rate-limit service.
  *
- * The map is intentionally a simple in-memory structure; v1 is single-process
- * local dev + simple deployment. Post-v1: switch to Redis keyed by IP.
+ * Memory bounds: Expired entries are evicted on check (lazy eviction).
+ * Additionally, if store grows past threshold, all expired entries are swept.
+ * v1 is single-process local dev + simple deployment. Post-v1: switch to Redis.
  */
 
 export interface RateLimitResult {
@@ -23,12 +24,15 @@ interface RateLimitEntry {
   windowStart: number;
 }
 
+// Threshold for triggering a memory sweep (delete expired entries)
+const MEMORY_SWEEP_THRESHOLD = 10000; // ~10k IPs
+
 /**
- * Creates an in-memory rate limiter.
+ * Creates an in-memory rate limiter with memory bounds.
  *
  * @param maxRequests Max requests allowed per IP in the window
  * @param windowMs Window duration in milliseconds
- * @returns A rate limiter that tracks requests per IP
+ * @returns A rate limiter that tracks requests per IP with bounded memory
  */
 export function createRateLimiter({
   maxRequests,
@@ -39,6 +43,26 @@ export function createRateLimiter({
 }): RateLimiter {
   const store = new Map<string, RateLimitEntry>();
 
+  /**
+   * Opportunistically delete expired entries when the map grows.
+   * Lightweight cleanup: only run when store exceeds threshold.
+   */
+  function cleanupIfNeeded(now: number): void {
+    if (store.size > MEMORY_SWEEP_THRESHOLD) {
+      let deleted = 0;
+      for (const [ip, entry] of store.entries()) {
+        if (now - entry.windowStart >= windowMs) {
+          store.delete(ip);
+          deleted += 1;
+        }
+      }
+      // Optional: log for observability in prod
+      if (deleted > 0) {
+        // console.debug(`[rate-limit] Cleaned up ${deleted} expired entries`);
+      }
+    }
+  }
+
   return {
     check(ip: string): RateLimitResult {
       const now = Date.now();
@@ -46,6 +70,9 @@ export function createRateLimiter({
 
       // No entry or window has expired — start a new window
       if (!entry || now - entry.windowStart >= windowMs) {
+        // Clean up expired entries opportunistically
+        store.delete(ip);
+        cleanupIfNeeded(now);
         store.set(ip, { count: 1, windowStart: now });
         return { allowed: true };
       }
