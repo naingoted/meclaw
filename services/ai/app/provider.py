@@ -1,9 +1,14 @@
 """Provider seam (mirrors lib/ai/provider.ts). Swapping the chat model = edit
 this file only.
 
-Base-URL note (spec §9): ANTHROPIC_BASE_URL must resolve so the effective
-request path is `.../apps/anthropic/v1/messages`. Verified resolved value: <fill
-in after the local spike>.
+Base-URL note (spec §9, RESOLVED 2026-05-31 live spike): the Python `anthropic`
+SDK (via langchain-anthropic) appends `/v1/messages` to base_url. So
+ANTHROPIC_BASE_URL here must be the gateway ROOT WITHOUT a `/v1` suffix —
+`https://coding-intl.dashscope.aliyuncs.com/apps/anthropic` — yielding the
+effective path `.../apps/anthropic/v1/messages`. NOTE: this differs from the TS
+`@ai-sdk/anthropic` provider, which appends only `/messages` and therefore wants
+the `/v1`-suffixed value. Reusing the TS `/v1` URL here causes `.../v1/v1/messages`
+-> 404.
 """
 
 import os
