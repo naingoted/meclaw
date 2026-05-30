@@ -127,3 +127,23 @@ describe("QdrantClient", () => {
     ]);
   });
 });
+
+describe("QdrantClient.deleteBySource", () => {
+  it("posts a delete request filtered by payload source", async () => {
+    const fetchFn = vi.fn(async () => new Response(JSON.stringify({ result: {}, status: "ok" }), { status: 200 }));
+    const client = new QdrantClient({ url: "http://qdrant.test", collection: "kb", fetchFn });
+
+    await client.deleteBySource("resume.pdf");
+
+    expect(fetchFn).toHaveBeenCalledWith(
+      "http://qdrant.test/collections/kb/points/delete?wait=true",
+      expect.objectContaining({
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          filter: { must: [{ key: "source", match: { value: "resume.pdf" } }] },
+        }),
+      }),
+    );
+  });
+});

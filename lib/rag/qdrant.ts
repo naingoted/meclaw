@@ -125,6 +125,16 @@ export class QdrantClient implements VectorStoreClient {
     });
   }
 
+  async deleteBySource(source: string): Promise<void> {
+    await this.request(`/collections/${this.collection}/points/delete?wait=true`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        filter: { must: [{ key: "source", match: { value: source } }] },
+      }),
+    });
+  }
+
   private async request(path: string, init: RequestInit): Promise<unknown> {
     const response = await this.fetchFn(`${this.url}${path}`, init);
 

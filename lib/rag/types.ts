@@ -30,4 +30,5 @@ export interface VectorStoreClient {
   ensureCollection(): Promise<void>;
   upsert(points: Array<RagChunk & { embedding: number[] }>): Promise<void>;
   search(vector: number[], limit: number): Promise<RagSearchResult[]>;
+  deleteBySource(source: string): Promise<void>;
 }
