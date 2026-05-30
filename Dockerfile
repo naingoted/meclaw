@@ -9,6 +9,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3 make g+
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 
+##### dev: hot-reloading Next dev server (compose `dev:full` only, never deployed) #####
+# Source is bind-mounted at runtime; node_modules/.next stay on container volumes
+# so the host's macOS-built (wrong-arch) deps never shadow the linux build.
+FROM node:20-bookworm-slim AS dev
+WORKDIR /app
+RUN corepack enable && corepack prepare pnpm@9 --activate
+COPY --from=deps /app/node_modules ./node_modules
+ENV NEXT_TELEMETRY_DISABLED=1 \
+    WATCHPACK_POLLING=true \
+    CHOKIDAR_USEPOLLING=true
+EXPOSE 3000
+CMD ["pnpm", "dev"]
+
 ##### builder: compile Next (also published as echo-clone-ingest) #####
 FROM node:20-bookworm-slim AS builder
 WORKDIR /app

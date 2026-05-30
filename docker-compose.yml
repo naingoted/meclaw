@@ -21,6 +21,8 @@ services:
       - "8000:8000"
     environment:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      # Base URL may carry a trailing /v1 (TS-style); the Python provider strips
+      # it (langchain-anthropic appends /v1/messages itself).
       ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL}
       ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-qwen3.6-plus}
       QDRANT_URL: http://qdrant:6333
@@ -33,6 +35,28 @@ services:
       - ollama
     restart: unless-stopped
 
+  # Next app, containerized with hot-reload. `dev:full` runs the whole stack in
+  # Docker, but `web` runs `next dev` with the repo bind-mounted — edit locally,
+  # HMR reflects at localhost:3000 with no rebuild. Talks to the sidecar over the
+  # compose network (http://ai:8000). For a VPS-parity build use docker-compose.prod.yml.
+  web:
+    build:
+      context: .
+      target: dev
+    ports:
+      - "3000:3000"
+    environment:
+      AI_SERVICE_URL: http://ai:8000
+    volumes:
+      - .:/app                 # live source from the host
+      - /app/node_modules      # keep the container's linux-built deps
+      - /app/.next             # keep the container's build cache
+      - sqlite_data:/app/data
+    depends_on:
+      - ai
+    restart: unless-stopped
+
 volumes:
   qdrant_storage:
   ollama_storage:
+  sqlite_data:
