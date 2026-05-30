@@ -1,20 +1,11 @@
 import {
-  streamText,
-  convertToModelMessages,
   type UIMessage,
-  stepCountIs,
   createUIMessageStream,
   createUIMessageStreamResponse,
 } from "ai";
-import { getModel } from "@/lib/ai/provider";
-import { buildSystemPrompt } from "@/lib/ai/persona";
-import { loadKnowledge } from "@/lib/content";
 import { initDb, saveTurn, type PersistentMessage } from "@/lib/db";
-import { tools } from "@/lib/ai/tools";
 import { chatRateLimiter } from "@/lib/rate-limit";
 import { detectInjection } from "@/lib/ai/guardrails";
-import { retrieveKnowledge } from "@/lib/rag/retrieve";
-import type { RagSource } from "@/lib/rag/types";
 
 // Allow streaming responses up to 30 seconds.
 export const maxDuration = 30;
@@ -49,21 +40,89 @@ function getClientIp(req: Request): string {
   }
 }
 
-// Knowledge docs are static per process.
-// Edit `content/*.md` and restart to refresh.
-let cachedKnowledgeDocs: ReturnType<typeof loadKnowledge> | null = null;
-function knowledgeDocs() {
-  return (cachedKnowledgeDocs ??= loadKnowledge());
-}
-
-function shouldIncludeSourceMetadata(): boolean {
-  return process.env.NODE_ENV !== "production" && process.env.RAG_DEV_SOURCES !== "false";
-}
-
 // Initialize the database once per process (lazy — only when handling a request)
 let dbPromise: ReturnType<typeof initDb> | null = null;
 async function getDb(): Promise<Awaited<ReturnType<typeof initDb>>> {
   return (dbPromise ??= initDb());
+}
+
+/**
+ * Tee the upstream SSE stream: pass bytes through unchanged while accumulating
+ * assistant `text-delta` content. On flush, persist best-effort (never throws).
+ */
+function teeForPersistence(
+  upstreamBody: ReadableStream<Uint8Array>,
+  messages: UIMessage[],
+): ReadableStream<Uint8Array> {
+  const decoder = new TextDecoder();
+  let assistantText = "";
+  let buffered = "";
+
+  // Shared logic: parse a single SSE line and accumulate text-delta content
+  const accumulateDelta = (line: string) => {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("data:")) return;
+    const payload = trimmed.slice("data:".length).trim();
+    if (payload === "[DONE]" || payload.length === 0) return;
+    try {
+      const part = JSON.parse(payload) as { type?: string; delta?: string };
+      if (part.type === "text-delta" && typeof part.delta === "string") {
+        assistantText += part.delta;
+      }
+    } catch {
+      // ignore non-JSON keep-alive lines
+    }
+  };
+
+  const transform = new TransformStream<Uint8Array, Uint8Array>({
+    transform(chunk, controller) {
+      controller.enqueue(chunk); // pass through unchanged
+      buffered += decoder.decode(chunk, { stream: true });
+      const lines = buffered.split("\n");
+      buffered = lines.pop() ?? "";
+      for (const line of lines) {
+        accumulateDelta(line);
+      }
+    },
+    async flush() {
+      // Flush any trailing multi-byte UTF-8 sequences from the decoder
+      buffered += decoder.decode();
+      const trimmed = buffered.trim();
+      if (trimmed.startsWith("data:")) {
+        const payload = trimmed.slice("data:".length).trim();
+        if (payload !== "[DONE]" && payload.length > 0) {
+          accumulateDelta(buffered);
+        }
+      }
+
+      try {
+        const userMessages: PersistentMessage[] = messages
+          .filter((m) => m.role === "user")
+          .map((m) => ({ role: "user" as const, content: extractTextContent(m) }));
+        const assistantMessage: PersistentMessage = {
+          role: "assistant",
+          content: assistantText,
+        };
+        await saveTurn(await getDb(), userMessages, assistantMessage);
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        if (
+          errorMsg.includes("better-sqlite3") ||
+          errorMsg.includes("bindings") ||
+          errorMsg.includes("Cannot find module")
+        ) {
+          console.warn(
+            "[db] Native SQLite module not available. Persistence skipped. " +
+              "If this is unexpected, run: pnpm rebuild better-sqlite3",
+          );
+        } else {
+          console.error("[db] Failed to persist conversation:", errorMsg);
+        }
+      }
+    },
+  });
+
+  return upstreamBody.pipeThrough(transform);
 }
 
 export async function POST(req: Request) {
@@ -114,78 +173,40 @@ export async function POST(req: Request) {
     }
   }
 
-  const userText = latestUserMessage ? extractTextContent(latestUserMessage) : "";
-  const retrieval = await retrieveKnowledge(userText);
-  const sources: Array<RagSource & { score?: number }> = shouldIncludeSourceMetadata()
-    ? retrieval.sources
-    : [];
-  const system = buildSystemPrompt(knowledgeDocs(), {
-    mode: retrieval.mode,
-    retrievedChunks: retrieval.chunks,
-  });
+  // Phase 3: convert UIMessage[] to the Python service contract {messages:[{role,content}]}.
+  const proxyMessages = messages.map((m) => ({
+    role: m.role,
+    content: extractTextContent(m),
+  }));
 
-  const modelMessages = await convertToModelMessages(messages, { tools });
+  const aiServiceUrl = process.env.AI_SERVICE_URL || "http://localhost:8000";
 
-  const result = streamText({
-    model: getModel(),
-    system,
-    messages: modelMessages,
-    tools,
-    stopWhen: stepCountIs(5),
-    onFinish: async (event) => {
-      // Best-effort persistence: save the conversation and messages on stream finish.
-      // Do not let DB errors break the stream — just log them.
-      try {
-        // Extract user messages from the request (inbound array includes entire conversation history)
-        // saveTurn will persist only the last user message to avoid duplicate rows on each POST
-        const userMessages: PersistentMessage[] = messages
-          .filter((m) => m.role === "user")
-          .map((m) => ({
-            role: "user" as const,
-            // Extract text from the first text part if available
-            content: extractTextContent(m),
-          }));
+  let upstream: Response;
+  try {
+    upstream = await fetch(`${aiServiceUrl}/chat`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ messages: proxyMessages }),
+      signal: req.signal,
+    });
+  } catch (e) {
+    console.error("[chat] AI service unreachable:", e);
+    return Response.json({ error: "AI service unavailable" }, { status: 502 });
+  }
 
-        // Extract assistant message from the stream result
-        const assistantContent = event.text || "";
+  if (!upstream.ok || !upstream.body) {
+    console.error(`[chat] AI service error: ${upstream.status}`);
+    return Response.json({ error: "AI service error" }, { status: 502 });
+  }
 
-        const assistantMessage: PersistentMessage = {
-          role: "assistant",
-          content: assistantContent,
-          // Note: Tool calls are executed by streamText and their results are incorporated
-          // into the model's final text response (event.text), so we persist only the final text.
-        };
-
-        await saveTurn(await getDb(), userMessages, assistantMessage);
-      } catch (error) {
-        // Persistence is best-effort — don't break the stream
-        // Distinguish native module issues from real errors for better debugging
-        const errorMsg = error instanceof Error ? error.message : String(error);
-        if (
-          errorMsg.includes("better-sqlite3") ||
-          errorMsg.includes("bindings") ||
-          errorMsg.includes("Cannot find module")
-        ) {
-          // Native module not built — expected in dev without build tools
-          console.warn(
-            "[db] Native SQLite module not available. Persistence skipped. " +
-              "If this is unexpected, run: pnpm rebuild better-sqlite3"
-          );
-        } else {
-          // Real error — log for investigation
-          console.error("[db] Failed to persist conversation:", errorMsg);
-        }
-      }
-    },
-  });
-
-  return result.toUIMessageStreamResponse({
-    messageMetadata: ({ part }) => {
-      if (part.type === "start" || part.type === "finish") {
-        return { sources };
-      }
-
-      return undefined;
+  // Pipe the SSE bytes straight back to the browser. Persistence tee added in Task 12.
+  return new Response(teeForPersistence(upstream.body, messages), {
+    status: 200,
+    headers: {
+      "content-type": upstream.headers.get("content-type") ?? "text/event-stream",
+      "x-vercel-ai-ui-message-stream":
+        upstream.headers.get("x-vercel-ai-ui-message-stream") ?? "v1",
+      "cache-control": "no-cache",
     },
   });
 }

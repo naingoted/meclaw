@@ -196,4 +196,70 @@ describe("Chat component — M4 behavioral tests", () => {
     expect(screen.queryByText("Sources used")).not.toBeInTheDocument();
     expect(screen.queryByText("Projects")).not.toBeInTheDocument();
   });
+
+  it("renders the routed intent in the dev panel for assistant messages", () => {
+    mockState.messages = [
+      {
+        id: "a1",
+        role: "assistant" as const,
+        parts: [{ type: "text" as const, text: "Thet uses Python." }],
+        metadata: {
+          sources: [{ source: "about.md", title: "About", score: 0.8 }],
+          route: "tech",
+          intent: "tech",
+        },
+      },
+    ];
+
+    render(<Chat />);
+
+    expect(screen.getByText(/Routed:/i)).toBeInTheDocument();
+    expect(screen.getByText(/Routed:\s*tech/i)).toBeInTheDocument();
+  });
+
+  it("renders Routed badge even when sources are absent", () => {
+    mockState.messages = [
+      {
+        id: "a2",
+        role: "assistant" as const,
+        parts: [{ type: "text" as const, text: "Sure." }],
+        metadata: { route: "general", intent: "general" },
+      },
+    ];
+
+    render(<Chat />);
+
+    expect(screen.getByText(/Routed:\s*general/i)).toBeInTheDocument();
+  });
+
+  it("does not render the Routed badge for user messages", () => {
+    mockState.messages = [
+      {
+        id: "u1",
+        role: "user" as const,
+        parts: [{ type: "text" as const, text: "hi" }],
+        metadata: { route: "tech", intent: "tech" },
+      },
+    ];
+
+    render(<Chat />);
+
+    expect(screen.queryByText(/Routed:/i)).not.toBeInTheDocument();
+  });
+
+  it("does not render the Routed badge in production", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    mockState.messages = [
+      {
+        id: "a3",
+        role: "assistant" as const,
+        parts: [{ type: "text" as const, text: "Sure." }],
+        metadata: { route: "tech", intent: "tech" },
+      },
+    ];
+
+    render(<Chat />);
+
+    expect(screen.queryByText(/Routed:/i)).not.toBeInTheDocument();
+  });
 });
