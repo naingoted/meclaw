@@ -35,7 +35,7 @@ ANTHROPIC_MODEL=qwen3.6-plus
 
 ## Build order (milestones)
 
-Status: **v2 Phase 5 (CI/CD + VPS deploy) — plan ready.** Deploy guide: `deploy.md`. Phase 3 (Python sidecar) must land for full 5-service deploy; `web`-only interim is supported.
+Status: **v2 Phase 5 (CI/CD + VPS deploy) — implemented & locally validated.** All 8 plan tasks done; Task 8 E2E dry-run passed (images build, ingest → qdrant points_count 55). Deploy guide: `deploy.md`. Fixed a prod bug: RAG clients now read `QDRANT_URL`/`OLLAMA_BASE_URL` via `lib/rag/config.ts` (previously hardcoded localhost → would fail in the VPS container). Added `pnpm dev:full`/`pnpm services` for the local data plane. Phase 3 (Python sidecar) must land for full 5-service deploy; `web`-only interim is supported.
 
 - **M0 — Repo + agentic harness** ✅ DONE
   - Scaffold Next.js 15 (App Router, TS, Tailwind, ESLint) into this existing dir (flat).
