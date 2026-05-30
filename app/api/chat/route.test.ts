@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { streamText, convertToModelMessages } from "ai";
+import type { RetrieveKnowledgeResult } from "@/lib/rag/retrieve";
 
 // Mock the ai module
 vi.mock("ai", async () => {
@@ -24,6 +25,38 @@ vi.mock("@/lib/ai/persona", () => ({
   buildSystemPrompt: vi.fn(() => "MOCK_SYSTEM_PROMPT_STRING"),
 }));
 
+type MessageMetadataOptions = {
+  messageMetadata?: (options: { part: { type: string } }) => unknown;
+};
+
+function ragRetrieval(): RetrieveKnowledgeResult {
+  return {
+    mode: "rag" as const,
+    chunks: [
+      {
+        id: "resume.md:0",
+        source: "resume.md",
+        title: "Resume",
+        text: "Senior engineer at incube8.",
+        ordinal: 0,
+        score: 0.92,
+      },
+    ],
+    sources: [
+      {
+        source: "resume.md",
+        title: "Resume",
+        score: 0.92,
+      },
+    ],
+  };
+}
+
+const mockRetrieveKnowledge = vi.fn(async (): Promise<RetrieveKnowledgeResult> => ragRetrieval());
+vi.mock("@/lib/rag/retrieve", () => ({
+  retrieveKnowledge: mockRetrieveKnowledge,
+}));
+
 vi.mock("@/lib/db", () => ({
   initDb: vi.fn(async () => ({})),
   saveTurn: vi.fn(async () => {}),
@@ -43,7 +76,9 @@ vi.mock("@/lib/rate-limit", () => ({
 describe("POST /api/chat — Guard Tests", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.unstubAllEnvs();
     mockRateLimiterCheck.mockReturnValue({ allowed: true });
+    mockRetrieveKnowledge.mockResolvedValue(ragRetrieval());
   });
 
   it("route exports POST handler", async () => {
@@ -93,6 +128,7 @@ describe("POST /api/chat — Guard Tests", () => {
       // Assert: streamText NOT called (guard short-circuits before gateway)
       const mockStreamText = streamText as ReturnType<typeof vi.fn>;
       expect(mockStreamText).not.toHaveBeenCalled();
+      expect(mockRetrieveKnowledge).not.toHaveBeenCalled();
     });
   });
 
@@ -121,6 +157,7 @@ describe("POST /api/chat — Guard Tests", () => {
       // Assert: streamText NOT called (injected request intercepted)
       const mockStreamText = streamText as ReturnType<typeof vi.fn>;
       expect(mockStreamText).not.toHaveBeenCalled();
+      expect(mockRetrieveKnowledge).not.toHaveBeenCalled();
     });
 
     it("does NOT leak system prompt in injection refusal", async () => {
@@ -152,7 +189,7 @@ describe("POST /api/chat — Guard Tests", () => {
   });
 
   describe("Normal Path (not blocked by guards)", () => {
-    it("converts UIMessages to ModelMessages and calls streamText when guards pass", async () => {
+    it("retrieves knowledge from the latest user message before streaming", async () => {
       const mockConvertToModelMessages = convertToModelMessages as ReturnType<
         typeof vi.fn
       >;
@@ -160,14 +197,20 @@ describe("POST /api/chat — Guard Tests", () => {
       const mockConvertedMessages = [
         { role: "user", content: "Hello" },
       ] as never;
+      const mockToUIMessageStreamResponse = vi.fn(() => new Response("stream"));
 
       mockConvertToModelMessages.mockResolvedValue(mockConvertedMessages);
       mockStreamText.mockReturnValue({
-        toUIMessageStreamResponse: vi.fn(() => new Response("stream")),
+        toUIMessageStreamResponse: mockToUIMessageStreamResponse,
       });
 
       const { POST } = await import("./route");
       const uiMessages = [
+        {
+          id: "0",
+          role: "user" as const,
+          content: "Earlier question",
+        },
         {
           id: "1",
           role: "user" as const,
@@ -185,6 +228,8 @@ describe("POST /api/chat — Guard Tests", () => {
       // Assert: rate limiter was consulted
       expect(mockRateLimiterCheck).toHaveBeenCalled();
 
+      expect(mockRetrieveKnowledge).toHaveBeenCalledWith("What's your tech stack?");
+
       // Assert: convertToModelMessages called (injection guard passed)
       expect(mockConvertToModelMessages).toHaveBeenCalledWith(uiMessages, {
         tools: expect.any(Object),
@@ -194,12 +239,133 @@ describe("POST /api/chat — Guard Tests", () => {
       expect(mockStreamText).toHaveBeenCalledWith(
         expect.objectContaining({
           messages: mockConvertedMessages,
+          system: "MOCK_SYSTEM_PROMPT_STRING",
           tools: expect.any(Object),
           stopWhen: expect.any(Function),
         })
       );
 
+      expect(mockToUIMessageStreamResponse).toHaveBeenCalledWith(
+        expect.objectContaining({
+          messageMetadata: expect.any(Function),
+        })
+      );
+
+      const responseOptions = (mockToUIMessageStreamResponse.mock.calls as unknown as Array<
+        [MessageMetadataOptions]
+      >)[0]?.[0];
+      expect(responseOptions?.messageMetadata).toEqual(expect.any(Function));
+      if (!responseOptions?.messageMetadata) {
+        throw new Error("Expected messageMetadata callback");
+      }
+      const messageMetadata = responseOptions.messageMetadata;
+
+      expect(messageMetadata({ part: { type: "start" } })).toEqual({
+        sources: [
+          {
+            source: "resume.md",
+            title: "Resume",
+            score: 0.92,
+          },
+        ],
+      });
+      expect(messageMetadata({ part: { type: "finish" } })).toEqual({
+        sources: [
+          {
+            source: "resume.md",
+            title: "Resume",
+            score: 0.92,
+          },
+        ],
+      });
+
       expect(response.status).toBe(200);
+    });
+
+    it("falls back to full-corpus prompt metadata when retrieval fails", async () => {
+      const mockConvertToModelMessages = convertToModelMessages as ReturnType<
+        typeof vi.fn
+      >;
+      const mockStreamText = streamText as ReturnType<typeof vi.fn>;
+      const mockToUIMessageStreamResponse = vi.fn(() => new Response("stream"));
+
+      mockRetrieveKnowledge.mockResolvedValue({
+        mode: "fallback",
+        chunks: [],
+        sources: [],
+      } satisfies RetrieveKnowledgeResult);
+      mockConvertToModelMessages.mockResolvedValue([
+        { role: "user", content: "Hello" },
+      ] as never);
+      mockStreamText.mockReturnValue({
+        toUIMessageStreamResponse: mockToUIMessageStreamResponse,
+      });
+
+      const { POST } = await import("./route");
+      const request = new Request("http://localhost/api/chat", {
+        method: "POST",
+        body: JSON.stringify({
+          messages: [{ id: "1", role: "user" as const, content: "Hello" }],
+        }),
+      });
+
+      await POST(request);
+
+      expect(mockStreamText).toHaveBeenCalledWith(
+        expect.objectContaining({
+          system: "MOCK_SYSTEM_PROMPT_STRING",
+        })
+      );
+
+      const responseOptions = (mockToUIMessageStreamResponse.mock.calls as unknown as Array<
+        [MessageMetadataOptions]
+      >)[0]?.[0];
+      expect(responseOptions?.messageMetadata).toEqual(expect.any(Function));
+      if (!responseOptions?.messageMetadata) {
+        throw new Error("Expected messageMetadata callback");
+      }
+      const messageMetadata = responseOptions.messageMetadata;
+      expect(messageMetadata({ part: { type: "start" } })).toEqual({
+        sources: [],
+      });
+    });
+
+    it("omits source metadata when the dev source panel toggle is disabled", async () => {
+      vi.stubEnv("RAG_DEV_SOURCES", "false");
+      const mockConvertToModelMessages = convertToModelMessages as ReturnType<
+        typeof vi.fn
+      >;
+      const mockStreamText = streamText as ReturnType<typeof vi.fn>;
+      const mockToUIMessageStreamResponse = vi.fn(() => new Response("stream"));
+
+      mockConvertToModelMessages.mockResolvedValue([
+        { role: "user", content: "Hello" },
+      ] as never);
+      mockStreamText.mockReturnValue({
+        toUIMessageStreamResponse: mockToUIMessageStreamResponse,
+      });
+
+      const { POST } = await import("./route");
+      const request = new Request("http://localhost/api/chat", {
+        method: "POST",
+        body: JSON.stringify({
+          messages: [{ id: "1", role: "user" as const, content: "Hello" }],
+        }),
+      });
+
+      await POST(request);
+
+      const responseOptions = (mockToUIMessageStreamResponse.mock.calls as unknown as Array<
+        [MessageMetadataOptions]
+      >)[0]?.[0];
+      expect(responseOptions?.messageMetadata).toEqual(expect.any(Function));
+      if (!responseOptions?.messageMetadata) {
+        throw new Error("Expected messageMetadata callback");
+      }
+
+      expect(responseOptions.messageMetadata({ part: { type: "start" } })).toEqual({
+        sources: [],
+      });
     });
   });
 });

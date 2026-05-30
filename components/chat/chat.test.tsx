@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 
 // Configurable mock state for useChat
@@ -21,12 +21,17 @@ import { Chat } from "@/components/chat/chat";
 describe("Chat component — M4 behavioral tests", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.unstubAllEnvs();
     // Reset mock state for each test
     mockState = {
       messages: [],
       sendMessage: vi.fn(),
       status: "ready",
     };
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it("renders greeting and all 3 suggestion chips when messages are empty", () => {
@@ -115,5 +120,80 @@ describe("Chat component — M4 behavioral tests", () => {
     // Assert Send button is disabled during streaming
     const sendButton = screen.getByRole("button", { name: "Send" });
     expect(sendButton).toBeDisabled();
+  });
+
+  it("renders assistant sources in dev mode when metadata includes sources", () => {
+    mockState.messages = [
+      {
+        id: "2",
+        role: "assistant" as const,
+        parts: [{ type: "text" as const, text: "Here is a sourced answer." }],
+        metadata: {
+          sources: [
+            {
+              title: "Projects",
+              slug: "content/projects.md",
+              score: 0.8742,
+            },
+          ],
+        },
+      },
+    ];
+
+    render(<Chat />);
+
+    expect(screen.getByText("Sources used")).toBeInTheDocument();
+    expect(screen.getByText("Projects")).toBeInTheDocument();
+    expect(screen.getByText("content/projects.md")).toBeInTheDocument();
+    expect(screen.getByText("Score 0.87")).toBeInTheDocument();
+  });
+
+  it("does not render sources for user messages", () => {
+    mockState.messages = [
+      {
+        id: "1",
+        role: "user" as const,
+        parts: [{ type: "text" as const, text: "Hello there" }],
+        metadata: {
+          sources: [
+            {
+              title: "Projects",
+              path: "content/projects.md",
+              score: 0.8742,
+            },
+          ],
+        },
+      },
+    ];
+
+    render(<Chat />);
+
+    expect(screen.queryByText("Sources used")).not.toBeInTheDocument();
+    expect(screen.queryByText("Projects")).not.toBeInTheDocument();
+  });
+
+  it("does not render sources in production", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    mockState.messages = [
+      {
+        id: "2",
+        role: "assistant" as const,
+        parts: [{ type: "text" as const, text: "Here is a sourced answer." }],
+        metadata: {
+          sources: [
+            {
+              title: "Projects",
+              source: "content/projects.md",
+              score: 0.8742,
+            },
+          ],
+        },
+      },
+    ];
+
+    render(<Chat />);
+
+    expect(screen.queryByText("Sources used")).not.toBeInTheDocument();
+    expect(screen.queryByText("Projects")).not.toBeInTheDocument();
   });
 });

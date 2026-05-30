@@ -73,7 +73,7 @@ describe("Agent tools", () => {
 
       const result = scheduleCall.execute({});
       expect(result).toHaveProperty("url");
-      expect(result.url).toBe("https://cal.com/your-handle");
+      expect(result.url).toBe("https://cal.com/tet-nai");
 
       // Restore
       process.env.NEXT_PUBLIC_CAL_URL = originalEnv;

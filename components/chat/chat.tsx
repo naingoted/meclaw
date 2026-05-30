@@ -13,6 +13,112 @@ const SUGGESTION_CHIPS = [
   "How do I get in touch?",
 ];
 
+type SourceMetadata = {
+  title?: unknown;
+  slug?: unknown;
+  path?: unknown;
+  source?: unknown;
+  score?: unknown;
+};
+
+type ChatMessageLike = {
+  role?: string;
+  metadata?: unknown;
+};
+
+type RenderedSource = {
+  title: string;
+  location: string;
+  score?: string;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function readString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function readScore(value: unknown): string | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value.toFixed(2);
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed.toFixed(2);
+    }
+  }
+
+  return undefined;
+}
+
+function extractSources(message: ChatMessageLike): RenderedSource[] {
+  if (process.env.NODE_ENV === "production" || message.role !== "assistant") {
+    return [];
+  }
+
+  const metadata = isRecord(message.metadata) ? message.metadata : null;
+  const rawSources = metadata ? metadata.sources : undefined;
+
+  if (!Array.isArray(rawSources)) {
+    return [];
+  }
+
+  return rawSources.flatMap((source): RenderedSource[] => {
+    if (!isRecord(source)) {
+      return [];
+    }
+
+    const typedSource = source as SourceMetadata;
+    const title =
+      readString(typedSource.title) ??
+      readString(typedSource.source) ??
+      readString(typedSource.path) ??
+      readString(typedSource.slug);
+    const location =
+      readString(typedSource.path) ?? readString(typedSource.slug) ?? readString(typedSource.source);
+    const score = readScore(typedSource.score);
+
+    if (!title && !location) {
+      return [];
+    }
+
+    return [
+      {
+        title: title ?? location ?? "Source",
+        location: location ?? "Unknown source",
+        ...(score ? { score } : {}),
+      },
+    ];
+  });
+}
+
+function SourcesPanel({ sources }: { sources: RenderedSource[] }) {
+  return (
+    <div className="w-full max-w-[85%] rounded-xl border border-border bg-background px-3 py-2 text-xs text-muted-foreground">
+      <p className="font-medium text-foreground">Sources used</p>
+      <ul className="mt-2 space-y-2">
+        {sources.map((source, index) => (
+          <li key={`${source.location}-${index}`} className="space-y-0.5">
+            <p className="font-medium text-foreground">{source.title}</p>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] leading-4">
+              <span className="break-words">{source.location}</span>
+              {source.score && (
+                <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] font-medium text-foreground">
+                  Score {source.score}
+                </span>
+              )}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export function Chat() {
   const { messages, sendMessage, status } = useChat();
   const [input, setInput] = useState("");
@@ -72,40 +178,60 @@ export function Chat() {
             </div>
           </div>
         )}
-        {messages.map((message) => (
-          <div
-            key={message.id}
-            className={cn(
-              "flex",
-              message.role === "user" ? "justify-end" : "justify-start",
-            )}
-          >
-            {message.role === "assistant" && (
-              <div className="mr-3 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted">
-                <Bot className="h-5 w-5 text-foreground" />
-              </div>
-            )}
+        {messages.map((message) => {
+          const sources = extractSources(message);
+
+          return (
             <div
+              key={message.id}
               className={cn(
-                "max-w-[85%] rounded-2xl px-4 py-2 text-sm",
-                message.role === "user"
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-foreground",
+                "flex",
+                message.role === "user" ? "justify-end" : "justify-start",
               )}
             >
-              {message.parts.map((part, i) =>
-                part.type === "text" ? (
-                  <div
-                    key={`${message.id}-${i}`}
-                    className="prose prose-sm max-w-none dark:prose-invert"
-                  >
-                    <ReactMarkdown>{part.text}</ReactMarkdown>
+              {message.role === "assistant" ? (
+                <>
+                  <div className="mr-3 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted">
+                    <Bot className="h-5 w-5 text-foreground" />
                   </div>
-                ) : null,
+                  <div className="min-w-0 space-y-2">
+                    <div className="max-w-[85%] rounded-2xl bg-muted px-4 py-2 text-sm text-foreground">
+                      {message.parts.map((part, i) =>
+                        part.type === "text" ? (
+                          <div
+                            key={`${message.id}-${i}`}
+                            className="prose prose-sm max-w-none dark:prose-invert"
+                          >
+                            <ReactMarkdown>{part.text}</ReactMarkdown>
+                          </div>
+                        ) : null,
+                      )}
+                    </div>
+                    {sources.length > 0 ? <SourcesPanel sources={sources} /> : null}
+                  </div>
+                </>
+              ) : (
+                <div
+                  className={cn(
+                    "max-w-[85%] rounded-2xl px-4 py-2 text-sm",
+                    "bg-primary text-primary-foreground",
+                  )}
+                >
+                  {message.parts.map((part, i) =>
+                    part.type === "text" ? (
+                      <div
+                        key={`${message.id}-${i}`}
+                        className="prose prose-sm max-w-none dark:prose-invert"
+                      >
+                        <ReactMarkdown>{part.text}</ReactMarkdown>
+                      </div>
+                    ) : null,
+                  )}
+                </div>
               )}
             </div>
-          </div>
-        ))}
+          );
+        })}
         <div ref={endRef} />
       </div>
 

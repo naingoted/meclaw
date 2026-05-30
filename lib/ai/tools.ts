@@ -38,7 +38,7 @@ export const scheduleCall = tool({
     "Get the Cal.com booking link so the visitor can schedule a call with the owner.",
   inputSchema: z.object({}),
   execute: () => {
-    const calUrl = process.env.NEXT_PUBLIC_CAL_URL || "https://cal.com/your-handle";
+    const calUrl = process.env.NEXT_PUBLIC_CAL_URL || "https://cal.com/tet-nai";
     return {
       url: calUrl,
     };

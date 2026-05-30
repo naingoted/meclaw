@@ -13,6 +13,8 @@ import { initDb, saveTurn, type PersistentMessage } from "@/lib/db";
 import { tools } from "@/lib/ai/tools";
 import { chatRateLimiter } from "@/lib/rate-limit";
 import { detectInjection } from "@/lib/ai/guardrails";
+import { retrieveKnowledge } from "@/lib/rag/retrieve";
+import type { RagSource } from "@/lib/rag/types";
 
 // Allow streaming responses up to 30 seconds.
 export const maxDuration = 30;
@@ -47,11 +49,15 @@ function getClientIp(req: Request): string {
   }
 }
 
-// Knowledge is static per process — build the prompt once, reuse across requests.
+// Knowledge docs are static per process.
 // Edit `content/*.md` and restart to refresh.
-let cachedSystemPrompt: string | null = null;
-function systemPrompt(): string {
-  return (cachedSystemPrompt ??= buildSystemPrompt(loadKnowledge()));
+let cachedKnowledgeDocs: ReturnType<typeof loadKnowledge> | null = null;
+function knowledgeDocs() {
+  return (cachedKnowledgeDocs ??= loadKnowledge());
+}
+
+function shouldIncludeSourceMetadata(): boolean {
+  return process.env.NODE_ENV !== "production" && process.env.RAG_DEV_SOURCES !== "false";
 }
 
 // Initialize the database once per process (lazy — only when handling a request)
@@ -108,11 +114,21 @@ export async function POST(req: Request) {
     }
   }
 
+  const userText = latestUserMessage ? extractTextContent(latestUserMessage) : "";
+  const retrieval = await retrieveKnowledge(userText);
+  const sources: Array<RagSource & { score?: number }> = shouldIncludeSourceMetadata()
+    ? retrieval.sources
+    : [];
+  const system = buildSystemPrompt(knowledgeDocs(), {
+    mode: retrieval.mode,
+    retrievedChunks: retrieval.chunks,
+  });
+
   const modelMessages = await convertToModelMessages(messages, { tools });
 
   const result = streamText({
     model: getModel(),
-    system: systemPrompt(),
+    system,
     messages: modelMessages,
     tools,
     stopWhen: stepCountIs(5),
@@ -163,7 +179,15 @@ export async function POST(req: Request) {
     },
   });
 
-  return result.toUIMessageStreamResponse();
+  return result.toUIMessageStreamResponse({
+    messageMetadata: ({ part }) => {
+      if (part.type === "start" || part.type === "finish") {
+        return { sources };
+      }
+
+      return undefined;
+    },
+  });
 }
 
 /**

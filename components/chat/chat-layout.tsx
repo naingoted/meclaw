@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Download, Calendar, ExternalLink } from "lucide-react";
 
-const calUrl = process.env.NEXT_PUBLIC_CAL_URL || "https://cal.com/your-handle";
+const calUrl = process.env.NEXT_PUBLIC_CAL_URL || "https://cal.com/tet-nai";
 const githubUrl = process.env.NEXT_PUBLIC_GITHUB_URL || "https://github.com/your-username";
 
 export function ChatLayout({ children }: { children: React.ReactNode }) {
