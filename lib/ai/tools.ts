@@ -73,10 +73,12 @@ export const howThisWorks = tool({
   execute: () => {
     return `echo is a personal AI twin built with Next.js 16 and the Vercel AI SDK v6 (streaming).
 The LLM is qwen3.6-plus, accessed via an Anthropic-compatible gateway.
-Knowledge about Thet comes from markdown files in the content/ directory—no embeddings,
-just context-stuffing into the system prompt. Conversations are persisted to a local SQLite database
-(better-sqlite3) for future reference. The goal is to create a personalized, always-available
-chatbot that answers about the owner in a warm, third-person voice.`;
+Knowledge about Thet comes from markdown files in the content/ directory. These are chunked and
+embedded (nomic-embed-text via Ollama) into a Qdrant vector database; each question is embedded and
+the most relevant chunks are retrieved and added to the system prompt (retrieval-augmented generation).
+If retrieval is unavailable, it falls back to stuffing the full corpus into the prompt. Conversations
+are persisted to a local SQLite database (better-sqlite3) for future reference. The goal is to create
+a personalized, always-available chatbot that answers about the owner in a warm, third-person voice.`;
   },
 });
 
