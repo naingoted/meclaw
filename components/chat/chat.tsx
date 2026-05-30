@@ -104,6 +104,48 @@ function extractRoute(message: ChatMessageLike): string | undefined {
   return metadata ? readString(metadata.route) ?? readString(metadata.intent) : undefined;
 }
 
+type MessageWithParts = {
+  role?: string;
+  parts?: Array<{ type?: string; text?: string }>;
+};
+
+/**
+ * Whether to show the "thinking" indicator: true from the moment a question is
+ * sent until the first assistant token arrives. Once the assistant message has
+ * text, the streamed answer replaces the indicator.
+ */
+export function shouldShowThinking(
+  status: string,
+  messages: MessageWithParts[],
+): boolean {
+  if (status === "submitted") return true;
+  if (status !== "streaming") return false;
+  const last = messages[messages.length - 1];
+  const hasAssistantText =
+    last?.role === "assistant" &&
+    Array.isArray(last.parts) &&
+    last.parts.some((p) => p.type === "text" && (p.text?.length ?? 0) > 0);
+  return !hasAssistantText;
+}
+
+function ThinkingIndicator({ label }: { label: string }) {
+  return (
+    <div className="flex items-start gap-3">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted">
+        <Bot className="h-5 w-5 text-foreground" />
+      </div>
+      <div className="flex items-center gap-2 rounded-2xl bg-muted px-4 py-2 text-sm text-muted-foreground">
+        <span className="flex gap-1" aria-hidden="true">
+          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.3s]" />
+          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.15s]" />
+          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current" />
+        </span>
+        <span>{label}</span>
+      </div>
+    </div>
+  );
+}
+
 function SourcesPanel({ sources, route }: { sources: RenderedSource[]; route?: string }) {
   return (
     <div className="w-full max-w-[85%] rounded-xl border border-border bg-background px-3 py-2 text-xs text-muted-foreground">
@@ -135,7 +177,18 @@ function SourcesPanel({ sources, route }: { sources: RenderedSource[]; route?: s
 }
 
 export function Chat() {
-  const { messages, sendMessage, status } = useChat();
+  // `statusLabel` reflects the backend's transient `data-status` parts
+  // ("Routing…", "Searching knowledge base…", "Writing the answer…") so the
+  // visitor sees what the model is doing during the pre-token gap.
+  const [statusLabel, setStatusLabel] = useState<string | null>(null);
+  const { messages, sendMessage, status } = useChat({
+    onData: (part) => {
+      if (part.type === "data-status" && isRecord(part.data)) {
+        const label = readString(part.data.label);
+        if (label) setStatusLabel(label);
+      }
+    },
+  });
   const [input, setInput] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -145,16 +198,19 @@ export function Chat() {
   }, [messages]);
 
   const isStreaming = status === "submitted" || status === "streaming";
+  const showThinking = shouldShowThinking(status, messages as MessageWithParts[]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const text = input.trim();
     if (!text || isStreaming) return;
+    setStatusLabel(null); // reset stale status from a prior turn
     sendMessage({ text });
     setInput("");
   }
 
   function handleChipClick(chipText: string) {
+    setStatusLabel(null);
     sendMessage({ text: chipText });
   }
 
@@ -248,6 +304,7 @@ export function Chat() {
             </div>
           );
         })}
+        {showThinking && <ThinkingIndicator label={statusLabel ?? "Thinking…"} />}
         <div ref={endRef} />
       </div>
 

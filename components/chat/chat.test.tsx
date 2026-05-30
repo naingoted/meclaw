@@ -16,7 +16,34 @@ vi.mock("@ai-sdk/react", () => ({
   useChat: () => mockState,
 }));
 
-import { Chat } from "@/components/chat/chat";
+import { Chat, shouldShowThinking } from "@/components/chat/chat";
+
+describe("shouldShowThinking", () => {
+  const userMsg = { role: "user", parts: [{ type: "text", text: "hi" }] };
+  const assistantWithText = {
+    role: "assistant",
+    parts: [{ type: "text", text: "Thet uses Python." }],
+  };
+  const assistantEmpty = { role: "assistant", parts: [] };
+
+  it("shows while waiting for the first token (submitted)", () => {
+    expect(shouldShowThinking("submitted", [userMsg])).toBe(true);
+  });
+
+  it("shows while streaming if no assistant text has arrived yet", () => {
+    expect(shouldShowThinking("streaming", [userMsg])).toBe(true);
+    expect(shouldShowThinking("streaming", [userMsg, assistantEmpty])).toBe(true);
+  });
+
+  it("hides once assistant text is streaming in", () => {
+    expect(shouldShowThinking("streaming", [userMsg, assistantWithText])).toBe(false);
+  });
+
+  it("hides when idle or errored", () => {
+    expect(shouldShowThinking("ready", [userMsg, assistantWithText])).toBe(false);
+    expect(shouldShowThinking("error", [userMsg])).toBe(false);
+  });
+});
 
 describe("Chat component — M4 behavioral tests", () => {
   beforeEach(() => {
@@ -120,6 +147,29 @@ describe("Chat component — M4 behavioral tests", () => {
     // Assert Send button is disabled during streaming
     const sendButton = screen.getByRole("button", { name: "Send" });
     expect(sendButton).toBeDisabled();
+  });
+
+  it("shows a thinking indicator while waiting for the first token", () => {
+    mockState.status = "submitted";
+    mockState.messages = [
+      { id: "1", role: "user" as const, parts: [{ type: "text" as const, text: "stack?" }] },
+    ];
+
+    render(<Chat />);
+
+    expect(screen.getByText(/Thinking…/i)).toBeInTheDocument();
+  });
+
+  it("does not show a thinking indicator once idle", () => {
+    mockState.status = "ready";
+    mockState.messages = [
+      { id: "1", role: "user" as const, parts: [{ type: "text" as const, text: "stack?" }] },
+      { id: "2", role: "assistant" as const, parts: [{ type: "text" as const, text: "Python." }] },
+    ];
+
+    render(<Chat />);
+
+    expect(screen.queryByText(/Thinking…/i)).not.toBeInTheDocument();
   });
 
   it("renders assistant sources in dev mode when metadata includes sources", () => {
