@@ -1,24 +1,26 @@
-"""Production graph wiring: bind the abstract graph to the real provider seam,
-retriever, and tools. Imported lazily so tests can stub get_graph."""
+"""Production wiring: bind the streaming runner to the real provider seam,
+retriever, and tools. Imported lazily so tests can stub get_runner."""
 
-from functools import lru_cache
+from functools import lru_cache, partial
 
-from app.graph.build import GraphDeps, build_graph
-from app.graph.nodes import default_draft_fn, default_triage_fn
+from app.graph.nodes import default_draft_stream_fn, default_triage_fn
 from app.provider import get_chat_model
 from app.retriever import Retriever
+from app.streaming import run_stream
 from app.tools import get_contact_info, schedule_call
 
 
 @lru_cache(maxsize=1)
-def build_production_graph():
-    chat_model = get_chat_model(streaming=False)
+def build_production_runner():
+    # Triage classifies in one shot (non-streaming); the draft streams tokens.
+    triage_model = get_chat_model(streaming=False)
+    draft_model = get_chat_model(streaming=True)
     retriever = Retriever()
-    deps = GraphDeps(
-        triage_fn=default_triage_fn(chat_model),
+    return partial(
+        run_stream,
+        triage_fn=default_triage_fn(triage_model),
         retriever_retrieve=retriever.retrieve,
-        draft_fn=default_draft_fn(chat_model),
+        draft_stream_fn=default_draft_stream_fn(draft_model),
         schedule_fn=schedule_call,
         contact_fn=get_contact_info,
     )
-    return build_graph(deps)

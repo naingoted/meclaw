@@ -39,6 +39,19 @@ def sse_message_metadata(metadata: dict) -> str:
     return _frame({"type": "message-metadata", "messageMetadata": metadata})
 
 
+def sse_data_status(label: str, stage: str) -> str:
+    """A transient `data-status` part: surfaced to the client's onData callback
+    (drives the live "what the model is doing" indicator) but NOT persisted into
+    the assistant message's parts."""
+    return _frame(
+        {
+            "type": "data-status",
+            "data": {"label": label, "stage": stage},
+            "transient": True,
+        }
+    )
+
+
 def sse_finish(message_metadata: dict | None = None) -> str:
     part: dict = {"type": "finish"}
     if message_metadata is not None:

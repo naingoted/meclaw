@@ -155,6 +155,25 @@ def default_draft_fn(chat_model) -> DraftFn:
     return _run
 
 
+def default_draft_stream_fn(chat_model):
+    """Build a (system, messages, context) -> Iterator[str] streaming drafter.
+
+    Yields text deltas as the model produces them. Thinking-mode models emit
+    block-list chunks; `_extract_text` drops thinking and keeps only text, so
+    reasoning never leaks into the user-visible stream."""
+
+    def _run(system: str, messages: list[dict], context: str):
+        system_with_context = f"{system}\n\nContext:\n{context}" if context else system
+        for chunk in chat_model.stream(
+            [{"role": "system", "content": system_with_context}] + messages
+        ):
+            text = _extract_text(chunk.content)
+            if text:
+                yield text
+
+    return _run
+
+
 # --- Persona system prompts -------------------------------------------------
 
 PERSONAS = {
