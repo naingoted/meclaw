@@ -14,7 +14,7 @@ from langchain_anthropic import ChatAnthropic
 from app.config import ANTHROPIC_MODEL_DEFAULT
 
 
-@lru_cache(maxsize=1)
+@lru_cache(maxsize=2)
 def get_chat_model(streaming: bool = False) -> ChatAnthropic:
     api_key = os.environ["ANTHROPIC_API_KEY"]
     model = os.getenv("ANTHROPIC_MODEL", ANTHROPIC_MODEL_DEFAULT)
