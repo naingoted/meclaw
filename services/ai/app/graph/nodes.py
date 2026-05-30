@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from dataclasses import dataclass
 from typing import Callable
 
@@ -16,6 +17,23 @@ from app.graph.state import GraphState
 from app.retriever import RetrievalResult
 
 logger = logging.getLogger(__name__)
+
+
+def _extract_text(content) -> str:
+    """Flatten a model response's content to plain text. Thinking-mode models
+    return a list of blocks; keep only text blocks (drop thinking)."""
+    if isinstance(content, str):
+        return content
+    parts: list[str] = []
+    for block in content:
+        if isinstance(block, str):
+            parts.append(block)
+        elif isinstance(block, dict) and block.get("type") == "text":
+            text = block.get("text")
+            if isinstance(text, str):
+                parts.append(text)
+    return "".join(parts)
+
 
 VALID_INTENTS = {"tech", "project", "scheduler", "contact", "general"}
 
@@ -45,6 +63,12 @@ TRIAGE_SYSTEM = (
     "route, set a low confidence and provide a single clarifying_question."
 )
 
+TRIAGE_JSON_INSTRUCTION = (
+    " Respond with ONLY a JSON object, no prose and no code fence: "
+    '{"intent": "<tech|project|scheduler|contact|general>", '
+    '"confidence": <0.0-1.0>, "clarifying_question": <string or null>}.'
+)
+
 
 def _last_user_text(messages: list[dict]) -> str:
     for message in reversed(messages):
@@ -54,18 +78,35 @@ def _last_user_text(messages: list[dict]) -> str:
 
 
 def default_triage_fn(triage_model) -> Callable[[list[dict]], TriageResult]:
-    """Build a triage function bound to an LLM with structured output."""
-    structured = triage_model.with_structured_output(_TriageSchema)
+    """Build a triage function that prompts for JSON and parses the response.
+
+    Uses JSON prompting instead of with_structured_output to work with thinking-mode
+    models that reject forced-tool structured output. Extracts text from content blocks
+    to handle models that return lists of blocks instead of plain strings.
+    """
 
     def _run(messages: list[dict]) -> TriageResult:
-        result: _TriageSchema = structured.invoke(
-            [{"role": "system", "content": TRIAGE_SYSTEM}] + messages
-        )
-        intent = result.intent if result.intent in VALID_INTENTS else "general"
+        try:
+            response = triage_model.invoke(
+                [{"role": "system", "content": TRIAGE_SYSTEM + TRIAGE_JSON_INSTRUCTION}] + messages
+            )
+            text = _extract_text(response.content).strip()
+            # Find the first {...} JSON object in the text (tolerates code fences/prose)
+            match = re.search(r"\{.*\}", text, re.DOTALL)
+            parsed = json.loads(match.group(0) if match else text)
+            schema = _TriageSchema(**parsed)
+        except Exception:
+            logger.warning("Triage parse failed; defaulting to clarify", exc_info=True)
+            return TriageResult(
+                intent="general",
+                confidence=0.0,
+                clarifying_question="Could you tell me a bit more about what you'd like to know about Thet?",
+            )
+        intent = schema.intent if schema.intent in VALID_INTENTS else "general"
         return TriageResult(
             intent=intent,
-            confidence=result.confidence,
-            clarifying_question=result.clarifying_question,
+            confidence=schema.confidence,
+            clarifying_question=schema.clarifying_question,
         )
 
     return _run
@@ -109,7 +150,7 @@ def default_draft_fn(chat_model) -> DraftFn:
         response = chat_model.invoke(
             [{"role": "system", "content": system_with_context}] + messages
         )
-        return response.content if isinstance(response.content, str) else str(response.content)
+        return _extract_text(response.content)
 
     return _run
 
