@@ -5,6 +5,7 @@ tests never hit live services."""
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
 from typing import Callable
 
@@ -13,6 +14,8 @@ from pydantic import BaseModel, Field
 from app.config import TRIAGE_CONFIDENCE_THRESHOLD
 from app.graph.state import GraphState
 from app.retriever import RetrievalResult
+
+logger = logging.getLogger(__name__)
 
 VALID_INTENTS = {"tech", "project", "scheduler", "contact", "general"}
 
@@ -137,7 +140,14 @@ def knowledge_node(
     persona: str,
 ) -> GraphState:
     query = _last_user_text(state["messages"])
-    retrieval = retriever_retrieve(query)
+    try:
+        retrieval = retriever_retrieve(query)
+    except Exception:
+        # RAG backend (Qdrant/Ollama) unavailable — degrade gracefully to an
+        # ungrounded answer rather than failing the whole request. review_node
+        # converts an ungrounded knowledge answer into the safe fallback text.
+        logger.warning("Retrieval failed; continuing without context", exc_info=True)
+        retrieval = RetrievalResult(chunks=[], sources=[])
     context = "\n\n".join(chunk.text for chunk in retrieval.chunks)
     draft = draft_fn(PERSONAS.get(persona, PERSONAS["general"]), state["messages"], context)
     return {

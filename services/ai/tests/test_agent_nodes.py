@@ -32,6 +32,29 @@ def test_knowledge_node_retrieves_and_drafts():
     assert out["sources"] == [{"source": "about.md", "title": "About", "score": 0.8}]
 
 
+def test_knowledge_node_degrades_gracefully_on_retriever_failure():
+    """Test that knowledge_node handles retriever failure without raising."""
+    captured = {}
+
+    def failing_retrieve(query: str) -> RetrievalResult:
+        raise RuntimeError("RAG backend down")
+
+    def fake_draft(system: str, messages, context: str) -> str:
+        captured["context"] = context
+        captured["draft_called"] = True
+        return "I'm not certain about that."
+
+    state = {"messages": [{"role": "user", "content": "what's your stack?"}], "intent": "tech"}
+    # Should NOT raise; should return empty chunks and still draft.
+    out = knowledge_node(state, retriever_retrieve=failing_retrieve, draft_fn=fake_draft, persona="tech")
+
+    assert captured["draft_called"] is True
+    assert captured["context"] == ""  # empty context string
+    assert out["retrieved_chunks"] == []
+    assert out["sources"] == []
+    assert out["draft"] == "I'm not certain about that."
+
+
 def test_scheduler_node_uses_tool():
     def fake_schedule() -> dict:
         return {"url": "https://cal.com/tet-nai"}
