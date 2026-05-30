@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("@/lib/db", () => ({
   initDb: vi.fn(async () => ({})),
@@ -203,6 +203,118 @@ describe("POST /api/chat — Guard Tests", () => {
       expect(res.status).toBe(502);
       const bodyData = await res.json();
       expect(bodyData.error).toBe("AI service error");
+    });
+  });
+
+  describe("Phase 3 persistence tee", () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+      vi.doUnmock("@/lib/db");
+    });
+
+    it("accumulates deltas and calls saveTurn on finish", async () => {
+      const saveTurnMock = vi.fn().mockResolvedValue(undefined);
+      vi.doMock("@/lib/db", () => ({
+        initDb: vi.fn().mockResolvedValue({}),
+        saveTurn: saveTurnMock,
+      }));
+      vi.resetModules();
+      const { POST: PostWithMock } = await import("./route");
+
+      const upstreamBody =
+        'data: {"type":"text-start","id":"0"}\n\n' +
+        'data: {"type":"text-delta","id":"0","delta":"Hello "}\n\n' +
+        'data: {"type":"text-delta","id":"0","delta":"world"}\n\n' +
+        'data: {"type":"text-end","id":"0"}\n\n' +
+        "data: [DONE]\n\n";
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(
+          new Response(upstreamBody, {
+            status: 200,
+            headers: { "x-vercel-ai-ui-message-stream": "v1" },
+          }),
+        ),
+      );
+
+      const req = new Request("http://localhost/api/chat", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-forwarded-for": "7.7.7.7" },
+        body: JSON.stringify({ messages: [{ role: "user", parts: [{ type: "text", text: "hi" }] }] }),
+      });
+
+      const res = await PostWithMock(req);
+      await res.text(); // drain the stream so flush runs
+
+      expect(saveTurnMock).toHaveBeenCalledTimes(1);
+      const [, userMsgs, assistantMsg] = saveTurnMock.mock.calls[0];
+      expect(userMsgs).toEqual([{ role: "user", content: "hi" }]);
+      expect(assistantMsg).toEqual({ role: "assistant", content: "Hello world" });
+    });
+
+    it("never throws when saveTurn fails", async () => {
+      const saveTurnMock = vi.fn().mockRejectedValue(new Error("db boom"));
+      vi.doMock("@/lib/db", () => ({
+        initDb: vi.fn().mockResolvedValue({}),
+        saveTurn: saveTurnMock,
+      }));
+      vi.resetModules();
+      const { POST: PostWithMock } = await import("./route");
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(
+          new Response('data: {"type":"text-delta","id":"0","delta":"x"}\n\ndata: [DONE]\n\n', {
+            status: 200,
+            headers: { "x-vercel-ai-ui-message-stream": "v1" },
+          }),
+        ),
+      );
+      const req = new Request("http://localhost/api/chat", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-forwarded-for": "6.6.6.6" },
+        body: JSON.stringify({ messages: [{ role: "user", parts: [{ type: "text", text: "hi" }] }] }),
+      });
+      const res = await PostWithMock(req);
+      await expect(res.text()).resolves.toContain("x"); // stream still completes
+    });
+
+    it("includes delta without trailing newline (final buffered line)", async () => {
+      const saveTurnMock = vi.fn().mockResolvedValue(undefined);
+      vi.doMock("@/lib/db", () => ({
+        initDb: vi.fn().mockResolvedValue({}),
+        saveTurn: saveTurnMock,
+      }));
+      vi.resetModules();
+      const { POST: PostWithMock } = await import("./route");
+
+      // Last delta without trailing \n\n — would be lost without flush fix
+      const upstreamBody =
+        'data: {"type":"text-delta","id":"0","delta":"part1 "}\n\n' +
+        'data: {"type":"text-delta","id":"0","delta":"part2"}'; // no trailing newline
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(
+          new Response(upstreamBody, {
+            status: 200,
+            headers: { "x-vercel-ai-ui-message-stream": "v1" },
+          }),
+        ),
+      );
+
+      const req = new Request("http://localhost/api/chat", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-forwarded-for": "5.5.5.5" },
+        body: JSON.stringify({ messages: [{ role: "user", parts: [{ type: "text", text: "hi" }] }] }),
+      });
+
+      const res = await PostWithMock(req);
+      await res.text(); // drain the stream so flush runs
+
+      expect(saveTurnMock).toHaveBeenCalledTimes(1);
+      const [, userMsgs, assistantMsg] = saveTurnMock.mock.calls[0];
+      expect(userMsgs).toEqual([{ role: "user", content: "hi" }]);
+      // Both deltas accumulated, including the one without trailing newline
+      expect(assistantMsg).toEqual({ role: "assistant", content: "part1 part2" });
     });
   });
 });

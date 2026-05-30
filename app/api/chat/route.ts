@@ -46,6 +46,85 @@ async function getDb(): Promise<Awaited<ReturnType<typeof initDb>>> {
   return (dbPromise ??= initDb());
 }
 
+/**
+ * Tee the upstream SSE stream: pass bytes through unchanged while accumulating
+ * assistant `text-delta` content. On flush, persist best-effort (never throws).
+ */
+function teeForPersistence(
+  upstreamBody: ReadableStream<Uint8Array>,
+  messages: UIMessage[],
+): ReadableStream<Uint8Array> {
+  const decoder = new TextDecoder();
+  let assistantText = "";
+  let buffered = "";
+
+  // Shared logic: parse a single SSE line and accumulate text-delta content
+  const accumulateDelta = (line: string) => {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("data:")) return;
+    const payload = trimmed.slice("data:".length).trim();
+    if (payload === "[DONE]" || payload.length === 0) return;
+    try {
+      const part = JSON.parse(payload) as { type?: string; delta?: string };
+      if (part.type === "text-delta" && typeof part.delta === "string") {
+        assistantText += part.delta;
+      }
+    } catch {
+      // ignore non-JSON keep-alive lines
+    }
+  };
+
+  const transform = new TransformStream<Uint8Array, Uint8Array>({
+    transform(chunk, controller) {
+      controller.enqueue(chunk); // pass through unchanged
+      buffered += decoder.decode(chunk, { stream: true });
+      const lines = buffered.split("\n");
+      buffered = lines.pop() ?? "";
+      for (const line of lines) {
+        accumulateDelta(line);
+      }
+    },
+    async flush() {
+      // Flush any trailing multi-byte UTF-8 sequences from the decoder
+      buffered += decoder.decode();
+      const trimmed = buffered.trim();
+      if (trimmed.startsWith("data:")) {
+        const payload = trimmed.slice("data:".length).trim();
+        if (payload !== "[DONE]" && payload.length > 0) {
+          accumulateDelta(buffered);
+        }
+      }
+
+      try {
+        const userMessages: PersistentMessage[] = messages
+          .filter((m) => m.role === "user")
+          .map((m) => ({ role: "user" as const, content: extractTextContent(m) }));
+        const assistantMessage: PersistentMessage = {
+          role: "assistant",
+          content: assistantText,
+        };
+        await saveTurn(await getDb(), userMessages, assistantMessage);
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        if (
+          errorMsg.includes("better-sqlite3") ||
+          errorMsg.includes("bindings") ||
+          errorMsg.includes("Cannot find module")
+        ) {
+          console.warn(
+            "[db] Native SQLite module not available. Persistence skipped. " +
+              "If this is unexpected, run: pnpm rebuild better-sqlite3",
+          );
+        } else {
+          console.error("[db] Failed to persist conversation:", errorMsg);
+        }
+      }
+    },
+  });
+
+  return upstreamBody.pipeThrough(transform);
+}
+
 export async function POST(req: Request) {
   // Guard 1: Rate limit — check BEFORE parsing body
   const clientIp = getClientIp(req);
@@ -121,7 +200,7 @@ export async function POST(req: Request) {
   }
 
   // Pipe the SSE bytes straight back to the browser. Persistence tee added in Task 12.
-  return new Response(upstream.body, {
+  return new Response(teeForPersistence(upstream.body, messages), {
     status: 200,
     headers: {
       "content-type": upstream.headers.get("content-type") ?? "text/event-stream",
