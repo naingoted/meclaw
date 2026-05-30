@@ -48,7 +48,7 @@ export class QdrantClient implements VectorStoreClient {
   }
 
   async ensureCollection(): Promise<void> {
-    await this.request(`/collections/${this.collection}`, {
+    const response = await this.fetchFn(`${this.url}/collections/${this.collection}`, {
       method: "PUT",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -58,6 +58,10 @@ export class QdrantClient implements VectorStoreClient {
         },
       }),
     });
+
+    if (!response.ok && response.status !== 409) {
+      throw new Error(`Qdrant request failed with status ${response.status} ${response.statusText}`);
+    }
   }
 
   async upsert(points: Array<RagChunk & { embedding: number[] }>): Promise<void> {
