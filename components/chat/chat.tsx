@@ -96,10 +96,25 @@ function extractSources(message: ChatMessageLike): RenderedSource[] {
   });
 }
 
-function SourcesPanel({ sources }: { sources: RenderedSource[] }) {
+function extractRoute(message: ChatMessageLike): string | undefined {
+  if (process.env.NODE_ENV === "production" || message.role !== "assistant") {
+    return undefined;
+  }
+  const metadata = isRecord(message.metadata) ? message.metadata : null;
+  return metadata ? readString(metadata.route) ?? readString(metadata.intent) : undefined;
+}
+
+function SourcesPanel({ sources, route }: { sources: RenderedSource[]; route?: string }) {
   return (
     <div className="w-full max-w-[85%] rounded-xl border border-border bg-background px-3 py-2 text-xs text-muted-foreground">
-      <p className="font-medium text-foreground">Sources used</p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="font-medium text-foreground">Sources used</p>
+        {route ? (
+          <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] font-medium text-foreground">
+            Routed: {route}
+          </span>
+        ) : null}
+      </div>
       <ul className="mt-2 space-y-2">
         {sources.map((source, index) => (
           <li key={`${source.location}-${index}`} className="space-y-0.5">
@@ -180,6 +195,7 @@ export function Chat() {
         )}
         {messages.map((message) => {
           const sources = extractSources(message);
+          const route = extractRoute(message);
 
           return (
             <div
@@ -207,7 +223,7 @@ export function Chat() {
                         ) : null,
                       )}
                     </div>
-                    {sources.length > 0 ? <SourcesPanel sources={sources} /> : null}
+                    {sources.length > 0 || route ? <SourcesPanel sources={sources} route={route} /> : null}
                   </div>
                 </>
               ) : (
