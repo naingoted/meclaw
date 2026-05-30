@@ -199,7 +199,7 @@ describe("ingestKnowledge", () => {
     process.exitCode = undefined;
     await runIngestCliWithFailure();
 
-    expect(errorSpy).toHaveBeenCalledWith("Knowledge ingestion failed.");
+    expect(errorSpy).toHaveBeenCalledWith("Knowledge ingestion failed.", expect.any(Error));
     expect(process.exitCode).toBe(1);
 
     logSpy.mockRestore();
