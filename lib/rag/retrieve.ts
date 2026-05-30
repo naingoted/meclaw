@@ -1,5 +1,4 @@
-import { OllamaEmbedder } from "./embed";
-import { QdrantClient } from "./qdrant";
+import { embedderFromEnv, storeFromEnv } from "./config";
 import type { EmbeddingClient, RagSearchResult, RagSource, VectorStoreClient } from "./types";
 
 const DEFAULT_TOP_K = 4;
@@ -65,8 +64,8 @@ export async function retrieveKnowledge(
     };
   }
 
-  const embedder = options.embedder ?? new OllamaEmbedder();
-  const store = options.store ?? new QdrantClient();
+  const embedder = options.embedder ?? embedderFromEnv();
+  const store = options.store ?? storeFromEnv();
   const topK = resolveTopK(options.topK);
 
   try {
