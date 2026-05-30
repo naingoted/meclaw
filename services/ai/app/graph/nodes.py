@@ -4,6 +4,7 @@ tests never hit live services."""
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from typing import Callable
 
@@ -11,6 +12,7 @@ from pydantic import BaseModel, Field
 
 from app.config import TRIAGE_CONFIDENCE_THRESHOLD
 from app.graph.state import GraphState
+from app.retriever import RetrievalResult
 
 VALID_INTENTS = {"tech", "project", "scheduler", "contact", "general"}
 
@@ -91,3 +93,86 @@ def triage_node(
         "needs_clarification": False,
         "route": triage.intent,
     }
+
+
+# --- Drafting ---------------------------------------------------------------
+
+DraftFn = Callable[[str, list[dict], str], str]  # (system, messages, context) -> text
+
+
+def default_draft_fn(chat_model) -> DraftFn:
+    def _run(system: str, messages: list[dict], context: str) -> str:
+        system_with_context = f"{system}\n\nContext:\n{context}" if context else system
+        response = chat_model.invoke(
+            [{"role": "system", "content": system_with_context}] + messages
+        )
+        return response.content if isinstance(response.content, str) else str(response.content)
+
+    return _run
+
+
+# --- Persona system prompts -------------------------------------------------
+
+PERSONAS = {
+    "tech": (
+        "You answer in a warm third-person voice about Thet's technical skills and "
+        "stack. Ground every claim in the provided context. If the context is empty, "
+        "say you're not certain and suggest reaching out directly."
+    ),
+    "project": (
+        "You answer about Thet's specific projects in a warm third-person voice. "
+        "Ground claims in the provided context; do not invent project details."
+    ),
+    "general": (
+        "You answer general questions about Thet in a warm third-person voice, "
+        "grounded in the provided context."
+    ),
+}
+
+
+def knowledge_node(
+    state: GraphState,
+    retriever_retrieve: Callable[[str], RetrievalResult],
+    draft_fn: DraftFn,
+    persona: str,
+) -> GraphState:
+    query = _last_user_text(state["messages"])
+    retrieval = retriever_retrieve(query)
+    context = "\n\n".join(chunk.text for chunk in retrieval.chunks)
+    draft = draft_fn(PERSONAS.get(persona, PERSONAS["general"]), state["messages"], context)
+    return {
+        "retrieved_chunks": list(retrieval.chunks),
+        "sources": retrieval.sources,
+        "draft": draft,
+    }
+
+
+SCHEDULER_PERSONA = (
+    "The visitor wants to schedule a call with Thet. Use the booking link in the "
+    "context. Be warm and concise; include the link."
+)
+
+CONTACT_PERSONA = (
+    "The visitor wants Thet's contact details. Use the contact info in the context. "
+    "Be warm and concise; include the email (and GitHub if present)."
+)
+
+
+def scheduler_node(
+    state: GraphState,
+    schedule_fn: Callable[[], dict],
+    draft_fn: DraftFn,
+) -> GraphState:
+    context = json.dumps(schedule_fn())
+    draft = draft_fn(SCHEDULER_PERSONA, state["messages"], context)
+    return {"draft": draft, "sources": [], "retrieved_chunks": []}
+
+
+def contact_node(
+    state: GraphState,
+    contact_fn: Callable[[], dict],
+    draft_fn: DraftFn,
+) -> GraphState:
+    context = json.dumps(contact_fn())
+    draft = draft_fn(CONTACT_PERSONA, state["messages"], context)
+    return {"draft": draft, "sources": [], "retrieved_chunks": []}
