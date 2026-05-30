@@ -1,0 +1,15 @@
+node_modules
+.next
+.git
+.github
+data
+content/knowledge
+*.local
+.env
+.env.*
+docs
+.claude
+coverage
+output
+**/*.test.ts
+README.md
