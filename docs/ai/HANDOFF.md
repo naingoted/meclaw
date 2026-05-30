@@ -35,7 +35,7 @@ ANTHROPIC_MODEL=qwen3.6-plus
 
 ## Build order (milestones)
 
-Status: **v2 Phase 1 (Local RAG) done & browser-verified.** Build sequentially; each must run in the browser before moving on. Use TDD (Vitest) where logic exists. **Browser-verify each milestone with the Playwright MCP via the Docker MCP toolkit** (`MCP_DOCKER` `browser_*` tools, already connected) — see `conventions.md`. Browser runs in Docker, so reach the host at `http://host.docker.internal:3000` (already allow-listed via `allowedDevOrigins` in `next.config.ts`).
+Status: **v2 Phase 5 (CI/CD + VPS deploy) — plan ready.** Deploy guide: `deploy.md`. Phase 3 (Python sidecar) must land for full 5-service deploy; `web`-only interim is supported.
 
 - **M0 — Repo + agentic harness** ✅ DONE
   - Scaffold Next.js 15 (App Router, TS, Tailwind, ESLint) into this existing dir (flat).
