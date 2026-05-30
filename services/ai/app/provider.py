@@ -27,5 +27,15 @@ def get_chat_model(streaming: bool = False) -> ChatAnthropic:
 
     kwargs: dict = {"model": model, "api_key": api_key, "streaming": streaming}
     if base_url:
-        kwargs["base_url"] = base_url
+        kwargs["base_url"] = _normalize_base_url(base_url)
     return ChatAnthropic(**kwargs)
+
+
+def _normalize_base_url(base_url: str) -> str:
+    """Strip a trailing `/v1` (langchain-anthropic appends `/v1/messages`
+    itself). Lets the Python sidecar share the exact gateway URL the TS provider
+    uses — which carries `/v1` — without producing `/v1/v1/messages` (→ 404)."""
+    trimmed = base_url.rstrip("/")
+    if trimmed.endswith("/v1"):
+        return trimmed[: -len("/v1")]
+    return trimmed
