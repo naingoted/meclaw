@@ -46,13 +46,18 @@ function splitOnWords(block: string, max: number): string[] {
 
 /** Trailing slice of a chunk, aligned to a word boundary, at most overlap chars. */
 function overlapTail(text: string, overlap: number): string {
-  if (overlap <= 0 || text.length <= overlap) {
+  if (overlap <= 0) {
     return "";
+  }
+  if (text.length <= overlap) {
+    // entire chunk fits the overlap window; it is word-complete, carry it whole
+    return text;
   }
 
   const tail = text.slice(text.length - overlap);
   const spaceIdx = tail.indexOf(" ");
-  return spaceIdx === -1 ? tail : tail.slice(spaceIdx + 1);
+  // no clean word boundary in the tail → skip overlap rather than carry a fragment
+  return spaceIdx === -1 ? "" : tail.slice(spaceIdx + 1);
 }
 
 export function chunkKnowledgeDocs(

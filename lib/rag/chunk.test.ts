@@ -97,9 +97,13 @@ describe("chunkKnowledgeDocs", () => {
       { slug: "a.md", title: "A", body: "supercalifragilistic expialidocious antidisestablishment" },
     ];
     const chunks = chunkKnowledgeDocs(docs, { chunkSize: 25, overlap: 6 });
-    const rejoined = chunks.map((c) => c.text).join(" ");
-    for (const word of ["supercalifragilistic", "expialidocious", "antidisestablishment"]) {
-      expect(rejoined).toContain(word);
+
+    // every token in every chunk must be a complete word from the original body
+    const originalWords = new Set(docs[0].body.split(/\s+/));
+    for (const chunk of chunks) {
+      for (const word of chunk.text.split(" ")) {
+        expect(originalWords.has(word)).toBe(true);
+      }
     }
   });
 });
