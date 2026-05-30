@@ -1,5 +1,6 @@
-import { loadKnowledge, type KnowledgeDoc } from "../content";
+import type { KnowledgeDoc } from "../content";
 
+import { loadIngestDocs } from "./loaders";
 import { chunkKnowledgeDocs } from "./chunk";
 import { OllamaEmbedder } from "./embed";
 import { QdrantClient } from "./qdrant";
@@ -66,7 +67,7 @@ async function mapWithConcurrency<T, R>(
 export async function ingestKnowledge(
   options: IngestKnowledgeOptions = {},
 ): Promise<IngestKnowledgeResult> {
-  const loadDocs = options.loadDocs ?? loadKnowledge;
+  const loadDocs = options.loadDocs ?? loadIngestDocs;
   const docs = options.docs ?? (await loadDocs());
   const chunkSize = options.chunkSize ?? DEFAULT_CHUNK_SIZE;
   const overlap = options.overlap ?? DEFAULT_OVERLAP;
@@ -77,6 +78,11 @@ export async function ingestKnowledge(
   const chunks = chunker(docs, { chunkSize, overlap });
 
   await store.ensureCollection();
+
+  const sources = [...new Set(chunks.map((chunk) => chunk.source))];
+  for (const source of sources) {
+    await store.deleteBySource(source);
+  }
 
   const points = await mapWithConcurrency(chunks, embedConcurrency, async (chunk) => ({
     ...chunk,

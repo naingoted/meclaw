@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { KnowledgeDoc } from "@/lib/content";
 
 import { ingestKnowledge } from "./ingest";
+import type { RagChunk, VectorStoreClient } from "./types";
 
 describe("ingestKnowledge", () => {
   it("loads docs, chunks them, embeds each chunk, and upserts the enriched chunks", async () => {
@@ -39,6 +40,7 @@ describe("ingestKnowledge", () => {
     };
     const store = {
       ensureCollection: vi.fn(async () => undefined),
+      deleteBySource: vi.fn(async () => undefined),
       upsert: vi.fn(async () => undefined),
       search: vi.fn(),
     };
@@ -91,6 +93,7 @@ describe("ingestKnowledge", () => {
     const embedder = { embed: vi.fn() };
     const store = {
       ensureCollection: vi.fn(async () => undefined),
+      deleteBySource: vi.fn(async () => undefined),
       upsert: vi.fn(async () => undefined),
       search: vi.fn(),
     };
@@ -143,6 +146,7 @@ describe("ingestKnowledge", () => {
     };
     const store = {
       ensureCollection: vi.fn(async () => undefined),
+      deleteBySource: vi.fn(async () => undefined),
       upsert: vi.fn(async () => undefined),
       search: vi.fn(),
     };
@@ -201,5 +205,32 @@ describe("ingestKnowledge", () => {
     logSpy.mockRestore();
     errorSpy.mockRestore();
     process.exitCode = originalExitCode;
+  });
+});
+
+describe("ingestKnowledge delete-before-upsert", () => {
+  it("deletes each source's points before upserting", async () => {
+    const docs: KnowledgeDoc[] = [
+      { slug: "persona.md", title: "Persona", body: "Thet is an engineer." },
+      { slug: "resume.pdf", title: "Resume", body: "Worked at ShopBack." },
+    ];
+
+    const calls: string[] = [];
+    const store: VectorStoreClient = {
+      ensureCollection: vi.fn(async () => { calls.push("ensure"); }),
+      deleteBySource: vi.fn(async (source: string) => { calls.push(`delete:${source}`); }),
+      upsert: vi.fn(async (_points: Array<RagChunk & { embedding: number[] }>) => { calls.push("upsert"); }),
+      search: vi.fn(async () => []),
+    };
+    const embedder = { embed: vi.fn(async () => [0.1, 0.2, 0.3]) };
+
+    await ingestKnowledge({ docs, store, embedder, chunkSize: 1200, overlap: 180 });
+
+    const upsertIdx = calls.indexOf("upsert");
+    expect(upsertIdx).toBeGreaterThan(-1);
+    expect(calls.filter((c) => c.startsWith("delete:"))).toEqual(["delete:persona.md", "delete:resume.pdf"]);
+    for (const [i, c] of calls.entries()) {
+      if (c.startsWith("delete:")) expect(i).toBeLessThan(upsertIdx);
+    }
   });
 });
