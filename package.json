@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:full": "docker compose up -d qdrant ollama && next dev",
+    "services": "docker compose up -d qdrant ollama",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

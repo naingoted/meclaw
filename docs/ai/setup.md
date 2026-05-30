@@ -21,16 +21,22 @@ pnpm dev                     # http://localhost:3000
 
 ## Phase 1 RAG services
 
-Start the local vector and embedding services before ingesting:
+Start the local vector and embedding services before ingesting (`pnpm services` is shorthand for the compose line):
 
 ```bash
-docker compose up -d qdrant ollama
+docker compose up -d qdrant ollama   # or: pnpm services
 docker compose exec ollama ollama pull nomic-embed-text
 pnpm ingest
 ```
 
+`pnpm dev` runs only the Next server — the data plane is intentionally separate (stateful, slow to boot, survives Next restarts). Use `pnpm dev:full` to bring qdrant + ollama up (idempotent) and then start the dev server in one command. Neither stops the containers on exit; tear down with `docker compose down`.
+
 If Qdrant or Ollama is down, the chat path falls back to the existing full-corpus prompt. The app stays usable, but retrieval is disabled until the services come back.
 When the markdown corpus is still small enough to fit comfortably in the prompt, the app also keeps using the full-corpus prompt instead of narrowing context to retrieved chunks.
+
+## Knowledge corpus
+
+A fresh clone ships with starter content (`content/persona.md`, `content/resume.md`, `content/projects/`) plus a couple of `*_sample_*` docs in `content/knowledge/`, so `pnpm ingest` and chat work immediately. See `content/README.md` for the layout and privacy model. Your own `content/knowledge/**` and `data/**` are git-ignored — they stay local and never reach a public remote.
 
 ## Environment variables
 
@@ -52,7 +58,9 @@ Set in `.env.local` (gitignored — never commit real values):
 
 | Command | Does |
 |---------|------|
-| `pnpm dev` | Dev server. |
+| `pnpm dev` | Dev server (Next only). |
+| `pnpm dev:full` | Start qdrant + ollama, then the dev server. |
+| `pnpm services` | Start qdrant + ollama (data plane only). |
 | `pnpm build` | Production build. |
 | `pnpm start` | Serve the production build. |
 | `pnpm lint` | ESLint (next config). |
