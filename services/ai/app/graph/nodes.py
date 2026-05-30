@@ -176,3 +176,29 @@ def contact_node(
     context = json.dumps(contact_fn())
     draft = draft_fn(CONTACT_PERSONA, state["messages"], context)
     return {"draft": draft, "sources": [], "retrieved_chunks": []}
+
+
+# --- Review (groundedness check) --------------------------------------------
+
+FALLBACK_TEXT = (
+    "I'm not certain about that one. You can reach Thet directly at "
+    "thetnaing@incube8.sg, and he'll be happy to help."
+)
+
+# Intents whose answers come from tools, not retrieval — empty chunks is expected.
+_TOOL_INTENTS = {"scheduler", "contact"}
+
+
+def review_node(state: GraphState) -> GraphState:
+    if state.get("needs_clarification"):
+        return {}  # clarification handled by respond; nothing to review
+
+    draft = state.get("draft") or ""
+    intent = state.get("intent")
+    has_retrieval = bool(state.get("retrieved_chunks"))
+
+    if not has_retrieval and intent not in _TOOL_INTENTS and len(draft.strip()) > 0:
+        # Knowledge answer with no supporting chunks — don't risk a hallucinated fact.
+        return {"draft": FALLBACK_TEXT}
+
+    return {"draft": draft}
