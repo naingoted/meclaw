@@ -246,4 +246,20 @@ describe("Chat component — M4 behavioral tests", () => {
 
     expect(screen.queryByText(/Routed:/i)).not.toBeInTheDocument();
   });
+
+  it("does not render the Routed badge in production", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    mockState.messages = [
+      {
+        id: "a3",
+        role: "assistant" as const,
+        parts: [{ type: "text" as const, text: "Sure." }],
+        metadata: { route: "tech", intent: "tech" },
+      },
+    ];
+
+    render(<Chat />);
+
+    expect(screen.queryByText(/Routed:/i)).not.toBeInTheDocument();
+  });
 });
