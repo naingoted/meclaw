@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, timestamp, jsonb, integer, index, check, vector } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, jsonb, integer, index, check, vector, uuid } from "drizzle-orm/pg-core";
 
 /**
  * Database schema for meclaw persistence (Postgres).
@@ -98,3 +98,49 @@ export const leads = pgTable(
     index("idx_leads_conversationId").on(table.conversationId),
   ],
 );
+
+export const documents = pgTable("documents", {
+  id: uuid("id").primaryKey(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  // seam: future multimodal kinds (pdf/image/…) extend this; v1 only writes 'markdown'.
+  kind: text("kind").notNull().default("markdown"),
+  category: text("category"),
+  status: text("status", { enum: ["draft", "ready", "error"] }).notNull().default("draft"),
+  contentHash: text("contentHash").notNull(),
+  createdAt: timestamp("createdAt", { withTimezone: true }).notNull(),
+  updatedAt: timestamp("updatedAt", { withTimezone: true }).notNull(),
+  lastIngestedAt: timestamp("lastIngestedAt", { withTimezone: true }),
+});
+
+export const ingestionJobs = pgTable("ingestion_jobs", {
+  id: uuid("id").primaryKey(),
+  documentId: uuid("documentId"),
+  kind: text("kind", { enum: ["single", "all"] }).notNull(),
+  status: text("status", { enum: ["queued", "running", "succeeded", "failed"] }).notNull(),
+  error: text("error"),
+  chunksWritten: integer("chunksWritten"),
+  createdAt: timestamp("createdAt", { withTimezone: true }).notNull(),
+  startedAt: timestamp("startedAt", { withTimezone: true }),
+  finishedAt: timestamp("finishedAt", { withTimezone: true }),
+});
+
+export const settings = pgTable("settings", {
+  id: integer("id").primaryKey().default(1),
+  agents: jsonb("agents").notNull(),   // Record<agentKey, AgentConfig> — extensible map
+  shared: jsonb("shared").notNull(),   // { persona }
+  rag: jsonb("rag").notNull(),
+  public: jsonb("public").notNull(),
+  updatedAt: timestamp("updatedAt", { withTimezone: true }).notNull(),
+});
+
+export const auditLog = pgTable("audit_log", {
+  id: uuid("id").primaryKey(),
+  ts: timestamp("ts", { withTimezone: true }).notNull(),
+  action: text("action").notNull(),
+  entityType: text("entityType").notNull(),
+  entityId: text("entityId"),
+  summary: text("summary").notNull(),
+  meta: jsonb("meta"),
+  actorIp: text("actorIp"),
+});
