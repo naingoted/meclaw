@@ -140,3 +140,110 @@ def test_contact_intent_drafts_from_tool_context():
     assert "thetnaing@incube8.sg" in captured["context"]
     assert '"route":"contact"' in body
     assert '"delta":"Reach Thet at thetnaing@incube8.sg"' in body
+
+
+def test_knowledge_path_metadata_carries_ordered_steps():
+    def retrieve(query):
+        return RetrievalResult(
+            chunks=[_chunk("Thet uses Python.")],
+            sources=[{"source": "about.md", "title": "About", "score": 0.8}],
+        )
+
+    def draft_stream(system, messages, context):
+        yield "Python."
+
+    body = _collect(
+        run_stream(
+            [{"role": "user", "content": "what's the stack?"}],
+            triage_fn=_triage("tech", 0.9),
+            retriever_retrieve=retrieve,
+            draft_stream_fn=draft_stream,
+            schedule_fn=lambda: {},
+            contact_fn=lambda: {},
+        )
+    )
+
+    assert (
+        '"steps":["Routing your question…",'
+        '"Searching knowledge base…","Writing the answer…"]'
+    ) in body
+
+
+def test_contact_path_metadata_carries_ordered_steps():
+    def draft_stream(system, messages, context):
+        yield "Email him."
+
+    body = _collect(
+        run_stream(
+            [{"role": "user", "content": "how do I reach him?"}],
+            triage_fn=_triage("contact", 0.95),
+            retriever_retrieve=lambda q: RetrievalResult([], []),
+            draft_stream_fn=draft_stream,
+            schedule_fn=lambda: {},
+            contact_fn=lambda: {"email": "thetnaing@incube8.sg"},
+        )
+    )
+
+    assert (
+        '"steps":["Routing your question…",'
+        '"Pulling up contact details…","Writing the answer…"]'
+    ) in body
+
+
+def test_scheduler_path_metadata_carries_ordered_steps():
+    def draft_stream(system, messages, context):
+        yield "Book here."
+
+    body = _collect(
+        run_stream(
+            [{"role": "user", "content": "can I book a call?"}],
+            triage_fn=_triage("scheduler", 0.95),
+            retriever_retrieve=lambda q: RetrievalResult([], []),
+            draft_stream_fn=draft_stream,
+            schedule_fn=lambda: {"url": "https://cal.com/thet"},
+            contact_fn=lambda: {},
+        )
+    )
+
+    assert (
+        '"steps":["Routing your question…",'
+        '"Pulling up booking details…","Writing the answer…"]'
+    ) in body
+
+
+def test_clarify_path_metadata_carries_single_step():
+    def draft_stream(system, messages, context):
+        yield "x"
+
+    body = _collect(
+        run_stream(
+            [{"role": "user", "content": "that one"}],
+            triage_fn=_triage("project", 0.2, question="Which project?"),
+            retriever_retrieve=lambda q: RetrievalResult([], []),
+            draft_stream_fn=draft_stream,
+            schedule_fn=lambda: {},
+            contact_fn=lambda: {},
+        )
+    )
+
+    assert '"steps":["Routing your question…"]' in body
+
+
+def test_fallback_path_metadata_carries_routing_and_search_steps():
+    def draft_stream(system, messages, context):
+        yield "should not happen"
+
+    body = _collect(
+        run_stream(
+            [{"role": "user", "content": "what's the stack?"}],
+            triage_fn=_triage("tech", 0.9),
+            retriever_retrieve=lambda q: RetrievalResult(chunks=[], sources=[]),
+            draft_stream_fn=draft_stream,
+            schedule_fn=lambda: {},
+            contact_fn=lambda: {},
+        )
+    )
+
+    assert (
+        '"steps":["Routing your question…","Searching knowledge base…"]'
+    ) in body
