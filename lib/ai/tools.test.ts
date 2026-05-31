@@ -16,7 +16,7 @@ describe("Agent tools", () => {
     it("returns the owner's email address", () => {
       const result = getContactInfo.execute({});
       expect(result).toHaveProperty("email");
-      expect(result.email).toBe("thetnaing@incube8.sg");
+      expect(result.email).toBe("naingoted@gmail.com");
     });
 
     it("includes GitHub URL if NEXT_PUBLIC_GITHUB_URL is set", () => {

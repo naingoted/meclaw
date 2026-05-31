@@ -252,7 +252,7 @@ def contact_node(
 
 FALLBACK_TEXT = (
     "I'm not certain about that one. You can reach Thet directly at "
-    "thetnaing@incube8.sg, and he'll be happy to help."
+    "naingoted@gmail.com, and he'll be happy to help."
 )
 
 # Intents whose answers come from tools, not retrieval — empty chunks is expected.

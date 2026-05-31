@@ -3,7 +3,7 @@ Python configuration stay identical."""
 
 import os
 
-OWNER_EMAIL = "thetnaing@incube8.sg"
+OWNER_EMAIL = "naingoted@gmail.com"
 
 
 def get_contact_info() -> dict[str, str]:

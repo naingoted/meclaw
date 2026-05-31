@@ -74,15 +74,15 @@ def test_scheduler_node_uses_tool():
 
 def test_contact_node_uses_tool():
     def fake_contact() -> dict:
-        return {"email": "thetnaing@incube8.sg"}
+        return {"email": "naingoted@gmail.com"}
 
     def fake_draft(system: str, messages, context: str) -> str:
-        assert "thetnaing@incube8.sg" in context
-        return "Email: thetnaing@incube8.sg"
+        assert "naingoted@gmail.com" in context
+        return "Email: naingoted@gmail.com"
 
     state = {"messages": [{"role": "user", "content": "how to reach?"}]}
     out = contact_node(state, contact_fn=fake_contact, draft_fn=fake_draft)
-    assert "thetnaing@incube8.sg" in out["draft"]
+    assert "naingoted@gmail.com" in out["draft"]
 
 
 # --- Thinking-mode compatibility tests ------------------------------------

@@ -124,7 +124,7 @@ def test_contact_intent_drafts_from_tool_context():
 
     def draft_stream(system, messages, context):
         captured["context"] = context
-        yield "Reach Thet at thetnaing@incube8.sg"
+        yield "Reach Thet at naingoted@gmail.com"
 
     body = _collect(
         run_stream(
@@ -133,13 +133,13 @@ def test_contact_intent_drafts_from_tool_context():
             retriever_retrieve=lambda q: RetrievalResult([], []),
             draft_stream_fn=draft_stream,
             schedule_fn=lambda: {},
-            contact_fn=lambda: {"email": "thetnaing@incube8.sg"},
+            contact_fn=lambda: {"email": "naingoted@gmail.com"},
         )
     )
 
-    assert "thetnaing@incube8.sg" in captured["context"]
+    assert "naingoted@gmail.com" in captured["context"]
     assert '"route":"contact"' in body
-    assert '"delta":"Reach Thet at thetnaing@incube8.sg"' in body
+    assert '"delta":"Reach Thet at naingoted@gmail.com"' in body
 
 
 def test_knowledge_path_metadata_carries_ordered_steps():
@@ -180,7 +180,7 @@ def test_contact_path_metadata_carries_ordered_steps():
             retriever_retrieve=lambda q: RetrievalResult([], []),
             draft_stream_fn=draft_stream,
             schedule_fn=lambda: {},
-            contact_fn=lambda: {"email": "thetnaing@incube8.sg"},
+            contact_fn=lambda: {"email": "naingoted@gmail.com"},
         )
     )
 

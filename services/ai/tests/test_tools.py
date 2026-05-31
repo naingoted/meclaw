@@ -3,13 +3,13 @@ from app.tools import get_contact_info, schedule_call, show_resume, how_this_wor
 
 def test_contact_info_includes_email(monkeypatch):
     monkeypatch.delenv("NEXT_PUBLIC_GITHUB_URL", raising=False)
-    assert get_contact_info() == {"email": "thetnaing@incube8.sg"}
+    assert get_contact_info() == {"email": "naingoted@gmail.com"}
 
 
 def test_contact_info_includes_github_when_set(monkeypatch):
     monkeypatch.setenv("NEXT_PUBLIC_GITHUB_URL", "https://github.com/thet")
     info = get_contact_info()
-    assert info["email"] == "thetnaing@incube8.sg"
+    assert info["email"] == "naingoted@gmail.com"
     assert info["github"] == "https://github.com/thet"
 
 

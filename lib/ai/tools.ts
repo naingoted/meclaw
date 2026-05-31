@@ -5,7 +5,7 @@ import { z } from "zod";
  * Owner's email address — single source of truth.
  * Used by getContactInfo tool. Update this if the owner's email changes.
  */
-const OWNER_EMAIL = "thetnaing@incube8.sg";
+const OWNER_EMAIL = "naingoted@gmail.com";
 
 /**
  * getContactInfo — returns the owner's contact details.

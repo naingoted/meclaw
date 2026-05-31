@@ -28,7 +28,7 @@ def _deps():
         retriever_retrieve=retrieve,
         draft_fn=draft_fn,
         schedule_fn=lambda: {"url": "https://cal.com/tet-nai"},
-        contact_fn=lambda: {"email": "thetnaing@incube8.sg"},
+        contact_fn=lambda: {"email": "naingoted@gmail.com"},
     )
 
 
