@@ -62,7 +62,17 @@ def run_stream(
     schedule_fn: Callable[[], dict],
     contact_fn: Callable[[], dict],
 ) -> Iterator[str]:
-    yield sse.sse_data_status("Routing your question…", "triage")
+    # Ordered record of the pipeline steps taken this turn. Each `status` emit
+    # both streams a transient data-status part (drives the live checklist) and
+    # appends the label here, so the terminal metadata can carry the full,
+    # persisted "How I answered" trace.
+    steps: list[str] = []
+
+    def status(label: str, stage: str) -> str:
+        steps.append(label)
+        return sse.sse_data_status(label, stage)
+
+    yield status("Routing your question…", "triage")
     triage = triage_fn(messages)
     intent = triage.intent if triage.intent in VALID_INTENTS else "general"
 
@@ -70,23 +80,24 @@ def run_stream(
     if triage.confidence < TRIAGE_CONFIDENCE_THRESHOLD:
         question = triage.clarifying_question or _DEFAULT_CLARIFY
         yield from _emit_static(
-            question, {"sources": [], "route": "respond", "intent": intent}
+            question,
+            {"sources": [], "route": "respond", "intent": intent, "steps": list(steps)},
         )
         return
 
     if intent == "scheduler":
-        yield sse.sse_data_status("Pulling up booking details…", "scheduler")
+        yield status("Pulling up booking details…", "scheduler")
         context = json.dumps(schedule_fn())
         system = SCHEDULER_PERSONA
         sources: list[dict] = []
     elif intent == "contact":
-        yield sse.sse_data_status("Pulling up contact details…", "contact")
+        yield status("Pulling up contact details…", "contact")
         context = json.dumps(contact_fn())
         system = CONTACT_PERSONA
         sources = []
     else:
         # tech | project | general all retrieve from the knowledge base.
-        yield sse.sse_data_status("Searching knowledge base…", "retrieval")
+        yield status("Searching knowledge base…", "retrieval")
         try:
             retrieval = retriever_retrieve(_last_user_text(messages))
         except Exception:
@@ -96,15 +107,21 @@ def run_stream(
             # Groundedness gate — no supporting chunks, so don't risk a
             # hallucinated answer. Decided BEFORE any token is streamed.
             yield from _emit_static(
-                FALLBACK_TEXT, {"sources": [], "route": intent, "intent": intent}
+                FALLBACK_TEXT,
+                {"sources": [], "route": intent, "intent": intent, "steps": list(steps)},
             )
             return
         context = "\n\n".join(chunk.text for chunk in retrieval.chunks)
         system = PERSONAS.get(intent, PERSONAS["general"])
         sources = retrieval.sources
 
-    metadata = {"sources": sources, "route": intent, "intent": intent}
-    yield sse.sse_data_status("Writing the answer…", "drafting")
+    yield status("Writing the answer…", "drafting")
+    metadata = {
+        "sources": sources,
+        "route": intent,
+        "intent": intent,
+        "steps": list(steps),
+    }
     yield sse.sse_start(metadata)
     yield sse.sse_text_start(_TEXT_ID)
     for delta in draft_stream_fn(system, messages, context):

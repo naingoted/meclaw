@@ -55,6 +55,15 @@ function readScore(value: unknown): string | undefined {
   return undefined;
 }
 
+/**
+ * Append a live step label, skipping a consecutive duplicate so a repeated
+ * data-status emit can't double a checklist row.
+ */
+export function appendStep(steps: string[], label: string): string[] {
+  if (steps.length > 0 && steps[steps.length - 1] === label) return steps;
+  return [...steps, label];
+}
+
 function extractSources(message: ChatMessageLike): RenderedSource[] {
   if (process.env.NODE_ENV === "production" || message.role !== "assistant") {
     return [];
@@ -104,6 +113,15 @@ function extractRoute(message: ChatMessageLike): string | undefined {
   return metadata ? readString(metadata.route) ?? readString(metadata.intent) : undefined;
 }
 
+export function extractSteps(message: ChatMessageLike): string[] {
+  if (message.role !== "assistant") return [];
+  const metadata = isRecord(message.metadata) ? message.metadata : null;
+  const raw = metadata ? metadata.steps : undefined;
+  if (!Array.isArray(raw)) return [];
+  const steps = raw.map((s) => readString(s)).filter((s): s is string => Boolean(s));
+  return steps.length === raw.length ? steps : [];
+}
+
 type MessageWithParts = {
   role?: string;
   parts?: Array<{ type?: string; text?: string }>;
@@ -128,19 +146,56 @@ export function shouldShowThinking(
   return !hasAssistantText;
 }
 
-function ThinkingIndicator({ label }: { label: string }) {
+function StepDots() {
+  return (
+    <span className="flex gap-1" aria-hidden="true">
+      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.3s]" />
+      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.15s]" />
+      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current" />
+    </span>
+  );
+}
+
+/**
+ * Live growing checklist of the agent's pipeline steps. Completed steps show a
+ * check; the last (active) step shows the animated dots. Falls back to a single
+ * "Thinking…" line before any step label has arrived.
+ */
+export function LiveTrace({ steps }: { steps: string[] }) {
   return (
     <div className="flex items-start gap-3">
       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted">
         <Bot className="h-5 w-5 text-foreground" />
       </div>
-      <div className="flex items-center gap-2 rounded-2xl bg-muted px-4 py-2 text-sm text-muted-foreground">
-        <span className="flex gap-1" aria-hidden="true">
-          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.3s]" />
-          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.15s]" />
-          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current" />
-        </span>
-        <span>{label}</span>
+      <div className="rounded-2xl bg-muted px-4 py-2 text-sm text-muted-foreground">
+        {steps.length === 0 ? (
+          <div className="flex items-center gap-2">
+            <StepDots />
+            <span>Thinking…</span>
+          </div>
+        ) : (
+          <ul className="space-y-1">
+            {steps.map((step, i) => {
+              const active = i === steps.length - 1;
+              return (
+                <li
+                  key={`${step}-${i}`}
+                  data-active={active}
+                  className="flex items-center gap-2"
+                >
+                  {active ? (
+                    <StepDots />
+                  ) : (
+                    <span aria-hidden="true" className="text-foreground">
+                      ✓
+                    </span>
+                  )}
+                  <span className={active ? "" : "text-foreground"}>{step}</span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </div>
     </div>
   );
@@ -176,16 +231,34 @@ function SourcesPanel({ sources, route }: { sources: RenderedSource[]; route?: s
   );
 }
 
+function ThinkingTrace({ steps }: { steps: string[] }) {
+  return (
+    <details className="w-full max-w-[85%] rounded-xl border border-border bg-background px-3 py-2 text-xs text-muted-foreground">
+      <summary className="cursor-pointer font-medium text-foreground">
+        How I answered
+      </summary>
+      <ol className="mt-2 space-y-1">
+        {steps.map((step, i) => (
+          <li key={`${step}-${i}`} className="flex items-center gap-2">
+            <span aria-hidden="true">✓</span>
+            <span>{step}</span>
+          </li>
+        ))}
+      </ol>
+    </details>
+  );
+}
+
 export function Chat() {
-  // `statusLabel` reflects the backend's transient `data-status` parts
-  // ("Routing…", "Searching knowledge base…", "Writing the answer…") so the
-  // visitor sees what the model is doing during the pre-token gap.
-  const [statusLabel, setStatusLabel] = useState<string | null>(null);
+  // `liveSteps` accumulates the backend's transient `data-status` labels into an
+  // ordered checklist ("Routing…" → "Searching…" → "Writing…") shown live during
+  // the pre-answer gap. The same labels persist per-message via metadata.steps.
+  const [liveSteps, setLiveSteps] = useState<string[]>([]);
   const { messages, sendMessage, status } = useChat({
     onData: (part) => {
       if (part.type === "data-status" && isRecord(part.data)) {
         const label = readString(part.data.label);
-        if (label) setStatusLabel(label);
+        if (label) setLiveSteps((prev) => appendStep(prev, label));
       }
     },
   });
@@ -204,13 +277,13 @@ export function Chat() {
     e.preventDefault();
     const text = input.trim();
     if (!text || isStreaming) return;
-    setStatusLabel(null); // reset stale status from a prior turn
+    setLiveSteps([]); // reset stale status from a prior turn
     sendMessage({ text });
     setInput("");
   }
 
   function handleChipClick(chipText: string) {
-    setStatusLabel(null);
+    setLiveSteps([]);
     sendMessage({ text: chipText });
   }
 
@@ -252,6 +325,7 @@ export function Chat() {
         {messages.map((message) => {
           const sources = extractSources(message);
           const route = extractRoute(message);
+          const steps = extractSteps(message);
 
           return (
             <div
@@ -280,6 +354,7 @@ export function Chat() {
                       )}
                     </div>
                     {sources.length > 0 || route ? <SourcesPanel sources={sources} route={route} /> : null}
+                    {steps.length > 0 ? <ThinkingTrace steps={steps} /> : null}
                   </div>
                 </>
               ) : (
@@ -304,7 +379,7 @@ export function Chat() {
             </div>
           );
         })}
-        {showThinking && <ThinkingIndicator label={statusLabel ?? "Thinking…"} />}
+        {showThinking && <LiveTrace steps={liveSteps} />}
         <div ref={endRef} />
       </div>
 

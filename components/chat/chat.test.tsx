@@ -16,7 +16,13 @@ vi.mock("@ai-sdk/react", () => ({
   useChat: () => mockState,
 }));
 
-import { Chat, shouldShowThinking } from "@/components/chat/chat";
+import {
+  Chat,
+  shouldShowThinking,
+  appendStep,
+  extractSteps,
+  LiveTrace,
+} from "@/components/chat/chat";
 
 describe("shouldShowThinking", () => {
   const userMsg = { role: "user", parts: [{ type: "text", text: "hi" }] };
@@ -42,6 +48,59 @@ describe("shouldShowThinking", () => {
   it("hides when idle or errored", () => {
     expect(shouldShowThinking("ready", [userMsg, assistantWithText])).toBe(false);
     expect(shouldShowThinking("error", [userMsg])).toBe(false);
+  });
+});
+
+describe("appendStep", () => {
+  it("appends a new label", () => {
+    expect(appendStep(["Routing your question…"], "Searching knowledge base…")).toEqual([
+      "Routing your question…",
+      "Searching knowledge base…",
+    ]);
+  });
+
+  it("dedupes a consecutive duplicate label", () => {
+    expect(appendStep(["Routing your question…"], "Routing your question…")).toEqual([
+      "Routing your question…",
+    ]);
+  });
+
+  it("appends to an empty list", () => {
+    expect(appendStep([], "Routing your question…")).toEqual(["Routing your question…"]);
+  });
+});
+
+describe("extractSteps", () => {
+  it("returns the ordered steps for an assistant message", () => {
+    expect(
+      extractSteps({
+        role: "assistant",
+        metadata: { steps: ["Routing your question…", "Writing the answer…"] },
+      }),
+    ).toEqual(["Routing your question…", "Writing the answer…"]);
+  });
+
+  it("returns [] for a user message", () => {
+    expect(
+      extractSteps({ role: "user", metadata: { steps: ["Routing your question…"] } }),
+    ).toEqual([]);
+  });
+
+  it("returns [] when metadata is missing or malformed", () => {
+    expect(extractSteps({ role: "assistant" })).toEqual([]);
+    expect(extractSteps({ role: "assistant", metadata: { steps: "nope" } })).toEqual([]);
+    expect(extractSteps({ role: "assistant", metadata: { steps: [1, 2] } })).toEqual([]);
+    expect(extractSteps({ role: "assistant", metadata: { steps: ["", "  "] } })).toEqual([]);
+  });
+
+  it("is NOT dev-gated — returns steps in production", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    expect(
+      extractSteps({
+        role: "assistant",
+        metadata: { steps: ["Routing your question…"] },
+      }),
+    ).toEqual(["Routing your question…"]);
   });
 });
 
@@ -311,5 +370,82 @@ describe("Chat component — M4 behavioral tests", () => {
     render(<Chat />);
 
     expect(screen.queryByText(/Routed:/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("LiveTrace", () => {
+  it("shows a single Thinking… line when no steps yet", () => {
+    render(<LiveTrace steps={[]} />);
+    expect(screen.getByText(/Thinking…/i)).toBeInTheDocument();
+  });
+
+  it("renders each accumulated step, last one active", () => {
+    render(
+      <LiveTrace steps={["Routing your question…", "Searching knowledge base…"]} />,
+    );
+    expect(screen.getByText("Routing your question…")).toBeInTheDocument();
+    expect(screen.getByText("Searching knowledge base…")).toBeInTheDocument();
+    // the active (last) step is marked for assistive tech
+    expect(screen.getByText("Searching knowledge base…").closest("li"))
+      .toHaveAttribute("data-active", "true");
+    expect(screen.getByText("Routing your question…").closest("li"))
+      .toHaveAttribute("data-active", "false");
+  });
+});
+
+describe("ThinkingTrace (persisted How I answered)", () => {
+  it("renders a collapsed trace with ordered steps for an assistant message", () => {
+    mockState.messages = [
+      {
+        id: "a1",
+        role: "assistant" as const,
+        parts: [{ type: "text" as const, text: "Thet uses Python." }],
+        metadata: {
+          steps: ["Routing your question…", "Searching knowledge base…", "Writing the answer…"],
+        },
+      },
+    ];
+
+    render(<Chat />);
+
+    const summary = screen.getByText("How I answered");
+    expect(summary).toBeInTheDocument();
+    // collapsed by default: the parent <details> has no `open` attribute
+    expect(summary.closest("details")).not.toHaveAttribute("open");
+    // the steps are present in the DOM
+    expect(screen.getByText("Routing your question…")).toBeInTheDocument();
+    expect(screen.getByText("Searching knowledge base…")).toBeInTheDocument();
+    expect(screen.getByText("Writing the answer…")).toBeInTheDocument();
+  });
+
+  it("renders the trace in production (not dev-gated)", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    mockState.messages = [
+      {
+        id: "a2",
+        role: "assistant" as const,
+        parts: [{ type: "text" as const, text: "Sure." }],
+        metadata: { steps: ["Routing your question…"] },
+      },
+    ];
+
+    render(<Chat />);
+
+    expect(screen.getByText("How I answered")).toBeInTheDocument();
+  });
+
+  it("renders no trace when steps are absent", () => {
+    mockState.messages = [
+      {
+        id: "a3",
+        role: "assistant" as const,
+        parts: [{ type: "text" as const, text: "Sure." }],
+        metadata: { route: "general", intent: "general" },
+      },
+    ];
+
+    render(<Chat />);
+
+    expect(screen.queryByText("How I answered")).not.toBeInTheDocument();
   });
 });
