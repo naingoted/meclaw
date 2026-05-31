@@ -15,6 +15,13 @@
       "when": 1780255113069,
       "tag": "0001_remarkable_captain_cross",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1780257494141,
+      "tag": "0002_left_paibok",
+      "breakpoints": true
     }
   ]
 }

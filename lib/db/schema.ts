@@ -69,3 +69,32 @@ export const ragChunks = pgTable(
     ),
   ],
 );
+
+export const leads = pgTable(
+  "leads",
+  {
+    /** Unique lead ID (UUID v4, app-generated) */
+    id: text("id").primaryKey(),
+    /** Stable session id — references conversations.id (no FK, matches schema style) */
+    conversationId: text("conversationId").notNull(),
+    /** Visitor email (at least one of email/phone is present) */
+    email: text("email"),
+    /** Visitor phone (kept as supplied) */
+    phone: text("phone"),
+    /** The user question that triggered the capture offer */
+    triggerQuestion: text("triggerQuestion"),
+    /** Which offer the visitor responded to: provided|edge_case|connect_intent|repeated_dead_end */
+    trigger: text("trigger").notNull(),
+    /** When the lead was captured */
+    createdAt: timestamp("createdAt", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      "leads_contact_check",
+      sql`${table.email} is not null or ${table.phone} is not null`,
+    ),
+    index("idx_leads_conversationId").on(table.conversationId),
+  ],
+);
