@@ -16,7 +16,13 @@ vi.mock("@ai-sdk/react", () => ({
   useChat: () => mockState,
 }));
 
-import { Chat, shouldShowThinking, appendStep, extractSteps } from "@/components/chat/chat";
+import {
+  Chat,
+  shouldShowThinking,
+  appendStep,
+  extractSteps,
+  LiveTrace,
+} from "@/components/chat/chat";
 
 describe("shouldShowThinking", () => {
   const userMsg = { role: "user", parts: [{ type: "text", text: "hi" }] };
@@ -364,5 +370,25 @@ describe("Chat component — M4 behavioral tests", () => {
     render(<Chat />);
 
     expect(screen.queryByText(/Routed:/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("LiveTrace", () => {
+  it("shows a single Thinking… line when no steps yet", () => {
+    render(<LiveTrace steps={[]} />);
+    expect(screen.getByText(/Thinking…/i)).toBeInTheDocument();
+  });
+
+  it("renders each accumulated step, last one active", () => {
+    render(
+      <LiveTrace steps={["Routing your question…", "Searching knowledge base…"]} />,
+    );
+    expect(screen.getByText("Routing your question…")).toBeInTheDocument();
+    expect(screen.getByText("Searching knowledge base…")).toBeInTheDocument();
+    // the active (last) step is marked for assistive tech
+    expect(screen.getByText("Searching knowledge base…").closest("li"))
+      .toHaveAttribute("data-active", "true");
+    expect(screen.getByText("Routing your question…").closest("li"))
+      .toHaveAttribute("data-active", "false");
   });
 });

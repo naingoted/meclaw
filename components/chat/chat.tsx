@@ -146,19 +146,56 @@ export function shouldShowThinking(
   return !hasAssistantText;
 }
 
-function ThinkingIndicator({ label }: { label: string }) {
+function StepDots() {
+  return (
+    <span className="flex gap-1" aria-hidden="true">
+      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.3s]" />
+      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.15s]" />
+      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current" />
+    </span>
+  );
+}
+
+/**
+ * Live growing checklist of the agent's pipeline steps. Completed steps show a
+ * check; the last (active) step shows the animated dots. Falls back to a single
+ * "Thinking…" line before any step label has arrived.
+ */
+export function LiveTrace({ steps }: { steps: string[] }) {
   return (
     <div className="flex items-start gap-3">
       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted">
         <Bot className="h-5 w-5 text-foreground" />
       </div>
-      <div className="flex items-center gap-2 rounded-2xl bg-muted px-4 py-2 text-sm text-muted-foreground">
-        <span className="flex gap-1" aria-hidden="true">
-          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.3s]" />
-          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.15s]" />
-          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current" />
-        </span>
-        <span>{label}</span>
+      <div className="rounded-2xl bg-muted px-4 py-2 text-sm text-muted-foreground">
+        {steps.length === 0 ? (
+          <div className="flex items-center gap-2">
+            <StepDots />
+            <span>Thinking…</span>
+          </div>
+        ) : (
+          <ul className="space-y-1">
+            {steps.map((step, i) => {
+              const active = i === steps.length - 1;
+              return (
+                <li
+                  key={`${step}-${i}`}
+                  data-active={active}
+                  className="flex items-center gap-2"
+                >
+                  {active ? (
+                    <StepDots />
+                  ) : (
+                    <span aria-hidden="true" className="text-foreground">
+                      ✓
+                    </span>
+                  )}
+                  <span className={active ? "" : "text-foreground"}>{step}</span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </div>
     </div>
   );
@@ -195,15 +232,15 @@ function SourcesPanel({ sources, route }: { sources: RenderedSource[]; route?: s
 }
 
 export function Chat() {
-  // `statusLabel` reflects the backend's transient `data-status` parts
-  // ("Routing…", "Searching knowledge base…", "Writing the answer…") so the
-  // visitor sees what the model is doing during the pre-token gap.
-  const [statusLabel, setStatusLabel] = useState<string | null>(null);
+  // `liveSteps` accumulates the backend's transient `data-status` labels into an
+  // ordered checklist ("Routing…" → "Searching…" → "Writing…") shown live during
+  // the pre-answer gap. The same labels persist per-message via metadata.steps.
+  const [liveSteps, setLiveSteps] = useState<string[]>([]);
   const { messages, sendMessage, status } = useChat({
     onData: (part) => {
       if (part.type === "data-status" && isRecord(part.data)) {
         const label = readString(part.data.label);
-        if (label) setStatusLabel(label);
+        if (label) setLiveSteps((prev) => appendStep(prev, label));
       }
     },
   });
@@ -222,13 +259,13 @@ export function Chat() {
     e.preventDefault();
     const text = input.trim();
     if (!text || isStreaming) return;
-    setStatusLabel(null); // reset stale status from a prior turn
+    setLiveSteps([]); // reset stale status from a prior turn
     sendMessage({ text });
     setInput("");
   }
 
   function handleChipClick(chipText: string) {
-    setStatusLabel(null);
+    setLiveSteps([]);
     sendMessage({ text: chipText });
   }
 
@@ -322,7 +359,7 @@ export function Chat() {
             </div>
           );
         })}
-        {showThinking && <ThinkingIndicator label={statusLabel ?? "Thinking…"} />}
+        {showThinking && <LiveTrace steps={liveSteps} />}
         <div ref={endRef} />
       </div>
 
