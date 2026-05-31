@@ -268,6 +268,7 @@ export function Chat() {
   // ordered checklist ("Routing…" → "Searching…" → "Writing…") shown live during
   // the pre-answer gap. The same labels persist per-message via metadata.steps.
   const [liveSteps, setLiveSteps] = useState<string[]>([]);
+  const [conversationId] = useState(() => crypto.randomUUID());
   const { messages, sendMessage, status } = useChat({
     onData: (part) => {
       if (part.type === "data-status" && isRecord(part.data)) {
@@ -292,13 +293,13 @@ export function Chat() {
     const text = input.trim();
     if (!text || isStreaming) return;
     setLiveSteps([]); // reset stale status from a prior turn
-    sendMessage({ text });
+    sendMessage({ text }, { body: { conversationId } });
     setInput("");
   }
 
   function handleChipClick(chipText: string) {
     setLiveSteps([]);
-    sendMessage({ text: chipText });
+    sendMessage({ text: chipText }, { body: { conversationId } });
   }
 
   return (

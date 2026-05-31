@@ -168,11 +168,13 @@ describe("Chat component — M4 behavioral tests", () => {
     });
     fireEvent.click(chipButton);
 
-    // Assert sendMessage was called exactly once with the chip's text
+    // Assert sendMessage was called exactly once with the chip's text and conversationId
     expect(mockSend).toHaveBeenCalledTimes(1);
-    expect(mockSend).toHaveBeenCalledWith({
+    const [message, options] = mockSend.mock.calls[0];
+    expect(message).toEqual({
       text: "What's Thet's tech stack?",
     });
+    expect(options?.body?.conversationId).toMatch(/^[0-9a-f-]{36}$/i);
   });
 
   it("hides greeting and chips when conversation has messages", () => {
@@ -385,6 +387,42 @@ describe("Chat component — M4 behavioral tests", () => {
     render(<Chat />);
 
     expect(screen.queryByText(/Routed:/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("Chat conversationId threading", () => {
+  it("sends a stable conversationId in the request body on submit", async () => {
+    const mockSendMessage = vi.fn();
+    mockState.sendMessage = mockSendMessage;
+    mockState.messages = [];
+    mockState.status = "ready";
+
+    render(<Chat />);
+    const input = screen.getByPlaceholderText("Say something…");
+    fireEvent.change(input, { target: { value: "hello" } });
+    const form = input.closest("form");
+    fireEvent.submit(form!);
+
+    expect(mockSendMessage).toHaveBeenCalledTimes(1);
+    const [, options] = mockSendMessage.mock.calls[0];
+    expect(options?.body?.conversationId).toMatch(/^[0-9a-f-]{36}$/i);
+  });
+
+  it("sends a stable conversationId in the request body on chip click", async () => {
+    const mockSendMessage = vi.fn();
+    mockState.sendMessage = mockSendMessage;
+    mockState.messages = [];
+    mockState.status = "ready";
+
+    render(<Chat />);
+    const chipButton = screen.getByRole("button", {
+      name: "What's Thet's tech stack?",
+    });
+    fireEvent.click(chipButton);
+
+    expect(mockSendMessage).toHaveBeenCalledTimes(1);
+    const [, options] = mockSendMessage.mock.calls[0];
+    expect(options?.body?.conversationId).toMatch(/^[0-9a-f-]{36}$/i);
   });
 });
 
