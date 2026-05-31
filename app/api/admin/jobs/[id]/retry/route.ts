@@ -1,0 +1,8 @@
+import { adminGuard, clientIp, db } from "@/lib/admin/request";
+import { retryJob } from "@/lib/admin/ingest-runner";
+
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const blocked = adminGuard(); if (blocked) return blocked;
+  const job = await retryJob(await db(), (await params).id, clientIp(req));
+  return job ? Response.json(job, { status: 202 }) : Response.json({ error: "not found" }, { status: 404 });
+}
