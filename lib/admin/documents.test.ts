@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { makeTestDb } from "@/lib/db/test-db";
-import { createDocument, updateDocument, deleteDocument, listDocuments, getDocument, isDirty } from "./documents";
+import { createDocument, updateDocument, deleteDocument, getDocument, isDirty } from "./documents";
 import { recentAudit } from "./audit";
 
 describe("document service", () => {
@@ -23,8 +23,8 @@ describe("document service", () => {
   it("a document ingested after its last edit is not dirty", () => {
     const t0 = new Date("2026-01-01T00:00:00Z");
     const t1 = new Date("2026-01-01T01:00:00Z");
-    expect(isDirty({ updatedAt: t0, lastIngestedAt: t1 } as any)).toBe(false);
-    expect(isDirty({ updatedAt: t1, lastIngestedAt: t0 } as any)).toBe(true);
+    expect(isDirty({ updatedAt: t0, lastIngestedAt: t1 })).toBe(false);
+    expect(isDirty({ updatedAt: t1, lastIngestedAt: t0 })).toBe(true);
   });
 
   it("delete removes the row and audits it", async () => {

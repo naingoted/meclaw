@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { desc } from "drizzle-orm";
 import { auditLog } from "@/lib/db/schema";
+import type { Db } from "@/lib/db/types";
 
 export type AuditAction =
   | "document.create" | "document.update" | "document.delete"
@@ -15,7 +16,7 @@ export type AuditInput = {
   actorIp?: string;
 };
 
-export async function logAudit(db: any, input: AuditInput): Promise<void> {
+export async function logAudit(db: Db, input: AuditInput): Promise<void> {
   await db.insert(auditLog).values({
     id: randomUUID(),
     ts: new Date(),
@@ -28,6 +29,6 @@ export async function logAudit(db: any, input: AuditInput): Promise<void> {
   }).execute();
 }
 
-export async function recentAudit(db: any, limit = 50) {
+export async function recentAudit(db: Db, limit = 50) {
   return db.select().from(auditLog).orderBy(desc(auditLog.ts)).limit(limit);
 }

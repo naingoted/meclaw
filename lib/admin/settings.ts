@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { settings } from "@/lib/db/schema";
+import type { Db } from "@/lib/db/types";
 import { logAudit } from "./audit";
 import { configCache } from "./config-cache";
 
@@ -55,7 +56,7 @@ export function defaultSettings(): SettingsValue {
   };
 }
 
-export async function getSettings(db: any): Promise<SettingsValue> {
+export async function getSettings(db: Db): Promise<SettingsValue> {
   const cached = configCache.get();
   if (cached) return cached;
   const rows = await db.select().from(settings).where(eq(settings.id, 1));
@@ -70,7 +71,7 @@ export async function getSettings(db: any): Promise<SettingsValue> {
   return value;
 }
 
-export async function updateSettings(db: any, next: SettingsValue, actorIp: string): Promise<SettingsValue> {
+export async function updateSettings(db: Db, next: SettingsValue, actorIp: string): Promise<SettingsValue> {
   const parsed = SettingsSchema.parse(next);
   const before = await getSettings(db);
   await db.insert(settings)

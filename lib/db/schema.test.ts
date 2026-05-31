@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { makeTestDb } from "./test-db";
-import { documents, ingestionJobs, settings, auditLog } from "./schema";
+import { documents, settings } from "./schema";
 
 describe("admin schema", () => {
   it("documents/jobs/settings/audit tables accept inserts", async () => {
