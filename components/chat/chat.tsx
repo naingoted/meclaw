@@ -113,6 +113,15 @@ function extractRoute(message: ChatMessageLike): string | undefined {
   return metadata ? readString(metadata.route) ?? readString(metadata.intent) : undefined;
 }
 
+export function extractSteps(message: ChatMessageLike): string[] {
+  if (message.role !== "assistant") return [];
+  const metadata = isRecord(message.metadata) ? message.metadata : null;
+  const raw = metadata ? metadata.steps : undefined;
+  if (!Array.isArray(raw)) return [];
+  const steps = raw.map((s) => readString(s)).filter((s): s is string => Boolean(s));
+  return steps.length === raw.length ? steps : [];
+}
+
 type MessageWithParts = {
   role?: string;
   parts?: Array<{ type?: string; text?: string }>;

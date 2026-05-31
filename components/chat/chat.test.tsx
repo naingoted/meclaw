@@ -16,7 +16,7 @@ vi.mock("@ai-sdk/react", () => ({
   useChat: () => mockState,
 }));
 
-import { Chat, shouldShowThinking, appendStep } from "@/components/chat/chat";
+import { Chat, shouldShowThinking, appendStep, extractSteps } from "@/components/chat/chat";
 
 describe("shouldShowThinking", () => {
   const userMsg = { role: "user", parts: [{ type: "text", text: "hi" }] };
@@ -61,6 +61,40 @@ describe("appendStep", () => {
 
   it("appends to an empty list", () => {
     expect(appendStep([], "Routing your question…")).toEqual(["Routing your question…"]);
+  });
+});
+
+describe("extractSteps", () => {
+  it("returns the ordered steps for an assistant message", () => {
+    expect(
+      extractSteps({
+        role: "assistant",
+        metadata: { steps: ["Routing your question…", "Writing the answer…"] },
+      }),
+    ).toEqual(["Routing your question…", "Writing the answer…"]);
+  });
+
+  it("returns [] for a user message", () => {
+    expect(
+      extractSteps({ role: "user", metadata: { steps: ["Routing your question…"] } }),
+    ).toEqual([]);
+  });
+
+  it("returns [] when metadata is missing or malformed", () => {
+    expect(extractSteps({ role: "assistant" })).toEqual([]);
+    expect(extractSteps({ role: "assistant", metadata: { steps: "nope" } })).toEqual([]);
+    expect(extractSteps({ role: "assistant", metadata: { steps: [1, 2] } })).toEqual([]);
+    expect(extractSteps({ role: "assistant", metadata: { steps: ["", "  "] } })).toEqual([]);
+  });
+
+  it("is NOT dev-gated — returns steps in production", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    expect(
+      extractSteps({
+        role: "assistant",
+        metadata: { steps: ["Routing your question…"] },
+      }),
+    ).toEqual(["Routing your question…"]);
   });
 });
 
