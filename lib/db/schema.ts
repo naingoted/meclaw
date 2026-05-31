@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, timestamp, jsonb, index, check } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, jsonb, integer, index, check, vector } from "drizzle-orm/pg-core";
 
 /**
  * Database schema for meclaw persistence (Postgres).
@@ -42,5 +42,30 @@ export const messages = pgTable(
       sql`${table.role} in ('user', 'assistant', 'tool')`,
     ),
     index("idx_messages_conversationId").on(table.conversationId),
+  ],
+);
+
+/**
+ * RAG knowledge chunks (pgvector). Written by `pnpm ingest`, read by the Python
+ * sidecar's retriever. Replaces the prior Qdrant collection; same fields.
+ */
+export const ragChunks = pgTable(
+  "rag_chunks",
+  {
+    /** Chunk id, "<slug>:<ordinal>" (e.g. "about:0") — app-generated */
+    id: text("id").primaryKey(),
+    source: text("source").notNull(),
+    title: text("title").notNull(),
+    text: text("text").notNull(),
+    ordinal: integer("ordinal").notNull(),
+    /** nomic-embed-text dimension */
+    embedding: vector("embedding", { dimensions: 768 }).notNull(),
+  },
+  (t) => [
+    index("idx_rag_chunks_source").on(t.source),
+    index("idx_rag_chunks_embedding").using(
+      "hnsw",
+      t.embedding.op("vector_cosine_ops"),
+    ),
   ],
 );
