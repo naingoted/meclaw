@@ -2,7 +2,8 @@
 token streaming, applying the groundedness gate BEFORE drafting so we never
 stream tokens we'd have to retract."""
 
-from app.graph.nodes import FALLBACK_TEXT, TriageResult
+from app.graph.nodes import TriageResult
+from app.lead import SOFT_OFFER, CONNECT_OFFER, ESCALATED_OFFER, NEUTRAL_FALLBACK, confirm
 from app.retriever import RetrievalResult, RetrievedChunk
 from app.streaming import run_stream
 
@@ -92,7 +93,7 @@ def test_empty_retrieval_emits_fallback_without_drafting():
     )
 
     assert drafted["called"] is False  # groundedness gate fires before drafting
-    assert FALLBACK_TEXT in body
+    assert SOFT_OFFER in body          # blunt fallback replaced by a capture offer
     assert body.rstrip().endswith("[DONE]")
 
 
@@ -247,3 +248,105 @@ def test_fallback_path_metadata_carries_routing_and_search_steps():
     assert (
         '"steps":["Routing your question…","Searching knowledge base…"]'
     ) in body
+
+
+def test_contact_in_message_captures_lead_and_confirms():
+    drafted = {"called": False}
+
+    def draft_stream(system, messages, context):
+        drafted["called"] = True
+        yield "x"
+
+    history = [
+        {"role": "user", "content": "what's his salary?"},
+        {"role": "assistant", "content": SOFT_OFFER},
+        {"role": "user", "content": "sure, jane@acme.com"},
+    ]
+    body = _collect(
+        run_stream(
+            history,
+            triage_fn=_triage("general", 0.9),
+            retriever_retrieve=lambda q: RetrievalResult([], []),
+            draft_stream_fn=draft_stream,
+            schedule_fn=lambda: {},
+            contact_fn=lambda: {},
+        )
+    )
+
+    assert drafted["called"] is False
+    assert "jane@acme.com" in body              # confirmation echoes the contact
+    assert "make sure Thet follows up" in body
+    assert '"lead":{' in body                   # lead object rides in metadata
+    assert '"email":"jane@acme.com"' in body
+    assert '"trigger":"edge_case"' in body      # mapped from the prior SOFT_OFFER
+    assert '"triggerQuestion":"what\'s his salary?"' in body
+
+
+def test_low_confidence_without_question_offers_capture():
+    body = _collect(
+        run_stream(
+            [{"role": "user", "content": "??"}],
+            triage_fn=_triage("general", 0.2, question=None),
+            retriever_retrieve=lambda q: RetrievalResult([], []),
+            draft_stream_fn=lambda s, m, c: iter(["x"]),
+            schedule_fn=lambda: {},
+            contact_fn=lambda: {},
+        )
+    )
+    assert SOFT_OFFER in body
+    assert '"route":"respond"' in body
+
+
+def test_repeated_dead_end_escalates_offer():
+    history = [
+        {"role": "user", "content": "q1"},
+        {"role": "assistant", "content": SOFT_OFFER},
+        {"role": "user", "content": "another obscure q"},
+    ]
+    body = _collect(
+        run_stream(
+            history,
+            triage_fn=_triage("tech", 0.9),
+            retriever_retrieve=lambda q: RetrievalResult([], []),  # no chunks → fallback
+            draft_stream_fn=lambda s, m, c: iter(["x"]),
+            schedule_fn=lambda: {},
+            contact_fn=lambda: {},
+        )
+    )
+    assert ESCALATED_OFFER in body
+
+
+def test_scheduler_appends_connect_offer():
+    body = _collect(
+        run_stream(
+            [{"role": "user", "content": "can I book a call?"}],
+            triage_fn=_triage("scheduler", 0.95),
+            retriever_retrieve=lambda q: RetrievalResult([], []),
+            draft_stream_fn=lambda s, m, c: iter(["Book here: cal.com/x"]),
+            schedule_fn=lambda: {"url": "https://cal.com/x"},
+            contact_fn=lambda: {},
+        )
+    )
+    assert "Book here" in body
+    assert CONNECT_OFFER in body
+
+
+def test_offer_suppressed_after_prior_confirm():
+    history = [
+        {"role": "user", "content": "q1"},
+        {"role": "assistant", "content": confirm({"email": "j@a.com"})},
+        {"role": "user", "content": "yet another obscure q"},
+    ]
+    body = _collect(
+        run_stream(
+            history,
+            triage_fn=_triage("tech", 0.9),
+            retriever_retrieve=lambda q: RetrievalResult([], []),
+            draft_stream_fn=lambda s, m, c: iter(["x"]),
+            schedule_fn=lambda: {},
+            contact_fn=lambda: {},
+        )
+    )
+    assert NEUTRAL_FALLBACK in body
+    assert SOFT_OFFER not in body
+    assert ESCALATED_OFFER not in body

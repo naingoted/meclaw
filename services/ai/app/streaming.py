@@ -23,19 +23,30 @@ from app import stream as sse
 from app.config import TRIAGE_CONFIDENCE_THRESHOLD
 from app.graph.nodes import (
     CONTACT_PERSONA,
-    FALLBACK_TEXT,
     PERSONAS,
     SCHEDULER_PERSONA,
     VALID_INTENTS,
     TriageResult,
     _last_user_text,
 )
+from app.lead import (
+    CONNECT_OFFER,
+    ESCALATED_OFFER,
+    NEUTRAL_FALLBACK,
+    SOFT_OFFER,
+    confirm,
+    extract_contact,
+    format_contact,
+    has_prior_confirm,
+    most_recent_offer_trigger,
+    prior_offer_made,
+    prior_user_question,
+)
 from app.retriever import RetrievalResult
 
 logger = logging.getLogger(__name__)
 
 _TEXT_ID = "0"
-_DEFAULT_CLARIFY = "Could you tell me a bit more about what you'd like to know about Thet?"
 
 # (system, messages, context) -> stream of text deltas
 DraftStreamFn = Callable[[str, list[dict], str], Iterator[str]]
@@ -72,15 +83,45 @@ def run_stream(
         steps.append(label)
         return sse.sse_data_status(label, stage)
 
+    # --- Capture path: visitor supplied contact info → record + confirm. -----
+    contact = extract_contact(_last_user_text(messages))
+    if contact:
+        yield status("Saving your contact…", "capture")
+        lead = {
+            **contact,
+            "triggerQuestion": prior_user_question(messages),
+            "trigger": most_recent_offer_trigger(messages) or "provided",
+        }
+        yield from _emit_static(
+            confirm(contact),
+            {
+                "sources": [],
+                "route": "lead",
+                "intent": "lead",
+                "steps": list(steps),
+                "lead": lead,
+            },
+        )
+        return
+
     yield status("Routing your question…", "triage")
     triage = triage_fn(messages)
     intent = triage.intent if triage.intent in VALID_INTENTS else "general"
 
-    # Low-confidence → ask a clarifying question instead of guessing.
+    # Don't nag for contact again once it's been captured this conversation.
+    suppress = has_prior_confirm(messages)
+
+    def fallback_text() -> str:
+        if suppress:
+            return NEUTRAL_FALLBACK
+        return ESCALATED_OFFER if prior_offer_made(messages) else SOFT_OFFER
+
+    # Low confidence: ask the SPECIFIC clarifying question if the router gave one
+    # (good UX); otherwise the generic dead-end becomes a capture offer.
     if triage.confidence < TRIAGE_CONFIDENCE_THRESHOLD:
-        question = triage.clarifying_question or _DEFAULT_CLARIFY
+        text = triage.clarifying_question or fallback_text()
         yield from _emit_static(
-            question,
+            text,
             {"sources": [], "route": "respond", "intent": intent, "steps": list(steps)},
         )
         return
@@ -104,10 +145,10 @@ def run_stream(
             logger.warning("Retrieval failed; falling back", exc_info=True)
             retrieval = RetrievalResult(chunks=[], sources=[])
         if not retrieval.chunks:
-            # Groundedness gate — no supporting chunks, so don't risk a
-            # hallucinated answer. Decided BEFORE any token is streamed.
+            # Groundedness gate — no supporting chunks. Instead of a blunt dead
+            # end, offer to capture contact (or stay neutral if already captured).
             yield from _emit_static(
-                FALLBACK_TEXT,
+                fallback_text(),
                 {"sources": [], "route": intent, "intent": intent, "steps": list(steps)},
             )
             return
@@ -127,6 +168,9 @@ def run_stream(
     for delta in draft_stream_fn(system, messages, context):
         if delta:
             yield sse.sse_text_delta(_TEXT_ID, delta)
+    # Connect-intent answers invite the visitor to leave their own contact too.
+    if intent in ("scheduler", "contact") and not suppress:
+        yield sse.sse_text_delta(_TEXT_ID, "\n\n" + CONNECT_OFFER)
     yield sse.sse_text_end(_TEXT_ID)
     yield sse.sse_finish(metadata)
     yield sse.sse_done()
