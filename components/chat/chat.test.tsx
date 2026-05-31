@@ -16,7 +16,7 @@ vi.mock("@ai-sdk/react", () => ({
   useChat: () => mockState,
 }));
 
-import { Chat, shouldShowThinking } from "@/components/chat/chat";
+import { Chat, shouldShowThinking, appendStep } from "@/components/chat/chat";
 
 describe("shouldShowThinking", () => {
   const userMsg = { role: "user", parts: [{ type: "text", text: "hi" }] };
@@ -42,6 +42,25 @@ describe("shouldShowThinking", () => {
   it("hides when idle or errored", () => {
     expect(shouldShowThinking("ready", [userMsg, assistantWithText])).toBe(false);
     expect(shouldShowThinking("error", [userMsg])).toBe(false);
+  });
+});
+
+describe("appendStep", () => {
+  it("appends a new label", () => {
+    expect(appendStep(["Routing your question…"], "Searching knowledge base…")).toEqual([
+      "Routing your question…",
+      "Searching knowledge base…",
+    ]);
+  });
+
+  it("dedupes a consecutive duplicate label", () => {
+    expect(appendStep(["Routing your question…"], "Routing your question…")).toEqual([
+      "Routing your question…",
+    ]);
+  });
+
+  it("appends to an empty list", () => {
+    expect(appendStep([], "Routing your question…")).toEqual(["Routing your question…"]);
   });
 });
 

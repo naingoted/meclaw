@@ -55,6 +55,15 @@ function readScore(value: unknown): string | undefined {
   return undefined;
 }
 
+/**
+ * Append a live step label, skipping a consecutive duplicate so a repeated
+ * data-status emit can't double a checklist row.
+ */
+export function appendStep(steps: string[], label: string): string[] {
+  if (steps.length > 0 && steps[steps.length - 1] === label) return steps;
+  return [...steps, label];
+}
+
 function extractSources(message: ChatMessageLike): RenderedSource[] {
   if (process.env.NODE_ENV === "production" || message.role !== "assistant") {
     return [];
