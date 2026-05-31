@@ -6,7 +6,7 @@
     "dev": "next dev",
     "dev:ai": "cd services/ai && uv run --env-file .env uvicorn app.main:app --port 8000 --reload",
     "dev:full": "docker compose up --build",
-    "services": "docker compose up -d qdrant ollama postgres",
+    "services": "docker compose up -d ollama postgres",
     "build": "next build",
     "start": "node scripts/start-standalone.mjs",
     "lint": "eslint",

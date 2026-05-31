@@ -1,12 +1,4 @@
 services:
-  qdrant:
-    image: qdrant/qdrant:v1.12.4
-    ports:
-      - "6333:6333"
-    volumes:
-      - qdrant_storage:/qdrant/storage
-    restart: unless-stopped
-
   ollama:
     image: ollama/ollama:0.3.14
     ports:
@@ -37,13 +29,12 @@ services:
       # it (langchain-anthropic appends /v1/messages itself).
       ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL}
       ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-qwen3.6-plus}
-      QDRANT_URL: http://qdrant:6333
-      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-meclaw_knowledge}
+      DATABASE_URL: postgres://meclaw:meclaw@postgres:5432/meclaw
       OLLAMA_BASE_URL: http://ollama:11434
       OLLAMA_EMBED_MODEL: ${OLLAMA_EMBED_MODEL:-nomic-embed-text}
       RAG_TOP_K: ${RAG_TOP_K:-4}
     depends_on:
-      - qdrant
+      - postgres
       - ollama
     restart: unless-stopped
 
@@ -70,6 +61,5 @@ services:
     restart: unless-stopped
 
 volumes:
-  qdrant_storage:
   ollama_storage:
   pgdata:

@@ -30,16 +30,8 @@ services:
     expose:
       - "8000"
     depends_on:
-      - qdrant
+      - postgres
       - ollama
-
-  qdrant:
-    image: qdrant/qdrant:v1.12.4
-    restart: unless-stopped
-    expose:
-      - "6333"
-    volumes:
-      - qdrant_storage:/qdrant/storage
 
   ollama:
     image: ollama/ollama:0.3.14
@@ -50,7 +42,7 @@ services:
       - ollama_storage:/root/.ollama
 
   postgres:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-meclaw}
@@ -74,12 +66,10 @@ services:
     volumes:
       - ./content/knowledge:/app/content/knowledge:ro
     depends_on:
-      - qdrant
       - ollama
       - postgres
 
 volumes:
-  qdrant_storage:
   ollama_storage:
   pgdata:
   caddy_data:
