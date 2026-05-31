@@ -3,7 +3,9 @@ import {
   createUIMessageStream,
   createUIMessageStreamResponse,
 } from "ai";
-import { initDb, saveTurn, type PersistentMessage } from "@/lib/db";
+import { randomUUID } from "node:crypto";
+import { initDb, saveTurn, saveLead, type PersistentMessage, type LeadInput } from "@/lib/db";
+import { notifyLead } from "@/lib/notify";
 import { chatRateLimiter } from "@/lib/rate-limit";
 import { detectInjection } from "@/lib/ai/guardrails";
 
@@ -53,10 +55,12 @@ async function getDb(): Promise<Awaited<ReturnType<typeof initDb>>> {
 function teeForPersistence(
   upstreamBody: ReadableStream<Uint8Array>,
   messages: UIMessage[],
+  conversationId: string,
 ): ReadableStream<Uint8Array> {
   const decoder = new TextDecoder();
   let assistantText = "";
   let buffered = "";
+  let capturedLead: Omit<LeadInput, "conversationId"> | null = null;
 
   // Shared logic: parse a single SSE line and accumulate text-delta content
   const accumulateDelta = (line: string) => {
@@ -65,9 +69,17 @@ function teeForPersistence(
     const payload = trimmed.slice("data:".length).trim();
     if (payload === "[DONE]" || payload.length === 0) return;
     try {
-      const part = JSON.parse(payload) as { type?: string; delta?: string };
+      const part = JSON.parse(payload) as {
+        type?: string;
+        delta?: string;
+        messageMetadata?: { lead?: Omit<LeadInput, "conversationId"> };
+      };
       if (part.type === "text-delta" && typeof part.delta === "string") {
         assistantText += part.delta;
+      }
+      const lead = part.messageMetadata?.lead;
+      if (lead && (lead.email || lead.phone)) {
+        capturedLead = lead;
       }
     } catch {
       // ignore non-JSON keep-alive lines
@@ -103,7 +115,12 @@ function teeForPersistence(
           role: "assistant",
           content: assistantText,
         };
-        await saveTurn(await getDb(), userMessages, assistantMessage);
+        const db = await getDb();
+        await saveTurn(db, userMessages, assistantMessage, conversationId);
+        if (capturedLead) {
+          await saveLead(db, { conversationId, ...capturedLead });
+          await notifyLead(capturedLead);
+        }
       } catch (error) {
         // Best-effort: persistence failures (DB down, bad DATABASE_URL, etc.)
         // are logged and never break the stream.
@@ -146,6 +163,8 @@ export async function POST(req: Request) {
   }
 
   const messages: UIMessage[] = (body?.messages as UIMessage[]) || [];
+  const conversationId =
+    typeof body?.conversationId === "string" ? body.conversationId : randomUUID();
 
   // Guard 2: Injection detection — check latest user message
   const latestUserMessage = messages
@@ -191,7 +210,7 @@ export async function POST(req: Request) {
   }
 
   // Pipe the SSE bytes straight back to the browser. Persistence tee added in Task 12.
-  return new Response(teeForPersistence(upstream.body, messages), {
+  return new Response(teeForPersistence(upstream.body, messages, conversationId), {
     status: 200,
     headers: {
       "content-type": upstream.headers.get("content-type") ?? "text/event-stream",

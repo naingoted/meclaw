@@ -1,8 +1,15 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 
+const mockSaveLead = vi.fn(async () => {});
+const mockNotifyLead = vi.fn(async () => {});
 vi.mock("@/lib/db", () => ({
   initDb: vi.fn(async () => ({})),
   saveTurn: vi.fn(async () => {}),
+  saveLead: mockSaveLead,
+}));
+
+vi.mock("@/lib/notify", () => ({
+  notifyLead: mockNotifyLead,
 }));
 
 // Create a mutable mock for rate limiter that we can control per test
@@ -210,6 +217,7 @@ describe("POST /api/chat — Guard Tests", () => {
     afterEach(() => {
       vi.unstubAllGlobals();
       vi.doUnmock("@/lib/db");
+      vi.doUnmock("@/lib/notify");
     });
 
     it("accumulates deltas and calls saveTurn on finish", async () => {
@@ -315,6 +323,59 @@ describe("POST /api/chat — Guard Tests", () => {
       expect(userMsgs).toEqual([{ role: "user", content: "hi" }]);
       // Both deltas accumulated, including the one without trailing newline
       expect(assistantMsg).toEqual({ role: "assistant", content: "part1 part2" });
+    });
+
+    it("persists + notifies a lead emitted in stream metadata", async () => {
+      const saveLead = vi.fn().mockResolvedValue(undefined);
+      const notifyLead = vi.fn().mockResolvedValue(undefined);
+      vi.doMock("@/lib/db", () => ({
+        initDb: vi.fn().mockResolvedValue({}),
+        saveTurn: vi.fn().mockResolvedValue(undefined),
+        saveLead,
+      }));
+      vi.doMock("@/lib/notify", () => ({
+        notifyLead,
+      }));
+      vi.resetModules();
+      const { POST: PostWithMock } = await import("./route");
+
+      const leadPart =
+        `data: ${JSON.stringify({
+          type: "finish",
+          messageMetadata: {
+            lead: { email: "jane@acme.com", triggerQuestion: "salary?", trigger: "edge_case" },
+          },
+        })}\n\n`;
+      const upstream = new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode(leadPart));
+            controller.enqueue(new TextEncoder().encode("data: [DONE]\n\n"));
+            controller.close();
+          },
+        }),
+        { status: 200, headers: { "content-type": "text/event-stream" } },
+      );
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(upstream));
+
+      const req = new Request("http://localhost/api/chat", {
+        method: "POST",
+        body: JSON.stringify({
+          conversationId: "sess-1",
+          messages: [{ id: "1", role: "user", content: "jane@acme.com" }],
+        }),
+      });
+
+      const res = await PostWithMock(req);
+      await res.text(); // drain the stream so the tee flush runs
+
+      expect(saveLead).toHaveBeenCalledTimes(1);
+      expect(saveLead.mock.calls[0][1]).toMatchObject({
+        conversationId: "sess-1",
+        email: "jane@acme.com",
+        trigger: "edge_case",
+      });
+      expect(notifyLead).toHaveBeenCalledTimes(1);
     });
   });
 });
