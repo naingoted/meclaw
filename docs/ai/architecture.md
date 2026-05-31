@@ -42,7 +42,7 @@ This keeps Phase 1 additive: local infra improves relevance, but a service outag
 
 - `conversations` — `id, createdAt, visitorMeta(json?)`
 - `messages` — `id, conversationId, role(user|assistant|tool), content, toolCalls(json?), createdAt`
-- `rag_chunks` — `id, content, embedding(vector, 768-dim), metadata(json), createdAt` with HNSW cosine index
+- `rag_chunks` — `id, source, title, text, ordinal, embedding(vector, 768-dim)` with HNSW cosine index
 
 No orgs/users/auth/subscriptions/plugins — stripped from the multi-tenant ancestor.
 
