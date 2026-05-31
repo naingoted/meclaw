@@ -80,3 +80,40 @@ describe("saveTurn (mocked)", () => {
     expect(inserts[2].toolCalls).toBeNull();
   });
 });
+
+const DATABASE_URL = process.env.DATABASE_URL;
+
+describe.skipIf(!DATABASE_URL)("saveTurn (integration, real Postgres)", () => {
+  it("persists one user + one assistant message per turn", async () => {
+    const postgres = (await import("postgres")).default;
+    const { drizzle } = await import("drizzle-orm/postgres-js");
+    const { runMigrations } = await import("./migrate");
+    const schema = await import("./schema");
+
+    await runMigrations(DATABASE_URL);
+
+    const sql = postgres(DATABASE_URL!, { max: 1 });
+    try {
+      const db = drizzle(sql, { schema });
+
+      const convId = await saveTurn(
+        db as never,
+        [
+          { role: "user", content: "First" },
+          { role: "user", content: "Second" },
+        ],
+        { role: "assistant", content: "Reply" },
+      );
+
+      const rows = await sql<{ role: string; content: string }[]>`
+        SELECT role, content FROM messages WHERE "conversationId" = ${convId}
+      `;
+      expect(rows).toHaveLength(2);
+      expect(rows.map((r) => r.role).sort()).toEqual(["assistant", "user"]);
+      const userRow = rows.find((r) => r.role === "user");
+      expect(userRow?.content).toBe("Second");
+    } finally {
+      await sql.end();
+    }
+  });
+});
