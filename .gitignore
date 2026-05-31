@@ -27,3 +27,6 @@ coverage/
 output/
 .playwright-cli/
 .verify-shots/
+
+# git worktrees (subagent-driven-development)
+.claude/worktrees/
