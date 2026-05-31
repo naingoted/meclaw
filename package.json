@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit",
     "verify": "pnpm lint && pnpm typecheck && pnpm build",
     "ingest": "jiti scripts/ingest.ts",
+    "seed:docs": "jiti scripts/seed-documents.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "jiti scripts/db-migrate.ts",
     "test": "vitest run",
