@@ -46,6 +46,12 @@ pnpm dev                     # Next only → http://localhost:3000
 > sidecar running, the chat request fails — start the sidecar with `pnpm dev:ai`,
 > or use `pnpm dev:full` which runs everything in Docker.
 
+> **Host prod build (`pnpm build && pnpm start`)?** Next reads `.env`/`.env.local`,
+> where `AI_SERVICE_URL` may be `http://ai:8000` (the compose-network name, valid
+> only inside Docker). On the host that DNS doesn't resolve → `ENOTFOUND ai`.
+> Override for a host run: `AI_SERVICE_URL=http://localhost:8000 pnpm start`
+> (the Dockerized prod path in `docker-compose.prod.yml` keeps `ai:8000` — correct there).
+
 ## Phase 1 RAG services
 
 Start the local vector and embedding services before ingesting (`pnpm services` is shorthand for the compose line):
@@ -89,8 +95,8 @@ Set in `.env.local` (gitignored — never commit real values):
 | `pnpm dev:ai` | Python AI sidecar on :8000 (host, via `uv`). |
 | `pnpm dev:full` | Build + boot the whole stack in Docker (qdrant, ollama, ai, web). |
 | `pnpm services` | Start qdrant + ollama (data plane only). |
-| `pnpm build` | Production build. |
-| `pnpm start` | Serve the production build. |
+| `pnpm build` | Production build (`output: standalone`). |
+| `pnpm start` | Serve the standalone prod build locally (copies `public/` + `.next/static` into `.next/standalone`, then runs `server.js`). |
 | `pnpm lint` | ESLint (next config). |
 | `pnpm typecheck` | `tsc --noEmit`. |
 | `pnpm verify` | lint + typecheck + build — the pre-merge gate. |
