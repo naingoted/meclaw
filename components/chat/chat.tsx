@@ -231,6 +231,24 @@ function SourcesPanel({ sources, route }: { sources: RenderedSource[]; route?: s
   );
 }
 
+function ThinkingTrace({ steps }: { steps: string[] }) {
+  return (
+    <details className="w-full max-w-[85%] rounded-xl border border-border bg-background px-3 py-2 text-xs text-muted-foreground">
+      <summary className="cursor-pointer font-medium text-foreground">
+        How I answered
+      </summary>
+      <ol className="mt-2 space-y-1">
+        {steps.map((step, i) => (
+          <li key={`${step}-${i}`} className="flex items-center gap-2">
+            <span aria-hidden="true">✓</span>
+            <span>{step}</span>
+          </li>
+        ))}
+      </ol>
+    </details>
+  );
+}
+
 export function Chat() {
   // `liveSteps` accumulates the backend's transient `data-status` labels into an
   // ordered checklist ("Routing…" → "Searching…" → "Writing…") shown live during
@@ -307,6 +325,7 @@ export function Chat() {
         {messages.map((message) => {
           const sources = extractSources(message);
           const route = extractRoute(message);
+          const steps = extractSteps(message);
 
           return (
             <div
@@ -335,6 +354,7 @@ export function Chat() {
                       )}
                     </div>
                     {sources.length > 0 || route ? <SourcesPanel sources={sources} route={route} /> : null}
+                    {steps.length > 0 ? <ThinkingTrace steps={steps} /> : null}
                   </div>
                 </>
               ) : (

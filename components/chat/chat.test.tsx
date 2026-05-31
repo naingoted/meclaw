@@ -392,3 +392,60 @@ describe("LiveTrace", () => {
       .toHaveAttribute("data-active", "false");
   });
 });
+
+describe("ThinkingTrace (persisted How I answered)", () => {
+  it("renders a collapsed trace with ordered steps for an assistant message", () => {
+    mockState.messages = [
+      {
+        id: "a1",
+        role: "assistant" as const,
+        parts: [{ type: "text" as const, text: "Thet uses Python." }],
+        metadata: {
+          steps: ["Routing your question…", "Searching knowledge base…", "Writing the answer…"],
+        },
+      },
+    ];
+
+    render(<Chat />);
+
+    const summary = screen.getByText("How I answered");
+    expect(summary).toBeInTheDocument();
+    // collapsed by default: the parent <details> has no `open` attribute
+    expect(summary.closest("details")).not.toHaveAttribute("open");
+    // the steps are present in the DOM
+    expect(screen.getByText("Routing your question…")).toBeInTheDocument();
+    expect(screen.getByText("Searching knowledge base…")).toBeInTheDocument();
+    expect(screen.getByText("Writing the answer…")).toBeInTheDocument();
+  });
+
+  it("renders the trace in production (not dev-gated)", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    mockState.messages = [
+      {
+        id: "a2",
+        role: "assistant" as const,
+        parts: [{ type: "text" as const, text: "Sure." }],
+        metadata: { steps: ["Routing your question…"] },
+      },
+    ];
+
+    render(<Chat />);
+
+    expect(screen.getByText("How I answered")).toBeInTheDocument();
+  });
+
+  it("renders no trace when steps are absent", () => {
+    mockState.messages = [
+      {
+        id: "a3",
+        role: "assistant" as const,
+        parts: [{ type: "text" as const, text: "Sure." }],
+        metadata: { route: "general", intent: "general" },
+      },
+    ];
+
+    render(<Chat />);
+
+    expect(screen.queryByText("How I answered")).not.toBeInTheDocument();
+  });
+});
