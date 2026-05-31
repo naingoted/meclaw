@@ -79,6 +79,7 @@ jobs:
           script: |
             set -euo pipefail
             cd /opt/meclaw
+            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u "${{ secrets.GHCR_USER }}" --password-stdin
             git pull --ff-only
             docker compose -f docker-compose.prod.yml pull
             docker compose -f docker-compose.prod.yml up -d
