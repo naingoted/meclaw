@@ -38,20 +38,28 @@ export async function initDb(databaseUrl?: string) {
  * Save a turn (latest user message + assistant response). Best-effort caller
  * contract preserved: persists ONLY the last user message (avoids duplicating
  * client-sent history) plus the assistant response. Returns the conversation ID.
+ *
+ * Accepts an optional stable conversationId (default = randomUUID()) to enable
+ * multi-turn sessions: calling with the same id across turns upserts instead of
+ * failing on re-insert.
  */
 export async function saveTurn(
   db: Awaited<ReturnType<typeof initDb>>,
   userMessages: PersistentMessage[],
   assistantMessage: PersistentMessage,
+  conversationId: string = randomUUID(),
 ): Promise<string> {
-  const conversationId = randomUUID();
   const now = new Date();
 
   await db.transaction(async (tx) => {
-    await tx.insert(schema.conversations).values({
-      id: conversationId,
-      createdAt: now,
-    });
+    // Upsert: the same session id spans many turns, so don't fail on re-insert.
+    await tx
+      .insert(schema.conversations)
+      .values({
+        id: conversationId,
+        createdAt: now,
+      })
+      .onConflictDoNothing();
 
     if (userMessages.length > 0) {
       const lastUserMessage = userMessages[userMessages.length - 1];

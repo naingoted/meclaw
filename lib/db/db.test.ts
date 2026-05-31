@@ -12,7 +12,8 @@ function makeMockDb() {
     insert: () => ({
       values: (values: Record<string, unknown>) => {
         inserts.push(values);
-        return Promise.resolve();
+        const p = Promise.resolve();
+        return Object.assign(p, { onConflictDoNothing: () => Promise.resolve() });
       },
     }),
   };
@@ -78,6 +79,18 @@ describe("saveTurn (mocked)", () => {
       content: "Hello",
     });
     expect(inserts[2].toolCalls).toBeNull();
+  });
+
+  it("uses a provided conversationId instead of minting one", async () => {
+    const { db, inserts } = makeMockDb();
+    const id = await saveTurn(
+      db as never,
+      [{ role: "user", content: "Hi" }],
+      { role: "assistant", content: "Hello" },
+      "fixed-convo-id",
+    );
+    expect(id).toBe("fixed-convo-id");
+    expect(inserts[0].id).toBe("fixed-convo-id"); // conversation row uses it
   });
 });
 
