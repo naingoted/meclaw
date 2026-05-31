@@ -23,14 +23,14 @@ Two paths — pick one (the root README compares them side by side):
 **Full stack in Docker (recommended):**
 ```bash
 cp .env.example .env         # compose reads .env (NOT .env.local); fill ANTHROPIC_API_KEY
-pnpm dev:full                # builds + boots qdrant, ollama, ai sidecar, web → :3000
+pnpm dev:full                # builds + boots ollama, postgres (pgvector), ai sidecar, web → :3000
 ```
 
 **Host dev (fast UI loop):**
 ```bash
 pnpm install
 cp .env.example .env.local   # Next reads .env.local; fill ANTHROPIC_API_KEY + DATABASE_URL
-pnpm services                # qdrant + ollama + postgres
+pnpm services                # ollama + postgres (pgvector)
 pnpm db:migrate              # create the conversations/messages tables
 pnpm dev:ai                  # the chat route proxies here — start the sidecar (needs uv)
 pnpm dev                     # Next only → http://localhost:3000
@@ -57,15 +57,15 @@ pnpm dev                     # Next only → http://localhost:3000
 Start the local vector and embedding services before ingesting (`pnpm services` is shorthand for the compose line):
 
 ```bash
-docker compose up -d qdrant ollama postgres   # or: pnpm services
+docker compose up -d ollama postgres        # or: pnpm services
 docker compose exec ollama ollama pull nomic-embed-text
-pnpm db:migrate
-pnpm ingest
+pnpm db:migrate                              # creates conversations, messages, rag_chunks
+pnpm ingest                                  # writes embeddings to rag_chunks
 ```
 
-`pnpm dev` runs only the Next server — the data plane is intentionally separate (stateful, slow to boot, survives Next restarts). **`pnpm dev:full`** (= `docker compose up --build`) is the whole stack in Docker: it pulls the qdrant/ollama/postgres images and builds the **`ai`** sidecar (Python deps via `uv`) and **`web`** (node deps via `pnpm`) images, then runs all services with the repo bind-mounted for HMR. It does **not** run a host `pnpm install`, pull the embed model, migrate Postgres, or ingest — see "Phase 1 RAG services" below for those one-time steps. Nothing stops the containers on exit; tear down with `docker compose down`.
+`pnpm dev` runs only the Next server — the data plane is intentionally separate (stateful, slow to boot, survives Next restarts). **`pnpm dev:full`** (= `docker compose up --build`) is the whole stack in Docker: it pulls the ollama/postgres images and builds the **`ai`** sidecar (Python deps via `uv`) and **`web`** (node deps via `pnpm`) images, then runs all services with the repo bind-mounted for HMR. It does **not** run a host `pnpm install`, pull the embed model, migrate Postgres, or ingest — see "Phase 1 RAG services" below for those one-time steps. Nothing stops the containers on exit; tear down with `docker compose down`.
 
-If Qdrant or Ollama is down, the chat path falls back to the existing full-corpus prompt. The app stays usable, but retrieval is disabled until the services come back.
+If Ollama or PostgreSQL is down, the chat path falls back to the existing full-corpus prompt. The app stays usable, but retrieval is disabled until the services come back.
 When the markdown corpus is still small enough to fit comfortably in the prompt, the app also keeps using the full-corpus prompt instead of narrowing context to retrieved chunks.
 
 ## Knowledge corpus
@@ -84,8 +84,6 @@ Set in `.env.local` (gitignored — never commit real values):
 | `DATABASE_URL` | Postgres connection. Local default `postgres://meclaw:meclaw@localhost:5432/meclaw`. Required for persistence. |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` |
 | `OLLAMA_EMBED_MODEL` | `nomic-embed-text` |
-| `QDRANT_URL` | `http://localhost:6333` |
-| `QDRANT_COLLECTION` | `meclaw_knowledge` |
 | `RAG_TOP_K` | `4` |
 | `RAG_DEV_SOURCES` | `true` to include retrieved source metadata in development streams; `false` to omit it. |
 
@@ -95,8 +93,8 @@ Set in `.env.local` (gitignored — never commit real values):
 |---------|------|
 | `pnpm dev` | Dev server (Next only; chat needs the sidecar running separately). |
 | `pnpm dev:ai` | Python AI sidecar on :8000 (host, via `uv`). |
-| `pnpm dev:full` | Build + boot the whole stack in Docker (qdrant, ollama, ai, web). |
-| `pnpm services` | Start qdrant + ollama + postgres (data plane only). |
+| `pnpm dev:full` | Build + boot the whole stack in Docker (ollama, postgres, ai, web). |
+| `pnpm services` | Start ollama + postgres (data plane only). |
 | `pnpm db:generate` | Regenerate Drizzle migrations from `lib/db/schema.ts` into `drizzle/`. |
 | `pnpm db:migrate` | Apply pending migrations to `DATABASE_URL`. |
 | `pnpm build` | Production build (`output: standalone`). |
