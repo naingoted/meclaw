@@ -15,6 +15,18 @@ services:
       - ollama_storage:/root/.ollama
     restart: unless-stopped
 
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: meclaw
+      POSTGRES_PASSWORD: meclaw
+      POSTGRES_DB: meclaw
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
   ai:
     build: ./services/ai
     ports:
@@ -47,16 +59,17 @@ services:
       - "3000:3000"
     environment:
       AI_SERVICE_URL: http://ai:8000
+      DATABASE_URL: postgres://meclaw:meclaw@postgres:5432/meclaw
     volumes:
       - .:/app                 # live source from the host
       - /app/node_modules      # keep the container's linux-built deps
       - /app/.next             # keep the container's build cache
-      - sqlite_data:/app/data
     depends_on:
       - ai
+      - postgres
     restart: unless-stopped
 
 volumes:
   qdrant_storage:
   ollama_storage:
-  sqlite_data:
+  pgdata:
