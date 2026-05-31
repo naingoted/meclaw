@@ -7,6 +7,10 @@
 // (see Dockerfile runner stage). We replicate those copies, then boot server.js.
 //
 // PORT / HOSTNAME pass through via the inherited env (e.g. `PORT=3001 pnpm start`).
+//
+// Persistence requires DATABASE_URL (Postgres) and an already-migrated schema.
+// This lean runner does NOT migrate — run `pnpm db:migrate` first. If the DB is
+// unreachable, chat still works (persistence is best-effort).
 import { cpSync, existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 

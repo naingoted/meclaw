@@ -35,5 +35,5 @@ def how_this_works() -> str:
         "respond). Knowledge comes from markdown in content/, embedded with Ollama "
         "nomic-embed-text and retrieved from Qdrant. The chat model is qwen3.6-plus "
         "via an Anthropic-compatible gateway. The Next.js app handles the UI, "
-        "guardrails, and SQLite persistence."
+        "guardrails, and Postgres persistence."
     )

@@ -77,7 +77,7 @@ Knowledge about Thet comes from markdown files in the content/ directory. These 
 embedded (nomic-embed-text via Ollama) into a Qdrant vector database; each question is embedded and
 the most relevant chunks are retrieved and added to the system prompt (retrieval-augmented generation).
 If retrieval is unavailable, it falls back to stuffing the full corpus into the prompt. Conversations
-are persisted to a local SQLite database (better-sqlite3) for future reference. The goal is to create
+are persisted to PostgreSQL through Drizzle and postgres-js for future reference. The goal is to create
 a personalized, always-available bot that answers about the owner in a warm, third-person voice.`;
   },
 });

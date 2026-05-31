@@ -135,9 +135,10 @@ describe("Agent tools", () => {
       expect(result.toLowerCase()).toMatch(/markdown|content/);
     });
 
-    it("mentions persistence (SQLite)", () => {
+    it("mentions persistence (Postgres)", () => {
       const result = howThisWorks.execute({});
-      expect(result.toLowerCase()).toMatch(/sqlite|persist|local/);
+      expect(result.toLowerCase()).toMatch(/postgres|persist/);
+      expect(result.toLowerCase()).not.toMatch(/sqlite|better-sqlite3/);
     });
 
     it("has a description", () => {

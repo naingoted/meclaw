@@ -7,7 +7,7 @@
 
 - **Languages:** TypeScript, JavaScript <!-- TODO: add the rest -->
 - **Frontend:** React, Next.js (App Router), Tailwind CSS
-- **Backend / data:** Node.js, SQLite, Drizzle ORM
+- **Backend / data:** Node.js, PostgreSQL, Drizzle ORM
 - **AI:** Vercel AI SDK, LLM app patterns (context-stuffing, tools)
 
 ## Experience

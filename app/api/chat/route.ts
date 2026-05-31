@@ -105,19 +105,10 @@ function teeForPersistence(
         };
         await saveTurn(await getDb(), userMessages, assistantMessage);
       } catch (error) {
+        // Best-effort: persistence failures (DB down, bad DATABASE_URL, etc.)
+        // are logged and never break the stream.
         const errorMsg = error instanceof Error ? error.message : String(error);
-        if (
-          errorMsg.includes("better-sqlite3") ||
-          errorMsg.includes("bindings") ||
-          errorMsg.includes("Cannot find module")
-        ) {
-          console.warn(
-            "[db] Native SQLite module not available. Persistence skipped. " +
-              "If this is unexpected, run: pnpm rebuild better-sqlite3",
-          );
-        } else {
-          console.error("[db] Failed to persist conversation:", errorMsg);
-        }
+        console.error("[db] Failed to persist conversation:", errorMsg);
       }
     },
   });
