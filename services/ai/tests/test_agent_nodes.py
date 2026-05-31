@@ -189,9 +189,11 @@ def test_default_triage_fn_unparseable_degrades_gracefully():
     triage_fn = default_triage_fn(fake_model())
     result = triage_fn([{"role": "user", "content": "hello"}])
 
+    # A parse failure is a router fault, not user ambiguity: degrade to the
+    # general route (no clarifying question) so the question still gets answered.
     assert result.intent == "general"
     assert result.confidence == 0.0
-    assert result.clarifying_question == "Could you tell me a bit more about what you'd like to know about Thet?"
+    assert result.clarifying_question is None
 
 
 def test_default_draft_fn_extracts_text_from_blocks():

@@ -86,6 +86,7 @@ def default_triage_fn(triage_model) -> Callable[[list[dict]], TriageResult]:
     """
 
     def _run(messages: list[dict]) -> TriageResult:
+        text = ""
         try:
             response = triage_model.invoke(
                 [{"role": "system", "content": TRIAGE_SYSTEM + TRIAGE_JSON_INSTRUCTION}] + messages
@@ -95,12 +96,19 @@ def default_triage_fn(triage_model) -> Callable[[list[dict]], TriageResult]:
             match = re.search(r"\{.*\}", text, re.DOTALL)
             parsed = json.loads(match.group(0) if match else text)
             schema = _TriageSchema(**parsed)
-        except Exception:
-            logger.warning("Triage parse failed; defaulting to clarify", exc_info=True)
+        except Exception as exc:
+            # A parse failure is a router fault, not user ambiguity. Don't dead-end
+            # a clear question with a generic clarify prompt — degrade to the general
+            # route (clarifying_question=None) so the question still gets a grounded
+            # answer attempt. review_node guards against hallucination if retrieval
+            # comes back empty. Keep the log to one line; full traceback at debug.
+            snippet = text[:200] if text else "<empty>"
+            logger.warning("Triage parse failed (%s); routing to general. Raw: %r", exc, snippet)
+            logger.debug("Triage parse traceback", exc_info=True)
             return TriageResult(
                 intent="general",
                 confidence=0.0,
-                clarifying_question="Could you tell me a bit more about what you'd like to know about Thet?",
+                clarifying_question=None,
             )
         intent = schema.intent if schema.intent in VALID_INTENTS else "general"
         return TriageResult(
@@ -118,16 +126,16 @@ def triage_node(
 ) -> GraphState:
     triage = triage_fn(state["messages"])
 
-    if triage.confidence < TRIAGE_CONFIDENCE_THRESHOLD:
-        question = (
-            triage.clarifying_question
-            or "Could you tell me a bit more about what you'd like to know about Thet?"
-        )
+    # Only ask the user to clarify when the router is unsure AND it produced a
+    # specific question worth asking. Low confidence with no question (e.g. a
+    # parse failure degraded to general) routes best-effort instead of dead-ending
+    # on a generic "tell me more about Thet" prompt.
+    if triage.confidence < TRIAGE_CONFIDENCE_THRESHOLD and triage.clarifying_question:
         return {
             "intent": triage.intent,
             "confidence": triage.confidence,
             "needs_clarification": True,
-            "clarifying_question": question,
+            "clarifying_question": triage.clarifying_question,
             "route": "respond",
         }
 

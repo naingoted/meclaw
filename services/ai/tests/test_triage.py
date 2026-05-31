@@ -17,6 +17,20 @@ def test_triage_routes_high_confidence():
     assert out["needs_clarification"] is False
 
 
+def test_triage_low_confidence_without_question_routes_best_effort():
+    """Low confidence but no clarifying_question (e.g. parse failure degraded to
+    general) should attempt an answer, not dead-end on the generic clarify prompt."""
+    def fake_triage(_messages):
+        return TriageResult(intent="general", confidence=0.0, clarifying_question=None)
+
+    state = make_state("what model are you using?")
+    out = triage_node(state, triage_fn=fake_triage)
+
+    assert out["needs_clarification"] is False
+    assert out["route"] == "general"
+    assert out["intent"] == "general"
+
+
 def test_triage_low_confidence_sets_clarification():
     def fake_triage(_messages):
         return TriageResult(
