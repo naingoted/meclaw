@@ -21,6 +21,7 @@ import {
   shouldShowThinking,
   appendStep,
   extractSteps,
+  hasRenderedText,
   LiveTrace,
 } from "@/components/chat/chat";
 
@@ -101,6 +102,20 @@ describe("extractSteps", () => {
         metadata: { steps: ["Routing your question…"] },
       }),
     ).toEqual(["Routing your question…"]);
+  });
+});
+
+describe("hasRenderedText", () => {
+  it("is true once an assistant message has non-empty text", () => {
+    expect(
+      hasRenderedText({ parts: [{ type: "text", text: "Python." }] }),
+    ).toBe(true);
+  });
+
+  it("is false for an empty or text-less message (pre-token window)", () => {
+    expect(hasRenderedText({ parts: [] })).toBe(false);
+    expect(hasRenderedText({ parts: [{ type: "text", text: "" }] })).toBe(false);
+    expect(hasRenderedText({})).toBe(false);
   });
 });
 
@@ -432,6 +447,35 @@ describe("ThinkingTrace (persisted How I answered)", () => {
     render(<Chat />);
 
     expect(screen.getByText("How I answered")).toBeInTheDocument();
+  });
+
+  it("suppresses the persisted trace while the message has no text yet (pre-token overlap)", () => {
+    mockState.status = "streaming";
+    mockState.messages = [
+      {
+        id: "u1",
+        role: "user" as const,
+        parts: [{ type: "text" as const, text: "stack?" }],
+      },
+      {
+        id: "a1",
+        role: "assistant" as const,
+        parts: [],
+        metadata: {
+          steps: ["Routing your question…", "Writing the answer…"],
+          sources: [{ source: "about.md", title: "About", score: 0.8 }],
+          route: "tech",
+          intent: "tech",
+        },
+      },
+    ];
+
+    render(<Chat />);
+
+    // metadata arrived early, but the persisted blocks must not coexist with the
+    // live checklist — they appear only once answer text starts streaming.
+    expect(screen.queryByText("How I answered")).not.toBeInTheDocument();
+    expect(screen.queryByText("Sources used")).not.toBeInTheDocument();
   });
 
   it("renders no trace when steps are absent", () => {

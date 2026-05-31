@@ -128,6 +128,20 @@ type MessageWithParts = {
 };
 
 /**
+ * Whether a message has begun streaming non-empty text. Metadata (sources,
+ * route, steps) arrives at `sse_start` — before the first token — so the
+ * persisted "How I answered" trace and dev Sources panel gate on this to avoid
+ * coexisting with the live checklist during the pre-token window. Text appears
+ * exactly as the live checklist disappears, so the handoff is clean.
+ */
+export function hasRenderedText(message: MessageWithParts): boolean {
+  return (
+    Array.isArray(message.parts) &&
+    message.parts.some((p) => p.type === "text" && (p.text?.length ?? 0) > 0)
+  );
+}
+
+/**
  * Whether to show the "thinking" indicator: true from the moment a question is
  * sent until the first assistant token arrives. Once the assistant message has
  * text, the streamed answer replaces the indicator.
@@ -326,6 +340,9 @@ export function Chat() {
           const sources = extractSources(message);
           const route = extractRoute(message);
           const steps = extractSteps(message);
+          // Hold persisted blocks until answer text begins, so they don't
+          // overlap the live checklist (metadata lands before the first token).
+          const answered = hasRenderedText(message as MessageWithParts);
 
           return (
             <div
@@ -353,8 +370,10 @@ export function Chat() {
                         ) : null,
                       )}
                     </div>
-                    {sources.length > 0 || route ? <SourcesPanel sources={sources} route={route} /> : null}
-                    {steps.length > 0 ? <ThinkingTrace steps={steps} /> : null}
+                    {answered && (sources.length > 0 || route) ? (
+                      <SourcesPanel sources={sources} route={route} />
+                    ) : null}
+                    {answered && steps.length > 0 ? <ThinkingTrace steps={steps} /> : null}
                   </div>
                 </>
               ) : (
