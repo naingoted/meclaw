@@ -11,11 +11,10 @@
   local RAG retrieval.
 - `uv` (Python package runner) if you run the AI sidecar on the host via
   `pnpm dev:ai`. Not needed when you use `pnpm dev:full` (sidecar runs in Docker).
-- **Build tools required for native modules:** SQLite persistence uses `better-sqlite3`, which includes a native module (`.node` binary). pnpm (v9+) blocks build scripts by default; the repo's `package.json` explicitly allows `better-sqlite3` via `pnpm.onlyBuiltDependencies`. On first install, run:
-  ```bash
-  pnpm rebuild better-sqlite3
-  ```
-  **If `pnpm rebuild better-sqlite3` fails** (missing C compiler, Python, or build tools), persistence degrades gracefully: chat continues to work, DB errors are logged with a rebuild hint, and no data is lost (each turn is still processed). The module auto-builds in CI/CD environments and on machines with standard build toolchains available. **By design**, this ensures the chatbot works everywhere, with optional persistence.
+- **PostgreSQL:** persistence uses Postgres via `postgres-js` (pure JS — no
+  native build). Local dev runs it as a docker-compose service (`pnpm services`).
+  Apply the schema once before chatting persists: `pnpm db:migrate`. If the DB
+  is down, chat still works (persistence is best-effort).
 
 ## Steps
 
@@ -30,8 +29,9 @@ pnpm dev:full                # builds + boots qdrant, ollama, ai sidecar, web �
 **Host dev (fast UI loop):**
 ```bash
 pnpm install
-cp .env.example .env.local   # Next reads .env.local; fill ANTHROPIC_API_KEY
-pnpm rebuild better-sqlite3  # build native module once
+cp .env.example .env.local   # Next reads .env.local; fill ANTHROPIC_API_KEY + DATABASE_URL
+pnpm services                # qdrant + ollama + postgres
+pnpm db:migrate              # create the conversations/messages tables
 pnpm dev:ai                  # the chat route proxies here — start the sidecar (needs uv)
 pnpm dev                     # Next only → http://localhost:3000
 ```
@@ -57,12 +57,13 @@ pnpm dev                     # Next only → http://localhost:3000
 Start the local vector and embedding services before ingesting (`pnpm services` is shorthand for the compose line):
 
 ```bash
-docker compose up -d qdrant ollama   # or: pnpm services
+docker compose up -d qdrant ollama postgres   # or: pnpm services
 docker compose exec ollama ollama pull nomic-embed-text
+pnpm db:migrate
 pnpm ingest
 ```
 
-`pnpm dev` runs only the Next server — the data plane is intentionally separate (stateful, slow to boot, survives Next restarts). **`pnpm dev:full`** (= `docker compose up --build`) is the whole stack in Docker: it pulls the qdrant/ollama images and builds the **`ai`** sidecar (Python deps via `uv`) and **`web`** (node deps via `pnpm`, incl. native `better-sqlite3`) images, then runs all four with the repo bind-mounted for HMR. It does **not** run a host `pnpm install`, pull the embed model, or ingest — see "Phase 1 RAG services" below for those one-time steps. Nothing stops the containers on exit; tear down with `docker compose down`.
+`pnpm dev` runs only the Next server — the data plane is intentionally separate (stateful, slow to boot, survives Next restarts). **`pnpm dev:full`** (= `docker compose up --build`) is the whole stack in Docker: it pulls the qdrant/ollama/postgres images and builds the **`ai`** sidecar (Python deps via `uv`) and **`web`** (node deps via `pnpm`) images, then runs all services with the repo bind-mounted for HMR. It does **not** run a host `pnpm install`, pull the embed model, migrate Postgres, or ingest — see "Phase 1 RAG services" below for those one-time steps. Nothing stops the containers on exit; tear down with `docker compose down`.
 
 If Qdrant or Ollama is down, the chat path falls back to the existing full-corpus prompt. The app stays usable, but retrieval is disabled until the services come back.
 When the markdown corpus is still small enough to fit comfortably in the prompt, the app also keeps using the full-corpus prompt instead of narrowing context to retrieved chunks.
@@ -80,6 +81,7 @@ Set in `.env.local` (gitignored — never commit real values):
 | `ANTHROPIC_API_KEY` | Gateway key. Required. Owner's earlier key is exposed — rotate it. |
 | `ANTHROPIC_BASE_URL` | `https://coding-intl.dashscope.aliyuncs.com/apps/anthropic/v1` |
 | `ANTHROPIC_MODEL` | `qwen3.6-plus` |
+| `DATABASE_URL` | Postgres connection. Local default `postgres://meclaw:meclaw@localhost:5432/meclaw`. Required for persistence. |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` |
 | `OLLAMA_EMBED_MODEL` | `nomic-embed-text` |
 | `QDRANT_URL` | `http://localhost:6333` |
@@ -94,7 +96,9 @@ Set in `.env.local` (gitignored — never commit real values):
 | `pnpm dev` | Dev server (Next only; chat needs the sidecar running separately). |
 | `pnpm dev:ai` | Python AI sidecar on :8000 (host, via `uv`). |
 | `pnpm dev:full` | Build + boot the whole stack in Docker (qdrant, ollama, ai, web). |
-| `pnpm services` | Start qdrant + ollama (data plane only). |
+| `pnpm services` | Start qdrant + ollama + postgres (data plane only). |
+| `pnpm db:generate` | Regenerate Drizzle migrations from `lib/db/schema.ts` into `drizzle/`. |
+| `pnpm db:migrate` | Apply pending migrations to `DATABASE_URL`. |
 | `pnpm build` | Production build (`output: standalone`). |
 | `pnpm start` | Serve the standalone prod build locally (copies `public/` + `.next/static` into `.next/standalone`, then runs `server.js`). |
 | `pnpm lint` | ESLint (next config). |

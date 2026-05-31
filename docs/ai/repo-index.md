@@ -17,12 +17,13 @@ meclaw/
 │  ├─ ai/persona.ts                  # build system prompt from full corpus or retrieved chunks
 │  ├─ ai/tools.ts                    # agent tools
 │  ├─ rag/*                          # local chunking, embeddings, qdrant, ingest/retrieve
-│  ├─ db/{schema,index,migrate}.ts   # drizzle + sqlite
+│  ├─ db/{schema,index,migrate,env}.ts  # drizzle + postgres (postgres-js)
 │  └─ content.ts                     # load /content markdown
 ├─ content/persona.md · resume.md · projects/*.md   # owner data, editable
-├─ data/meclaw.db                    # sqlite, gitignored
-├─ drizzle/                          # migrations
-├─ docker-compose.yml                # local qdrant + ollama
+├─ drizzle/                          # generated Postgres migrations
+├─ drizzle.config.ts                 # drizzle-kit config (postgresql)
+├─ scripts/db-migrate.ts             # `pnpm db:migrate` entry
+├─ docker-compose.yml                # local qdrant + ollama + postgres
 ├─ docs/ai/                          # HANDOFF + these orientation docs
 ├─ docs/superpowers/specs/           # design doc
 ├─ .github/{workflows/ci.yml,pull_request_template.md}

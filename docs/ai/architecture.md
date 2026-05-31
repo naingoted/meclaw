@@ -4,17 +4,22 @@
 
 1. Visitor loads `/` → `useChat` (`@ai-sdk/react`) renders the chat UI.
 2. User sends a message → `POST /api/chat` with `{ messages }`.
-3. Route handler loads cached persona + knowledge, builds a system prompt, and calls
-   `streamText(anthropic(model), { system, messages, tools })`.
+3. Route handler applies guards, proxies to the Python AI sidecar, and tees the
+   streamed response for persistence.
 4. Tokens stream back → UI renders incrementally (markdown, auto-scroll).
-5. On finish → best-effort persist of conversation + messages to SQLite (failures are logged, never break the stream).
-6. _(M5)_ Tools: `showResume`, `scheduleCall`, `getContactInfo`, and a meta "how does this bot work?" tool.
+5. On finish → best-effort persist of conversation + messages to PostgreSQL
+   (failures are logged, never break the stream).
+6. Tools: `showResume`, `scheduleCall`, `getContactInfo`, and a meta "how does
+   this bot work?" tool.
 
 ## Decisions that shape the code
 
 - **Anthropic-compatible gateway, not real Anthropic.** Model is `qwen3.6-plus` via DashScope. We use `@ai-sdk/anthropic` with a custom `baseURL`. The provider may append `/v1/messages` — verify the path in M1 and adjust `baseURL` if it double-appends.
-- **No embeddings / no vector RAG in v1.** Gateway is chat-only. Knowledge is context-stuffed from the (tiny) markdown corpus. Real RAG is post-v1.
-- **SQLite, not a server DB.** `better-sqlite3` + Drizzle, file at `data/meclaw.db`. Zero Docker; `pnpm dev` just works.
+- **Local RAG with graceful fallback.** Markdown is embedded locally through
+  Ollama and retrieved from Qdrant; if retrieval is unavailable or unnecessary,
+  the app falls back to the full corpus.
+- **PostgreSQL persistence.** `postgres-js` + Drizzle, configured by
+  `DATABASE_URL`; schema is owned by Drizzle migrations (`pnpm db:migrate`).
 - **Provider-agnostic seam.** `lib/ai/provider.ts` is the only place that knows the model/gateway.
 
 ## V2 Phase 1 RAG
@@ -37,7 +42,7 @@ Request flow:
 
 This keeps Phase 1 additive: local infra improves relevance, but a service outage does not block the owner from using the app.
 
-## Data model (SQLite, M3)
+## Data model (PostgreSQL)
 
 - `conversations` — `id, createdAt, visitorMeta(json?)`
 - `messages` — `id, conversationId, role(user|assistant|tool), content, toolCalls(json?), createdAt`

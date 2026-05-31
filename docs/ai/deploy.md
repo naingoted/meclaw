@@ -1,7 +1,8 @@
 # Deployment — VPS via GitHub Actions → GHCR → Docker Compose
 
 Push to `main` → Actions builds images → pushes to GHCR → SSHes to the VPS →
-`compose pull && up -d` → pulls the embed model → ingests. See the spec:
+pulls images → starts Postgres → runs Drizzle migrations via the ingest image →
+starts the full stack → pulls the embed model → ingests. See the spec:
 archived deployment spec notes under `docs/superpowers/specs/`.
 
 ## One-time bootstrap
@@ -52,11 +53,12 @@ Watch Actions; on success the site is live at `https://yourdomain.com`.
 ## Operations
 
 - **Logs:** `docker compose -f docker-compose.prod.yml logs -f web ai caddy`
+- **Manual migration:** `docker compose -f docker-compose.prod.yml run --rm ingest pnpm db:migrate`
 - **Manual re-ingest:** `docker compose -f docker-compose.prod.yml run --rm ingest pnpm ingest`
 - **Rollback:** set `IMAGE_TAG=<prior-sha>` in `.env`, then `docker compose -f docker-compose.prod.yml pull && up -d`
 - **Restart:** `docker compose -f docker-compose.prod.yml restart`
 
 ## Notes
-- SQLite schema self-creates on first run; no migration step.
+- Postgres schema is owned by Drizzle migrations; deploy runs them before serving.
 - `nomic-embed-text` persists in the `ollama_storage` volume (real download only once).
-- The `ai`/`qdrant`/`ollama` services are never published — only Caddy (80/443).
+- The `ai`/`qdrant`/`ollama`/`postgres` services are never published — only Caddy (80/443).

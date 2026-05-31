@@ -19,7 +19,7 @@ Personal AI-twin chatbot (single user). Public chat page; an AI answers about th
 
 ## Stack
 
-Next.js 16 (App Router) · React 19 · TypeScript · Tailwind 4 + shadcn/ui · Vercel AI SDK (`ai`, `@ai-sdk/anthropic`, `@ai-sdk/react`) · Drizzle ORM + better-sqlite3 · Zod · Vitest.
+Next.js 16 (App Router) · React 19 · TypeScript · Tailwind 4 + shadcn/ui · Vercel AI SDK (`ai`, `@ai-sdk/anthropic`, `@ai-sdk/react`) · Drizzle ORM + PostgreSQL (`postgres-js`) · Zod · Vitest.
 
 ## Commands
 

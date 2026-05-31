@@ -8,7 +8,7 @@ knowledge lives in editable markdown under `content/`; no cloud DB, no auth in v
 ## Stack
 
 Next.js 16 (App Router) · React 19 · TypeScript · Tailwind 4 + shadcn/ui ·
-Vercel AI SDK · Drizzle ORM + better-sqlite3 · **Python AI sidecar** (FastAPI +
+Vercel AI SDK · Drizzle ORM + PostgreSQL (`postgres-js`) · **Python AI sidecar** (FastAPI +
 LangGraph) · Qdrant (vector store) + Ollama (embeddings) · Vitest.
 
 Since Phase 3 the chat answer is produced by the **Python sidecar** (`services/ai`),
@@ -34,9 +34,8 @@ not in-process TS. The Next route at `app/api/chat/route.ts` proxies to it over
 - **Node 20+** and **pnpm 9+** (`corepack enable` if pnpm is missing). _(Host-only
   path; `dev:full` brings its own toolchain in containers.)_
 - **Docker + Docker Compose** — required for `dev:full`, `pnpm services`, and RAG.
-- **Build tools** (C compiler, Python 3, make) for the native `better-sqlite3`
-  module on the host path. If the rebuild fails, persistence degrades gracefully
-  (chat still works, DB errors logged) — see `docs/ai/setup.md`.
+- **PostgreSQL** runs through Docker Compose for local persistence. Run
+  `pnpm services` and `pnpm db:migrate` before expecting chat turns to persist.
 
 ## Quickstart A — full stack (recommended)
 
@@ -45,9 +44,9 @@ cp .env.example .env            # compose reads .env; fill in ANTHROPIC_API_KEY
 pnpm dev:full                   # builds + boots qdrant, ollama, ai sidecar, web
 ```
 
-`dev:full` (= `docker compose up --build`) **pulls** the qdrant/ollama images and
-**builds** the `ai` (Python deps via `uv`) and `web` (node deps via `pnpm`, incl.
-native `better-sqlite3`) images. App at http://localhost:3000.
+`dev:full` (= `docker compose up --build`) **pulls** the qdrant/ollama/postgres
+images and **builds** the `ai` (Python deps via `uv`) and `web` (node deps via
+`pnpm`) images. App at http://localhost:3000.
 
 It does **not** stop containers on exit — tear down with `docker compose down`.
 
@@ -66,12 +65,12 @@ pnpm ingest                                               # embed corpus → Qdr
 
 ```bash
 pnpm install
-cp .env.example .env.local      # Next reads .env.local; fill in ANTHROPIC_API_KEY
-pnpm rebuild better-sqlite3     # build the native module once
+cp .env.example .env.local      # Next reads .env.local; fill in ANTHROPIC_API_KEY + DATABASE_URL
 
 # the chat route proxies to the sidecar — start it (host, via uv):
 pnpm dev:ai                     # FastAPI sidecar on :8000  (needs `uv`)
-pnpm services                   # qdrant + ollama for retrieval (optional)
+pnpm services                   # qdrant + ollama + postgres
+pnpm db:migrate                 # create the conversations/messages tables
 
 pnpm dev                        # Next on http://localhost:3000
 ```
@@ -92,7 +91,8 @@ differs by consumer — see the comments in `.env.example` before editing.
 | `pnpm dev` | Next dev server only (needs the sidecar running separately). |
 | `pnpm dev:ai` | Python AI sidecar on :8000 (host, via `uv`). |
 | `pnpm dev:full` | Build + boot the whole stack in Docker (`docker compose up --build`). |
-| `pnpm services` | qdrant + ollama only (data plane). |
+| `pnpm services` | qdrant + ollama + postgres (data plane). |
+| `pnpm db:migrate` | Apply Drizzle migrations to `DATABASE_URL`. |
 | `pnpm ingest` | Embed the `content/` corpus into Qdrant. |
 | `pnpm build` / `pnpm start` | Production build / serve. |
 | `pnpm verify` | lint + typecheck + build — pre-merge gate. |
