@@ -9,9 +9,8 @@ dependencies = [
   "langgraph>=0.2.50",
   "langchain-core>=0.3",
   "langchain-anthropic>=0.3",
-  "langchain-qdrant>=0.2",
-  "qdrant-client>=1.12",
   "langchain-ollama>=0.2",
+  "psycopg[binary]>=3.2",
   "pydantic>=2.9",
   "pydantic-settings>=2.6",
 ]

@@ -4,7 +4,6 @@ from app.retriever import Retriever, RetrievedChunk
 
 def test_constants_match_ingest_contract():
     # Guards against cross-language drift (spec §10).
-    assert config.QDRANT_COLLECTION == "meclaw_knowledge"
     assert config.VECTOR_SIZE == 768
     assert config.DISTANCE == "Cosine"
     assert config.OLLAMA_EMBED_MODEL == "nomic-embed-text"
@@ -56,3 +55,37 @@ def test_retrieve_empty_query_returns_nothing():
     result = retriever.retrieve("   ")
     assert result.chunks == []
     assert result.sources == []
+
+
+def test_default_search_builds_cosine_query(monkeypatch):
+    import app.retriever as r
+
+    captured = {}
+
+    class FakeCursor:
+        def fetchall(self):
+            return [("about:0", "about.md", "About", "Thet uses Python.", 0, 0.93)]
+
+    class FakeConn:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def execute(self, sql, params):
+            captured["sql"] = sql
+            captured["params"] = params
+            return FakeCursor()
+
+    monkeypatch.setattr(r.psycopg, "connect", lambda url: FakeConn())
+
+    hits = r._default_search([0.1, 0.2, 0.3], 4)
+
+    assert "rag_chunks" in captured["sql"]
+    assert "<=>" in captured["sql"]
+    assert captured["params"][0] == "[0.1,0.2,0.3]"   # text-cast vector literal
+    assert captured["params"][-1] == 4                # limit
+    assert hits[0]["payload"]["source"] == "about.md"
+    assert hits[0]["payload"]["id"] == "about:0"
+    assert hits[0]["score"] == 0.93

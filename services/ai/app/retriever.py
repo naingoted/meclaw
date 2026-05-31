@@ -1,6 +1,6 @@
-"""Read-only retriever over the shared Qdrant collection. Mirrors the HTTP
-contract of lib/rag/qdrant.ts + lib/rag/embed.ts so it matches TS ingest exactly
-(spec §10). Python NEVER writes to Qdrant — ingestion stays in TypeScript."""
+"""Read-only retriever over the shared Postgres rag_chunks table (pgvector).
+Embeds the query via Ollama, then runs a cosine kNN in Postgres. Python NEVER
+writes the corpus — ingestion stays in TypeScript (lib/rag/*)."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Callable
 
 import httpx
+import psycopg
 
 from app import config
 
@@ -45,17 +46,31 @@ def _default_embed(text: str) -> list[float]:
 
 
 def _default_search(vector: list[float], limit: int) -> list[dict]:
-    url = (
-        f"{config.QDRANT_URL.rstrip('/')}"
-        f"/collections/{config.QDRANT_COLLECTION}/points/search"
-    )
-    response = httpx.post(
-        url,
-        json={"vector": vector, "limit": limit, "with_payload": True},
-        timeout=30.0,
-    )
-    response.raise_for_status()
-    return response.json().get("result") or []
+    """Cosine kNN over rag_chunks (pgvector). The query vector is passed as a
+    '[..]'::vector text-cast param; results never include the embedding column,
+    so no pgvector adapter is needed. Returns the Qdrant-style hit shape the
+    retriever already parses (payload + score)."""
+    vec = "[" + ",".join(str(x) for x in vector) + "]"
+    with psycopg.connect(config.DATABASE_URL) as conn:
+        rows = conn.execute(
+            "SELECT id, source, title, text, ordinal, "
+            "1 - (embedding <=> %s::vector) AS score "
+            "FROM rag_chunks ORDER BY embedding <=> %s::vector LIMIT %s",
+            (vec, vec, limit),
+        ).fetchall()
+    return [
+        {
+            "payload": {
+                "id": row[0],
+                "source": row[1],
+                "title": row[2],
+                "text": row[3],
+                "ordinal": row[4],
+            },
+            "score": row[5],
+        }
+        for row in rows
+    ]
 
 
 class Retriever:
