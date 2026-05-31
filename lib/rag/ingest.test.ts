@@ -9,23 +9,23 @@ describe("ingestKnowledge", () => {
   it("loads docs, chunks them, embeds each chunk, and upserts the enriched chunks", async () => {
     const docs: KnowledgeDoc[] = [
       {
-        slug: "projects/echo-clone.md",
-        title: "Echo Clone",
-        body: "# Echo Clone\nA local-first AI twin.",
+        slug: "projects/meclaw.md",
+        title: "Meclaw",
+        body: "# Meclaw\nA local-first personal bot.",
       },
     ];
     const chunks = [
       {
-        id: "projects/echo-clone.md:0",
-        source: "projects/echo-clone.md",
-        title: "Echo Clone",
+        id: "projects/meclaw.md:0",
+        source: "projects/meclaw.md",
+        title: "Meclaw",
         text: "Chunk A",
         ordinal: 0,
       },
       {
-        id: "projects/echo-clone.md:1",
-        source: "projects/echo-clone.md",
-        title: "Echo Clone",
+        id: "projects/meclaw.md:1",
+        source: "projects/meclaw.md",
+        title: "Meclaw",
         text: "Chunk B",
         ordinal: 1,
       },

@@ -22,7 +22,7 @@ ENV NEXT_TELEMETRY_DISABLED=1 \
 EXPOSE 3000
 CMD ["pnpm", "dev"]
 
-##### builder: compile Next (also published as echo-clone-ingest) #####
+##### builder: compile Next (also published as meclaw-ingest) #####
 FROM node:20-bookworm-slim AS builder
 WORKDIR /app
 RUN corepack enable && corepack prepare pnpm@9 --activate

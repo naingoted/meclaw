@@ -77,7 +77,7 @@ Set in `.env.local` (gitignored — never commit real values):
 | `OLLAMA_BASE_URL` | `http://localhost:11434` |
 | `OLLAMA_EMBED_MODEL` | `nomic-embed-text` |
 | `QDRANT_URL` | `http://localhost:6333` |
-| `QDRANT_COLLECTION` | `echo_clone_knowledge` |
+| `QDRANT_COLLECTION` | `meclaw_knowledge` |
 | `RAG_TOP_K` | `4` |
 | `RAG_DEV_SOURCES` | `true` to include retrieved source metadata in development streams; `false` to omit it. |
 

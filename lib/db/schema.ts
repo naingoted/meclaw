@@ -1,7 +1,7 @@
 import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
 
 /**
- * Database schema for echo-clone persistence.
+ * Database schema for meclaw persistence.
  * Tables created programmatically on first connection (no separate migration step).
  */
 

@@ -33,6 +33,6 @@ describe("buildSystemPrompt", () => {
   it("handles empty docs gracefully", () => {
     const prompt = buildSystemPrompt([]);
     expect(prompt).toContain("(No knowledge files found.");
-    expect(prompt).toContain("You are the AI");
+    expect(prompt).toContain("You are meclaw");
   });
 });

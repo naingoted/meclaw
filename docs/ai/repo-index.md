@@ -3,7 +3,7 @@
 > Target layout. Items marked _(planned)_ arrive in a later milestone.
 
 ```
-echo-clone/
+meclaw/
 ├─ app/
 │  ├─ layout.tsx · page.tsx          # public chat page
 │  ├─ globals.css                    # Tailwind 4 + shadcn theme tokens
@@ -20,7 +20,7 @@ echo-clone/
 │  ├─ db/{schema,index,migrate}.ts   # drizzle + sqlite
 │  └─ content.ts                     # load /content markdown
 ├─ content/persona.md · resume.md · projects/*.md   # owner data, editable
-├─ data/echo.db                      # sqlite, gitignored
+├─ data/meclaw.db                    # sqlite, gitignored
 ├─ drizzle/                          # migrations
 ├─ docker-compose.yml                # local qdrant + ollama
 ├─ docs/ai/                          # HANDOFF + these orientation docs

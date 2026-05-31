@@ -42,7 +42,7 @@ export class QdrantClient implements VectorStoreClient {
 
   constructor(options: QdrantClientOptions = {}) {
     this.url = (options.url ?? "http://localhost:6333").replace(/\/+$/, "");
-    this.collection = options.collection ?? "echo_clone_knowledge";
+    this.collection = options.collection ?? "meclaw_knowledge";
     this.vectorSize = options.vectorSize ?? 768;
     this.fetchFn = options.fetchFn ?? fetch;
   }

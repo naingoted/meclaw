@@ -306,13 +306,13 @@ export function Chat() {
       <div className="flex-1 space-y-4 overflow-y-auto p-4">
         {messages.length === 0 && (
           <div className="mt-10 space-y-6">
-            {/* Greeting from echo */}
+            {/* Greeting from meclaw */}
             <div className="flex items-start gap-3">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted">
                 <Bot className="h-5 w-5 text-foreground" />
               </div>
               <div className="space-y-1">
-                <p className="text-sm font-medium">Hi! I&apos;m echo, Thet&apos;s AI twin.</p>
+                <p className="text-sm font-medium">Hi! I&apos;m meclaw, Thet&apos;s personal bot.</p>
                 <p className="text-sm text-muted-foreground">
                   Ask me anything about his work, skills, or projects.
                 </p>

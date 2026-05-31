@@ -7,11 +7,11 @@ import { loadKnowledge } from "./content";
 let dir: string;
 
 beforeAll(() => {
-  dir = mkdtempSync(join(tmpdir(), "echo-content-"));
+  dir = mkdtempSync(join(tmpdir(), "meclaw-content-"));
   writeFileSync(join(dir, "persona.md"), "# Persona\n\nWarm and direct.");
   writeFileSync(join(dir, "resume.md"), "Senior engineer.\n"); // no H1
   mkdirSync(join(dir, "projects"));
-  writeFileSync(join(dir, "projects", "echo-clone.md"), "# Echo Clone\n\nThis bot.");
+  writeFileSync(join(dir, "projects", "meclaw.md"), "# Meclaw\n\nThis bot.");
   writeFileSync(join(dir, "ignore.txt"), "not markdown");
 });
 
@@ -22,7 +22,7 @@ describe("loadKnowledge", () => {
     const docs = loadKnowledge(dir);
     const slugs = docs.map((d) => d.slug);
     expect(slugs).toContain("persona.md");
-    expect(slugs).toContain("projects/echo-clone.md");
+    expect(slugs).toContain("projects/meclaw.md");
     expect(slugs).not.toContain("ignore.txt");
     expect(docs).toHaveLength(3);
   });
@@ -39,7 +39,7 @@ describe("loadKnowledge", () => {
     const docs = loadKnowledge(dir);
     expect(docs.map((d) => d.slug)).toEqual([
       "persona.md",
-      "projects/echo-clone.md",
+      "projects/meclaw.md",
       "resume.md",
     ]);
     expect(docs[0].body).toBe("# Persona\n\nWarm and direct.");

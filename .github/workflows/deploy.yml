@@ -36,8 +36,8 @@ jobs:
           target: runner
           push: true
           tags: |
-            ghcr.io/${{ steps.owner.outputs.lc }}/echo-clone-web:latest
-            ghcr.io/${{ steps.owner.outputs.lc }}/echo-clone-web:${{ github.sha }}
+            ghcr.io/${{ steps.owner.outputs.lc }}/meclaw-web:latest
+            ghcr.io/${{ steps.owner.outputs.lc }}/meclaw-web:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -48,8 +48,8 @@ jobs:
           target: builder
           push: true
           tags: |
-            ghcr.io/${{ steps.owner.outputs.lc }}/echo-clone-ingest:latest
-            ghcr.io/${{ steps.owner.outputs.lc }}/echo-clone-ingest:${{ github.sha }}
+            ghcr.io/${{ steps.owner.outputs.lc }}/meclaw-ingest:latest
+            ghcr.io/${{ steps.owner.outputs.lc }}/meclaw-ingest:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -60,8 +60,8 @@ jobs:
           context: ./services/ai
           push: true
           tags: |
-            ghcr.io/${{ steps.owner.outputs.lc }}/echo-clone-ai:latest
-            ghcr.io/${{ steps.owner.outputs.lc }}/echo-clone-ai:${{ github.sha }}
+            ghcr.io/${{ steps.owner.outputs.lc }}/meclaw-ai:latest
+            ghcr.io/${{ steps.owner.outputs.lc }}/meclaw-ai:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -78,7 +78,7 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           script: |
             set -euo pipefail
-            cd /opt/echo-clone
+            cd /opt/meclaw
             git pull --ff-only
             docker compose -f docker-compose.prod.yml pull
             docker compose -f docker-compose.prod.yml up -d

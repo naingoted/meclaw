@@ -14,7 +14,7 @@
 
 - **Anthropic-compatible gateway, not real Anthropic.** Model is `qwen3.6-plus` via DashScope. We use `@ai-sdk/anthropic` with a custom `baseURL`. The provider may append `/v1/messages` — verify the path in M1 and adjust `baseURL` if it double-appends.
 - **No embeddings / no vector RAG in v1.** Gateway is chat-only. Knowledge is context-stuffed from the (tiny) markdown corpus. Real RAG is post-v1.
-- **SQLite, not a server DB.** `better-sqlite3` + Drizzle, file at `data/echo.db`. Zero Docker; `pnpm dev` just works.
+- **SQLite, not a server DB.** `better-sqlite3` + Drizzle, file at `data/meclaw.db`. Zero Docker; `pnpm dev` just works.
 - **Provider-agnostic seam.** `lib/ai/provider.ts` is the only place that knows the model/gateway.
 
 ## V2 Phase 1 RAG
@@ -23,7 +23,7 @@ Phase 1 keeps the existing chat route and persona builder, but swaps the knowled
 
 - **Embeddings:** Ollama runs locally and serves `nomic-embed-text` on `http://localhost:11434`.
 - **Vector store:** Qdrant runs locally on `http://localhost:6333` with a named volume for persistence.
-- **Collection:** `echo_clone_knowledge`.
+- **Collection:** `meclaw_knowledge`.
 - **Top K:** default retrieval fan-out is `4`.
 - **Dev sources:** when enabled, the chat UI can surface retrieved sources in development.
 

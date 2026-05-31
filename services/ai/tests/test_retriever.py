@@ -4,7 +4,7 @@ from app.retriever import Retriever, RetrievedChunk
 
 def test_constants_match_ingest_contract():
     # Guards against cross-language drift (spec §10).
-    assert config.QDRANT_COLLECTION == "echo_clone_knowledge"
+    assert config.QDRANT_COLLECTION == "meclaw_knowledge"
     assert config.VECTOR_SIZE == 768
     assert config.DISTANCE == "Cosine"
     assert config.OLLAMA_EMBED_MODEL == "nomic-embed-text"

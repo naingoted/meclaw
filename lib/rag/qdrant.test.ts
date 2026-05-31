@@ -10,7 +10,7 @@ describe("QdrantClient", () => {
 
     const client = new QdrantClient({
       url: "http://localhost:6333",
-      collection: "echo_clone_knowledge",
+      collection: "meclaw_knowledge",
       vectorSize: 768,
       fetchFn,
     });
@@ -18,7 +18,7 @@ describe("QdrantClient", () => {
     await client.ensureCollection();
 
     expect(fetchFn).toHaveBeenCalledWith(
-      "http://localhost:6333/collections/echo_clone_knowledge",
+      "http://localhost:6333/collections/meclaw_knowledge",
       expect.objectContaining({
         method: "PUT",
         headers: { "content-type": "application/json" },
@@ -42,12 +42,12 @@ describe("QdrantClient", () => {
             JSON.stringify({
               result: [
                 {
-                  id: "6a9da648-a71a-4684-a3cd-2addff56e18c",
+                  id: "e2b2fc6e-1d7e-4ebc-85ad-f6d4223754b0",
                   score: 0.9876,
                   payload: {
-                    id: "projects/echo-clone.md:0",
-                    source: "projects/echo-clone.md",
-                    title: "Echo Clone",
+                    id: "projects/meclaw.md:0",
+                    source: "projects/meclaw.md",
+                    title: "Meclaw",
                     text: "Chunk body",
                     ordinal: 0,
                   },
@@ -60,16 +60,16 @@ describe("QdrantClient", () => {
 
     const client = new QdrantClient({
       url: "http://localhost:6333",
-      collection: "echo_clone_knowledge",
+      collection: "meclaw_knowledge",
       vectorSize: 3,
       fetchFn,
     });
 
     const points: Array<RagChunk & { embedding: number[] }> = [
       {
-        id: "projects/echo-clone.md:0",
-        source: "projects/echo-clone.md",
-        title: "Echo Clone",
+        id: "projects/meclaw.md:0",
+        source: "projects/meclaw.md",
+        title: "Meclaw",
         text: "Chunk body",
         ordinal: 0,
         embedding: [0.1, 0.2, 0.3],
@@ -81,19 +81,19 @@ describe("QdrantClient", () => {
 
     expect(fetchFn).toHaveBeenNthCalledWith(
       1,
-      "http://localhost:6333/collections/echo_clone_knowledge/points?wait=true",
+      "http://localhost:6333/collections/meclaw_knowledge/points?wait=true",
       expect.objectContaining({
         method: "PUT",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           points: [
             {
-              id: "6a9da648-a71a-4684-a3cd-2addff56e18c",
+              id: "e2b2fc6e-1d7e-4ebc-85ad-f6d4223754b0",
               vector: [0.1, 0.2, 0.3],
               payload: {
-                id: "projects/echo-clone.md:0",
-                source: "projects/echo-clone.md",
-                title: "Echo Clone",
+                id: "projects/meclaw.md:0",
+                source: "projects/meclaw.md",
+                title: "Meclaw",
                 text: "Chunk body",
                 ordinal: 0,
               },
@@ -104,7 +104,7 @@ describe("QdrantClient", () => {
     );
     expect(fetchFn).toHaveBeenNthCalledWith(
       2,
-      "http://localhost:6333/collections/echo_clone_knowledge/points/search",
+      "http://localhost:6333/collections/meclaw_knowledge/points/search",
       expect.objectContaining({
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -117,9 +117,9 @@ describe("QdrantClient", () => {
     );
     expect(results).toEqual([
       {
-        id: "projects/echo-clone.md:0",
-        source: "projects/echo-clone.md",
-        title: "Echo Clone",
+        id: "projects/meclaw.md:0",
+        source: "projects/meclaw.md",
+        title: "Meclaw",
         text: "Chunk body",
         ordinal: 0,
         score: 0.9876,

@@ -2,13 +2,13 @@
 
 Push to `main` → Actions builds images → pushes to GHCR → SSHes to the VPS →
 `compose pull && up -d` → pulls the embed model → ingests. See the spec:
-`docs/superpowers/specs/2026-05-31-echo-clone-v2-phase-5-cicd-vps-deploy-design.md`.
+archived deployment spec notes under `docs/superpowers/specs/`.
 
 ## One-time bootstrap
 
 ### 1. GitHub remote
 ```bash
-git remote add origin git@github.com:<owner>/echo-clone.git
+git remote add origin git@github.com:<owner>/meclaw.git
 git push -u origin main
 ```
 
@@ -30,9 +30,9 @@ curl -fsSL https://get.docker.com | sh
 sudo usermod -aG docker "$USER"   # re-login after this
 
 # Clone + config
-sudo mkdir -p /opt/echo-clone && sudo chown "$USER" /opt/echo-clone
-git clone git@github.com:<owner>/echo-clone.git /opt/echo-clone
-cd /opt/echo-clone
+sudo mkdir -p /opt/meclaw && sudo chown "$USER" /opt/meclaw
+git clone git@github.com:<owner>/meclaw.git /opt/meclaw
+cd /opt/meclaw
 cp .env.prod.example .env          # then edit .env with real values (rotated key, GHCR_OWNER, DOMAIN)
 
 # Real knowledge corpus (gitignored — bind-mounted into ingest)

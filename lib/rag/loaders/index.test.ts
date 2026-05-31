@@ -8,7 +8,7 @@ import { loadIngestDocs } from "./index";
 
 describe("loadIngestDocs", () => {
   it("loads markdown and PDF docs together, sorted by slug", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "echo-ingest-"));
+    const dir = mkdtempSync(join(tmpdir(), "meclaw-ingest-"));
     writeFileSync(join(dir, "persona.md"), "# Persona\n\nThet is an engineer.");
     mkdirSync(join(dir, "knowledge"), { recursive: true });
     writeFileSync(join(dir, "knowledge", "career.md"), "# Career\n\nWorked places.");

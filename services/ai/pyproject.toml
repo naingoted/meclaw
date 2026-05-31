@@ -1,7 +1,7 @@
 [project]
-name = "echo-ai"
+name = "meclaw-ai"
 version = "0.1.0"
-description = "echo-clone Phase 3 — Python AI sidecar (FastAPI + LangGraph)"
+description = "meclaw Phase 3 — Python AI sidecar (FastAPI + LangGraph)"
 requires-python = ">=3.12"
 dependencies = [
   "fastapi>=0.115",

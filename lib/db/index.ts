@@ -6,11 +6,11 @@ import { randomUUID } from "node:crypto";
 import * as schema from "./schema";
 
 /**
- * Database initialization and persistence for echo-clone.
+ * Database initialization and persistence for meclaw.
  * Uses better-sqlite3 with Drizzle ORM for type-safe queries.
  *
  * Tables are created on first connection if they don't exist. The DB file lives
- * at `data/echo.db` (gitignored); the `data/` dir is created at runtime if absent.
+ * at `data/meclaw.db` (gitignored); the `data/` dir is created at runtime if absent.
  *
  * Note: better-sqlite3 requires a native module build. In development environments
  * where the module isn't compiled, DB initialization will fail gracefully (best-effort).
@@ -18,7 +18,7 @@ import * as schema from "./schema";
  */
 
 const DB_DIR = "data";
-const DEFAULT_DB_PATH = join(process.cwd(), DB_DIR, "echo.db");
+const DEFAULT_DB_PATH = join(process.cwd(), DB_DIR, "meclaw.db");
 
 /**
  * Represents a message as persisted (before sending to AI SDK).
@@ -34,7 +34,7 @@ export type PersistentMessage = {
  * Initialize the database: create the connection, ensure the data dir exists,
  * and create tables if they don't exist.
  *
- * @param dbPath - Optional override path; defaults to `data/echo.db`
+ * @param dbPath - Optional override path; defaults to `data/meclaw.db`
  * @returns A Drizzle ORM database instance
  */
 export async function initDb(dbPath: string = DEFAULT_DB_PATH) {

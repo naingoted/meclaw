@@ -1,9 +1,9 @@
-# echo-clone
+# meclaw
 
-A personal **AI-twin chatbot**. Visitors open a public chat page and ask an AI
-about the owner — experience, projects, stack — and it answers on their behalf.
-Local-first: knowledge lives in editable markdown under `content/`; no cloud DB,
-no auth in v1.
+A personal bot for Thet Naing. Visitors open a public chat page and ask about
+the owner's work, schedule, and contact details; it answers on his behalf and
+is set up to grow into message routing and always-on access later. Local-first:
+knowledge lives in editable markdown under `content/`; no cloud DB, no auth in v1.
 
 ## Stack
 
@@ -111,4 +111,4 @@ they stay local and never reach a public remote. See `content/README.md`.
 - `docs/ai/setup.md` — deeper local-setup reference.
 - `docs/ai/architecture.md` — how it fits together.
 - `docs/ai/repo-index.md` — where things live.
-- `docs/superpowers/specs/2026-05-29-echo-clone-design.md` — locked design decisions.
+- archived design notes under `docs/superpowers/specs/` — locked design decisions.

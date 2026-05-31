@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from app import stream as sse
 from app.runner import build_production_runner
 
-app = FastAPI(title="echo-ai", version="0.1.0")
+app = FastAPI(title="meclaw-ai", version="0.1.0")
 
 
 class ChatMessage(BaseModel):

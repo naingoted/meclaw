@@ -14,7 +14,7 @@ services:
       - web
 
   web:
-    image: ghcr.io/${GHCR_OWNER}/echo-clone-web:${IMAGE_TAG:-latest}
+    image: ghcr.io/${GHCR_OWNER}/meclaw-web:${IMAGE_TAG:-latest}
     restart: unless-stopped
     env_file: .env
     expose:
@@ -25,7 +25,7 @@ services:
       - ai
 
   ai:
-    image: ghcr.io/${GHCR_OWNER}/echo-clone-ai:${IMAGE_TAG:-latest}
+    image: ghcr.io/${GHCR_OWNER}/meclaw-ai:${IMAGE_TAG:-latest}
     restart: unless-stopped
     env_file: .env
     expose:
@@ -51,7 +51,7 @@ services:
       - ollama_storage:/root/.ollama
 
   ingest:
-    image: ghcr.io/${GHCR_OWNER}/echo-clone-ingest:${IMAGE_TAG:-latest}
+    image: ghcr.io/${GHCR_OWNER}/meclaw-ingest:${IMAGE_TAG:-latest}
     profiles:
       - tools
     env_file: .env

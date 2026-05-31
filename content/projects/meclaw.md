@@ -1,4 +1,4 @@
-# echo-clone — this chatbot
+# meclaw — this chatbot
 
 A personal "AI twin" chatbot. Visitors open a public chat page and ask an AI
 about Thet — his experience, projects, and stack — and it answers on his behalf.

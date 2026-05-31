@@ -30,7 +30,7 @@ def show_resume() -> dict[str, str]:
 
 def how_this_works() -> str:
     return (
-        "echo is a personal AI twin. Phase 3 runs a Python FastAPI sidecar whose "
+        "meclaw is Thet Naing's personal bot. Phase 3 runs a Python FastAPI sidecar whose "
         "core is a LangGraph state graph (triage -> specialized agent -> review -> "
         "respond). Knowledge comes from markdown in content/, embedded with Ollama "
         "nomic-embed-text and retrieved from Qdrant. The chat model is qwen3.6-plus "

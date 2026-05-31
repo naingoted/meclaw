@@ -8,7 +8,7 @@ import { join, sep } from "node:path";
  * time; edit `content/*.md` and restart the server to refresh.
  */
 export type KnowledgeDoc = {
-  /** Path relative to the content dir, e.g. `projects/echo-clone.md`. */
+  /** Path relative to the content dir, e.g. `projects/meclaw.md`. */
   slug: string;
   /** First H1 in the file, or the slug if none. */
   title: string;

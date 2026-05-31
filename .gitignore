@@ -26,3 +26,4 @@ content/knowledge/*
 coverage/
 output/
 .playwright-cli/
+.verify-shots/

@@ -179,7 +179,7 @@ wheels = [
 ]
 
 [[package]]
-name = "echo-ai"
+name = "meclaw-ai"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

@@ -23,4 +23,4 @@ def test_show_resume_path():
 
 
 def test_how_this_works_is_nonempty_string():
-    assert "echo" in how_this_works().lower()
+    assert "meclaw" in how_this_works().lower()

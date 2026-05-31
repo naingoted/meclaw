@@ -4,7 +4,7 @@
 
 ## Milestone
 
-<!-- e.g. M1 — Echo chat. Link the HANDOFF line this completes. -->
+<!-- e.g. M1 — Meclaw chat. Link the HANDOFF line this completes. -->
 
 ## Checklist
 

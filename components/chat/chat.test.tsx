@@ -139,7 +139,7 @@ describe("Chat component — M4 behavioral tests", () => {
     render(<Chat />);
 
     // Assert greeting is rendered
-    expect(screen.getByText(/Hi! I'm echo, Thet's AI twin/)).toBeInTheDocument();
+    expect(screen.getByText(/Hi! I'm meclaw, Thet's personal bot/)).toBeInTheDocument();
     expect(
       screen.getByText(/Ask me anything about his work, skills, or projects/)
     ).toBeInTheDocument();
@@ -194,7 +194,7 @@ describe("Chat component — M4 behavioral tests", () => {
 
     // Assert greeting is NOT rendered
     expect(
-      screen.queryByText(/Hi! I'm echo, Thet's AI twin/)
+      screen.queryByText(/Hi! I'm meclaw, Thet's personal bot/)
     ).not.toBeInTheDocument();
 
     // Assert suggestion chips are NOT rendered

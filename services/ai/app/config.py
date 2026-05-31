@@ -10,7 +10,7 @@ DRAFT_MODEL = os.getenv("DRAFT_MODEL", "qwen3.6-plus")
 
 # Retrieval contract — keep identical to lib/rag ingest config.
 QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
-QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION", "echo_clone_knowledge")
+QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION", "meclaw_knowledge")
 VECTOR_SIZE = 768  # nomic-embed-text dimension
 DISTANCE = "Cosine"
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")

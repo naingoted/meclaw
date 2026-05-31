@@ -13,8 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "echo · Thet Naing's AI twin",
-  description: "Chat with echo, an AI twin trained on Thet Naing's work and experience.",
+  title: "meclaw · Thet Naing's personal bot",
+  description:
+    "Chat with meclaw, Thet Naing's personal bot for answers, scheduling, and contact.",
 };
 
 export default function RootLayout({
