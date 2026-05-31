@@ -61,4 +61,4 @@ Watch Actions; on success the site is live at `https://yourdomain.com`.
 ## Notes
 - Postgres schema is owned by Drizzle migrations; deploy runs them before serving.
 - `nomic-embed-text` persists in the `ollama_storage` volume (real download only once).
-- The `ai`/`qdrant`/`ollama`/`postgres` services are never published — only Caddy (80/443).
+- The `ai`/`ollama`/`postgres` services are never published — only Caddy (80/443).
