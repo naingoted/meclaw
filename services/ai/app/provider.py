@@ -12,6 +12,7 @@ the `/v1`-suffixed value. Reusing the TS `/v1` URL here causes `.../v1/v1/messag
 """
 
 import os
+from copy import deepcopy
 from functools import lru_cache
 
 from langchain_anthropic import ChatAnthropic
@@ -19,15 +20,39 @@ from langchain_anthropic import ChatAnthropic
 from app.config import ANTHROPIC_MODEL_DEFAULT
 
 
-@lru_cache(maxsize=2)
-def get_chat_model(streaming: bool = False) -> ChatAnthropic:
+# Gateway models default to thinking mode. Live spike 2026-05-31 verified that
+# the Anthropic-compatible constructor `thinking={"type": "disabled"}` removes
+# the hidden reasoning block and cuts latency for both qwen3.6-plus and glm-4.7.
+_THINKING_OFF: dict = {"thinking": {"type": "disabled"}}
+
+
+def _thinking_kwargs(thinking: bool) -> dict:
+    """Constructor-kwarg fragment controlling thinking mode: empty when thinking
+    is allowed, the disable fragment when off."""
+    return {} if thinking else deepcopy(_THINKING_OFF)
+
+
+@lru_cache(maxsize=8)
+def get_chat_model(
+    model: str | None = None,
+    *,
+    streaming: bool = False,
+    thinking: bool = False,
+) -> ChatAnthropic:
     api_key = os.environ["ANTHROPIC_API_KEY"]
-    model = os.getenv("ANTHROPIC_MODEL", ANTHROPIC_MODEL_DEFAULT)
+    resolved_model = (
+        model if model is not None else os.getenv("ANTHROPIC_MODEL", ANTHROPIC_MODEL_DEFAULT)
+    )
     base_url = os.getenv("ANTHROPIC_BASE_URL")
 
-    kwargs: dict = {"model": model, "api_key": api_key, "streaming": streaming}
+    kwargs: dict = {
+        "model": resolved_model,
+        "api_key": api_key,
+        "streaming": streaming,
+    }
     if base_url:
         kwargs["base_url"] = _normalize_base_url(base_url)
+    kwargs.update(_thinking_kwargs(thinking))
     return ChatAnthropic(**kwargs)
 
 

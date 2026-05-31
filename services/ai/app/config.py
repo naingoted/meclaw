@@ -5,6 +5,8 @@ import os
 
 # Chat model (provider seam reads these; mirrors lib/ai/provider.ts)
 ANTHROPIC_MODEL_DEFAULT = "qwen3.6-plus"
+TRIAGE_MODEL = os.getenv("TRIAGE_MODEL", "glm-4.7")
+DRAFT_MODEL = os.getenv("DRAFT_MODEL", "qwen3.6-plus")
 
 # Retrieval contract — keep identical to lib/rag ingest config.
 QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
