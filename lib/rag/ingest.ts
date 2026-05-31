@@ -3,7 +3,7 @@ import type { KnowledgeDoc } from "../content";
 import { loadIngestDocs } from "./loaders";
 import { chunkKnowledgeDocs } from "./chunk";
 import { OllamaEmbedder } from "./embed";
-import { QdrantClient } from "./qdrant";
+import { PgVectorStore } from "./pgvector";
 import type { EmbeddingClient, RagChunk, VectorStoreClient } from "./types";
 
 const DEFAULT_CHUNK_SIZE = 1200;
@@ -73,7 +73,7 @@ export async function ingestKnowledge(
   const overlap = options.overlap ?? DEFAULT_OVERLAP;
   const chunker = options.chunker ?? chunkKnowledgeDocs;
   const embedder = options.embedder ?? new OllamaEmbedder();
-  const store = options.store ?? new QdrantClient();
+  const store = options.store ?? new PgVectorStore();
   const embedConcurrency = resolveEmbedConcurrency(options.embedConcurrency);
   const chunks = chunker(docs, { chunkSize, overlap });
 

@@ -13,15 +13,6 @@ export type RagSearchResult = RagChunk & {
   score: number;
 };
 
-export type RagConfig = {
-  ollamaBaseUrl: string;
-  ollamaModel: string;
-  qdrantUrl: string;
-  qdrantCollection: string;
-  vectorSize: number;
-  topK: number;
-};
-
 export interface EmbeddingClient {
   embed(text: string): Promise<number[]>;
 }

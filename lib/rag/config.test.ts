@@ -51,14 +51,10 @@ describe("embedderFromEnv", () => {
 });
 
 describe("storeFromEnv", () => {
-  it("returns a QdrantClient configured from QDRANT_URL and QDRANT_COLLECTION", () => {
-    const env = {
-      QDRANT_URL: "http://qdrant:6333",
-      QDRANT_COLLECTION: "custom_collection",
-    };
-
-    const store = storeFromEnv(env);
-
+  it("returns a PgVectorStore configured from DATABASE_URL", () => {
+    const store = storeFromEnv({
+      DATABASE_URL: "postgres://meclaw:meclaw@postgres:5432/meclaw",
+    });
     expect(store).toBeDefined();
     expect(store).toHaveProperty("search");
     expect(store).toHaveProperty("upsert");
@@ -66,34 +62,8 @@ describe("storeFromEnv", () => {
     expect(typeof (store as VectorStoreClient).search).toBe("function");
   });
 
-  it("returns a QdrantClient with localhost defaults when env vars are unset", () => {
-    const env = {};
-
-    const store = storeFromEnv(env);
-
-    expect(store).toBeDefined();
-    expect(store).toHaveProperty("search");
-    expect(typeof (store as VectorStoreClient).search).toBe("function");
-  });
-
-  it("handles undefined QDRANT_URL gracefully", () => {
-    const env = {
-      QDRANT_COLLECTION: "custom_collection",
-    };
-
-    const store = storeFromEnv(env);
-
-    expect(store).toBeDefined();
-    expect(typeof (store as VectorStoreClient).search).toBe("function");
-  });
-
-  it("handles undefined QDRANT_COLLECTION gracefully", () => {
-    const env = {
-      QDRANT_URL: "http://qdrant:6333",
-    };
-
-    const store = storeFromEnv(env);
-
+  it("returns a PgVectorStore with the localhost default when DATABASE_URL is unset", () => {
+    const store = storeFromEnv({});
     expect(store).toBeDefined();
     expect(typeof (store as VectorStoreClient).search).toBe("function");
   });
