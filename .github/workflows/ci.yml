@@ -8,6 +8,25 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: meclaw
+          POSTGRES_PASSWORD: meclaw
+          POSTGRES_DB: meclaw
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U meclaw"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://meclaw:meclaw@localhost:5432/meclaw
+
     steps:
       - uses: actions/checkout@v4
 
@@ -29,6 +48,12 @@ jobs:
 
       - name: Lint
         run: pnpm lint
+
+      - name: Migrate (Postgres)
+        run: pnpm db:migrate
+
+      - name: Test
+        run: pnpm test
 
       - name: Build
         run: pnpm build
