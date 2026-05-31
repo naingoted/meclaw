@@ -1,4 +1,5 @@
 import { drizzle } from "drizzle-orm/postgres-js";
+import { and, eq, or } from "drizzle-orm";
 import postgres from "postgres";
 import { randomUUID } from "node:crypto";
 import * as schema from "./schema";
@@ -85,4 +86,49 @@ export async function saveTurn(
   });
 
   return conversationId;
+}
+
+/** A captured lead. At least one of email/phone must be present. */
+export type LeadInput = {
+  conversationId: string;
+  email?: string;
+  phone?: string;
+  triggerQuestion?: string;
+  trigger: string;
+};
+
+/**
+ * Persist a captured lead. Best-effort dedup: skips insertion when the same
+ * conversation already holds a row with the same email or phone.
+ */
+export async function saveLead(
+  db: Awaited<ReturnType<typeof initDb>>,
+  lead: LeadInput,
+): Promise<void> {
+  // and()/or() ignore undefined conditions, so an absent email/phone is dropped.
+  const existing = await db
+    .select({ id: schema.leads.id })
+    .from(schema.leads)
+    .where(
+      and(
+        eq(schema.leads.conversationId, lead.conversationId),
+        or(
+          lead.email ? eq(schema.leads.email, lead.email) : undefined,
+          lead.phone ? eq(schema.leads.phone, lead.phone) : undefined,
+        ),
+      ),
+    )
+    .limit(1);
+
+  if (existing.length > 0) return;
+
+  await db.insert(schema.leads).values({
+    id: randomUUID(),
+    conversationId: lead.conversationId,
+    email: lead.email ?? null,
+    phone: lead.phone ?? null,
+    triggerQuestion: lead.triggerQuestion ?? null,
+    trigger: lead.trigger,
+    createdAt: new Date(),
+  });
 }

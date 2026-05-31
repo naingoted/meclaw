@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { saveTurn, type PersistentMessage } from "./index";
+import { saveTurn, saveLead, type PersistentMessage } from "./index";
 
 /**
  * saveTurn persistence — mocked tests (no DB needed).
@@ -128,5 +128,52 @@ describe.skipIf(!DATABASE_URL)("saveTurn (integration, real Postgres)", () => {
     } finally {
       await sql.end();
     }
+  });
+});
+
+describe("saveLead (mocked)", () => {
+  function makeLeadDb(existing: unknown[] = []) {
+    const inserts: Record<string, unknown>[] = [];
+    const db = {
+      select: () => ({
+        from: () => ({
+          where: () => ({
+            limit: async () => existing,
+          }),
+        }),
+      }),
+      insert: () => ({
+        values: async (values: Record<string, unknown>) => {
+          inserts.push(values);
+        },
+      }),
+    };
+    return { db, inserts };
+  }
+
+  it("inserts a lead row with normalized fields", async () => {
+    const { db, inserts } = makeLeadDb([]);
+    await saveLead(db as never, {
+      conversationId: "c1",
+      email: "jane@acme.com",
+      triggerQuestion: "salary?",
+      trigger: "edge_case",
+    });
+    expect(inserts).toHaveLength(1);
+    expect(inserts[0].conversationId).toBe("c1");
+    expect(inserts[0].email).toBe("jane@acme.com");
+    expect(inserts[0].phone).toBeNull();
+    expect(inserts[0].trigger).toBe("edge_case");
+    expect(inserts[0].id).toMatch(/^[0-9a-f-]{36}$/i);
+  });
+
+  it("skips insert when the same contact already exists in the conversation", async () => {
+    const { db, inserts } = makeLeadDb([{ id: "existing" }]);
+    await saveLead(db as never, {
+      conversationId: "c1",
+      email: "jane@acme.com",
+      trigger: "provided",
+    });
+    expect(inserts).toHaveLength(0);
   });
 });
