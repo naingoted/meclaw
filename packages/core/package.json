@@ -1,0 +1,34 @@
+{
+  "name": "@meclaw/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./db": "./src/db/index.ts",
+    "./db/schema": "./src/db/schema.ts",
+    "./db/types": "./src/db/types.ts",
+    "./db/test-db": "./src/db/test-db.ts",
+    "./db/migrate": "./src/db/migrate.ts",
+    "./content": "./src/content/index.ts",
+    "./settings": "./src/settings/index.ts"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.45.2",
+    "postgres": "^3.4.9",
+    "zod": "^4.4.3"
+  },
+  "scripts": {
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "jiti scripts/db-migrate.ts",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.31.10",
+    "jiti": "^2.7.0",
+    "@electric-sql/pglite": "^0.4.6",
+    "vitest": "^4.1.7"
+  }
+}

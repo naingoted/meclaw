@@ -1,6 +1,6 @@
 // One-shot migration runner: `pnpm db:migrate`.
 // Applies ./drizzle to DATABASE_URL, then exits.
-import { runMigrations } from "../lib/db/migrate";
+import { runMigrations } from "../src/db/migrate";
 
 runMigrations()
   .then(() => {

@@ -25,7 +25,7 @@ const DATABASE_URL = process.env.DATABASE_URL;
 describe.skipIf(!DATABASE_URL)("PgVectorStore (integration, real Postgres)", () => {
   it("upserts chunks then returns them ordered by cosine similarity", async () => {
     const postgres = (await import("postgres")).default;
-    const { runMigrations } = await import("../db/migrate");
+    const { runMigrations } = await import("@/lib/db/migrate");
     await runMigrations(DATABASE_URL);
 
     const sql = postgres(DATABASE_URL!, { max: 1 });
