@@ -8,10 +8,8 @@
   },
   "dependencies": {
     "@meclaw/core": "workspace:*",
-    "drizzle-orm": "^0.45.2",
     "postgres": "^3.4.9",
-    "unpdf": "^1.6.2",
-    "zod": "^4.4.3"
+    "unpdf": "^1.6.2"
   },
   "scripts": {
     "ingest": "jiti scripts/ingest.ts",

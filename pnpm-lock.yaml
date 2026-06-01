@@ -154,18 +154,12 @@ importers:
       '@meclaw/core':
         specifier: workspace:*
         version: link:../core
-      drizzle-orm:
-        specifier: ^0.45.2
-        version: 0.45.2(@electric-sql/pglite@0.4.6)(@opentelemetry/api@1.9.1)(postgres@3.4.9)
       postgres:
         specifier: ^3.4.9
         version: 3.4.9
       unpdf:
         specifier: ^1.6.2
         version: 1.6.2
-      zod:
-        specifier: ^4.4.3
-        version: 4.4.3
     devDependencies:
       jiti:
         specifier: ^2.7.0
