@@ -4,11 +4,11 @@ import {
   createUIMessageStreamResponse,
 } from "ai";
 import { randomUUID } from "node:crypto";
-import { initDb, saveTurn, saveLead, type PersistentMessage, type LeadInput } from "@/lib/db";
+import { initDb, saveTurn, saveLead, type PersistentMessage, type LeadInput } from "@meclaw/core/db";
 import { notifyLead } from "@/lib/notify";
 import { chatRateLimiter } from "@/lib/rate-limit";
 import { detectInjection } from "@/lib/ai/guardrails";
-import { configSnapshot } from "@/lib/admin/config-snapshot";
+import { configSnapshot } from "@meclaw/core/settings";
 
 // Allow streaming responses up to 30 seconds.
 export const maxDuration = 30;

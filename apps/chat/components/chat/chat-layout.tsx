@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@meclaw/ui";
 import { Download, Calendar, ExternalLink } from "lucide-react";
 
 const calUrl = process.env.NEXT_PUBLIC_CAL_URL || "https://cal.com/tet-nai";

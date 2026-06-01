@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildSystemPrompt } from "./persona";
-import type { KnowledgeDoc } from "@/lib/content";
+import type { KnowledgeDoc } from "@meclaw/core/content";
 
 const docs: KnowledgeDoc[] = [
   { slug: "persona.md", title: "Persona", body: "Warm and direct." },

@@ -1,4 +1,4 @@
-import type { KnowledgeDoc } from "@/lib/content";
+import type { KnowledgeDoc } from "@meclaw/core/content";
 
 const BEHAVIOR_RULES = `You are meclaw — Thet Naing's personal bot that answers questions about him on his behalf (for recruiters, collaborators, and curious visitors).
 

@@ -9,11 +9,11 @@ const snapshot = {
   rag: { topK: 4 },
 };
 
-vi.mock("@/lib/admin/config-snapshot", () => ({
+vi.mock("@meclaw/core/settings", () => ({
   configSnapshot: vi.fn(async () => snapshot),
 }));
 
-vi.mock("@/lib/db", () => ({
+vi.mock("@meclaw/core/db", () => ({
   initDb: async () => ({}),
   saveTurn: async () => "c1",
 }));

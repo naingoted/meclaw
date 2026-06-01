@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 
 const mockSaveLead = vi.fn(async () => {});
 const mockNotifyLead = vi.fn(async () => {});
-vi.mock("@/lib/db", () => ({
+vi.mock("@meclaw/core/db", () => ({
   initDb: vi.fn(async () => ({})),
   saveTurn: vi.fn(async () => {}),
   saveLead: mockSaveLead,
@@ -216,13 +216,13 @@ describe("POST /api/chat — Guard Tests", () => {
   describe("Phase 3 persistence tee", () => {
     afterEach(() => {
       vi.unstubAllGlobals();
-      vi.doUnmock("@/lib/db");
+      vi.doUnmock("@meclaw/core/db");
       vi.doUnmock("@/lib/notify");
     });
 
     it("accumulates deltas and calls saveTurn on finish", async () => {
       const saveTurnMock = vi.fn().mockResolvedValue(undefined);
-      vi.doMock("@/lib/db", () => ({
+      vi.doMock("@meclaw/core/db", () => ({
         initDb: vi.fn().mockResolvedValue({}),
         saveTurn: saveTurnMock,
       }));
@@ -262,7 +262,7 @@ describe("POST /api/chat — Guard Tests", () => {
 
     it("never throws when saveTurn fails", async () => {
       const saveTurnMock = vi.fn().mockRejectedValue(new Error("db boom"));
-      vi.doMock("@/lib/db", () => ({
+      vi.doMock("@meclaw/core/db", () => ({
         initDb: vi.fn().mockResolvedValue({}),
         saveTurn: saveTurnMock,
       }));
@@ -288,7 +288,7 @@ describe("POST /api/chat — Guard Tests", () => {
 
     it("includes delta without trailing newline (final buffered line)", async () => {
       const saveTurnMock = vi.fn().mockResolvedValue(undefined);
-      vi.doMock("@/lib/db", () => ({
+      vi.doMock("@meclaw/core/db", () => ({
         initDb: vi.fn().mockResolvedValue({}),
         saveTurn: saveTurnMock,
       }));
@@ -328,7 +328,7 @@ describe("POST /api/chat — Guard Tests", () => {
     it("persists + notifies a lead emitted in stream metadata", async () => {
       const saveLead = vi.fn().mockResolvedValue(undefined);
       const notifyLead = vi.fn().mockResolvedValue(undefined);
-      vi.doMock("@/lib/db", () => ({
+      vi.doMock("@meclaw/core/db", () => ({
         initDb: vi.fn().mockResolvedValue({}),
         saveTurn: vi.fn().mockResolvedValue(undefined),
         saveLead,
