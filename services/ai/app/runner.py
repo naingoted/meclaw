@@ -7,6 +7,7 @@ from app.config import DRAFT_MODEL, TRIAGE_MODEL
 from app.graph.nodes import default_draft_stream_fn, default_triage_fn
 from app.provider import get_chat_model
 from app.retriever import Retriever
+from app.runtime_config import RuntimeConfig
 from app.streaming import run_stream
 from app.tools import get_contact_info, schedule_call
 
@@ -24,4 +25,34 @@ def build_production_runner():
         draft_stream_fn=default_draft_stream_fn(draft_model),
         schedule_fn=schedule_call,
         contact_fn=get_contact_info,
+    )
+
+
+def build_runner(cfg: RuntimeConfig):
+    """Build a per-request runner from resolved runtime config.
+
+    Request values (forwarded from /admin) override env defaults. Each request
+    gets fresh model instances bound to the resolved config. get_chat_model is
+    lru_cache'd by model name, so per-request rebuilds are cheap.
+
+    Args:
+        cfg: RuntimeConfig with triage_model, draft_model, top_k, persona, prompts.
+
+    Returns:
+        A partial(run_stream, ...) callable that accepts (messages: list[dict]).
+    """
+    triage_model = get_chat_model(cfg.triage_model, streaming=False, thinking=False)
+    draft_model = get_chat_model(cfg.draft_model, streaming=True, thinking=False)
+    retriever = Retriever(top_k=cfg.top_k)
+    return partial(
+        run_stream,
+        triage_fn=default_triage_fn(triage_model, system=cfg.prompts.get("triage")),
+        retriever_retrieve=retriever.retrieve,
+        draft_stream_fn=default_draft_stream_fn(draft_model),
+        schedule_fn=schedule_call,
+        contact_fn=get_contact_info,
+        knowledge_system=cfg.prompts.get("knowledge"),
+        scheduler_system=cfg.prompts.get("scheduler"),
+        contact_system=cfg.prompts.get("contact"),
+        persona_prefix=cfg.persona,
     )

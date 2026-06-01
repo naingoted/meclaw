@@ -350,3 +350,63 @@ def test_offer_suppressed_after_prior_confirm():
     assert NEUTRAL_FALLBACK in body
     assert SOFT_OFFER not in body
     assert ESCALATED_OFFER not in body
+
+
+def test_persona_prefix_prepended_to_knowledge_system():
+    captured = {}
+
+    def retrieve(query):
+        return RetrievalResult(
+            chunks=[_chunk("Thet uses Python.")],
+            sources=[{"source": "about.md", "title": "About", "score": 0.8}],
+        )
+
+    def draft_stream(system, messages, context):
+        captured["system"] = system
+        yield "Python."
+
+    persona = "You are an AI assistant."
+    body = _collect(
+        run_stream(
+            [{"role": "user", "content": "what's the stack?"}],
+            triage_fn=_triage("tech", 0.9),
+            retriever_retrieve=retrieve,
+            draft_stream_fn=draft_stream,
+            schedule_fn=lambda: {},
+            contact_fn=lambda: {},
+            persona_prefix=persona,
+        )
+    )
+
+    assert captured["system"].startswith(f"{persona}\n\n")
+    assert '"delta":"Python."' in body
+
+
+def test_persona_prefix_empty_string_does_not_prepend():
+    captured = {}
+
+    def retrieve(query):
+        return RetrievalResult(
+            chunks=[_chunk("Thet uses Python.")],
+            sources=[{"source": "about.md", "title": "About", "score": 0.8}],
+        )
+
+    def draft_stream(system, messages, context):
+        captured["system"] = system
+        yield "Python."
+
+    body = _collect(
+        run_stream(
+            [{"role": "user", "content": "what's the stack?"}],
+            triage_fn=_triage("tech", 0.9),
+            retriever_retrieve=retrieve,
+            draft_stream_fn=draft_stream,
+            schedule_fn=lambda: {},
+            contact_fn=lambda: {},
+            persona_prefix="",
+        )
+    )
+
+    # System should NOT start with "\n\n" (no prefix applied)
+    assert not captured["system"].startswith("\n\n")
+    assert '"delta":"Python."' in body

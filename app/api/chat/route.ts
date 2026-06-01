@@ -8,6 +8,7 @@ import { initDb, saveTurn, saveLead, type PersistentMessage, type LeadInput } fr
 import { notifyLead } from "@/lib/notify";
 import { chatRateLimiter } from "@/lib/rate-limit";
 import { detectInjection } from "@/lib/ai/guardrails";
+import { configSnapshot } from "@/lib/admin/config-snapshot";
 
 // Allow streaming responses up to 30 seconds.
 export const maxDuration = 30;
@@ -189,6 +190,17 @@ export async function POST(req: Request) {
     content: extractTextContent(m),
   }));
 
+  // Snapshot the current config (request values will override env defaults in the sidecar)
+  let config: unknown = undefined;
+  try {
+    config = await configSnapshot(await getDb());
+  } catch (e) {
+    console.warn(
+      "[chat] config snapshot unavailable, sidecar will use env defaults:",
+      e
+    );
+  }
+
   const aiServiceUrl = process.env.AI_SERVICE_URL || "http://localhost:8000";
 
   let upstream: Response;
@@ -196,7 +208,7 @@ export async function POST(req: Request) {
     upstream = await fetch(`${aiServiceUrl}/chat`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ messages: proxyMessages }),
+      body: JSON.stringify({ messages: proxyMessages, config }),
       signal: req.signal,
     });
   } catch (e) {

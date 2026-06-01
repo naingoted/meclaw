@@ -72,6 +72,10 @@ def run_stream(
     draft_stream_fn: DraftStreamFn,
     schedule_fn: Callable[[], dict],
     contact_fn: Callable[[], dict],
+    knowledge_system: str | None = None,
+    scheduler_system: str | None = None,
+    contact_system: str | None = None,
+    persona_prefix: str = "",
 ) -> Iterator[str]:
     # Ordered record of the pipeline steps taken this turn. Each `status` emit
     # both streams a transient data-status part (drives the live checklist) and
@@ -129,12 +133,12 @@ def run_stream(
     if intent == "scheduler":
         yield status("Pulling up booking details…", "scheduler")
         context = json.dumps(schedule_fn())
-        system = SCHEDULER_PERSONA
+        system = scheduler_system or SCHEDULER_PERSONA
         sources: list[dict] = []
     elif intent == "contact":
         yield status("Pulling up contact details…", "contact")
         context = json.dumps(contact_fn())
-        system = CONTACT_PERSONA
+        system = contact_system or CONTACT_PERSONA
         sources = []
     else:
         # tech | project | general all retrieve from the knowledge base.
@@ -153,8 +157,12 @@ def run_stream(
             )
             return
         context = "\n\n".join(chunk.text for chunk in retrieval.chunks)
-        system = PERSONAS.get(intent, PERSONAS["general"])
+        system = knowledge_system or PERSONAS.get(intent, PERSONAS["general"])
         sources = retrieval.sources
+
+    # Apply persona prefix if configured
+    if persona_prefix:
+        system = f"{persona_prefix}\n\n{system}"
 
     yield status("Writing the answer…", "drafting")
     metadata = {

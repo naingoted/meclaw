@@ -77,19 +77,24 @@ def _last_user_text(messages: list[dict]) -> str:
     return ""
 
 
-def default_triage_fn(triage_model) -> Callable[[list[dict]], TriageResult]:
+def default_triage_fn(triage_model, system: str | None = None) -> Callable[[list[dict]], TriageResult]:
     """Build a triage function that prompts for JSON and parses the response.
 
     Uses JSON prompting instead of with_structured_output to work with thinking-mode
     models that reject forced-tool structured output. Extracts text from content blocks
     to handle models that return lists of blocks instead of plain strings.
+
+    Args:
+        triage_model: The LLM to use for triage.
+        system: Optional override system prompt (replaces TRIAGE_SYSTEM). Defaults to None.
     """
 
     def _run(messages: list[dict]) -> TriageResult:
         text = ""
         try:
+            base = system or TRIAGE_SYSTEM
             response = triage_model.invoke(
-                [{"role": "system", "content": TRIAGE_SYSTEM + TRIAGE_JSON_INSTRUCTION}] + messages
+                [{"role": "system", "content": base + TRIAGE_JSON_INSTRUCTION}] + messages
             )
             text = _extract_text(response.content).strip()
             # Find the first {...} JSON object in the text (tolerates code fences/prose)

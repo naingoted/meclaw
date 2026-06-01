@@ -24,7 +24,7 @@ def test_chat_passes_runner_stream_through(monkeypatch):
         'data: {"type":"finish","messageMetadata":{"route":"tech"}}\n\n',
         "data: [DONE]\n\n",
     ]
-    monkeypatch.setattr(main, "get_runner", lambda: _stub_runner(frames))
+    monkeypatch.setattr(main, "get_runner", lambda *a, **k: _stub_runner(frames))
 
     client = TestClient(main.app)
     response = client.post("/chat", json={"messages": [{"role": "user", "content": "stack?"}]})
