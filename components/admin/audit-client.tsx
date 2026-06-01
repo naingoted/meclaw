@@ -2,8 +2,10 @@
 import * as React from "react";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 
+type AuditRow = { id: string; ts: string; action: string; summary: string };
+
 export function AuditClient() {
-  const [rows, setRows] = React.useState<any[]>([]);
+  const [rows, setRows] = React.useState<AuditRow[]>([]);
   React.useEffect(() => { fetch("/api/admin/audit").then((r) => r.json()).then(setRows); }, []);
   return (
     <div>
