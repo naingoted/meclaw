@@ -30,10 +30,11 @@ describe("chat route forwards config", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("includes the config snapshot in the sidecar request body", async () => {
-    const fetchMock = vi.fn(async () =>
-      new Response("data: {}\n\n", {
-        headers: { "content-type": "text/event-stream" },
-      })
+    const fetchMock = vi.fn<(url: string | URL | Request, init?: RequestInit) => Promise<Response>>(
+      async () =>
+        new Response("data: {}\n\n", {
+          headers: { "content-type": "text/event-stream" },
+        })
     );
     vi.stubGlobal("fetch", fetchMock);
 
