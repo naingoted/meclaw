@@ -4,16 +4,20 @@ import { join, sep } from "node:path";
 import { loadKnowledge, type KnowledgeDoc } from "../../content";
 
 import { loadPdf } from "./pdf";
+import { loadWorkImpactDocs } from "./work-impact";
 
 const CONTENT_DIR = join(process.cwd(), "content");
 
 /**
  * Loads every ingestable doc under `dir`: markdown via loadKnowledge (sync),
- * plus every PDF via loadPdf. PDF slugs are normalized to the content-relative
- * path (matching loadKnowledge's slug convention). Result is sorted by slug.
+ * plus every PDF via loadPdf, plus every work-impact pack found under the
+ * sibling `data/` dir (`<dir>/../data/work_impact_<company>/`). PDF slugs are
+ * normalized to the content-relative path (matching loadKnowledge's slug
+ * convention). Result is sorted by slug.
  */
 export async function loadIngestDocs(dir: string = CONTENT_DIR): Promise<KnowledgeDoc[]> {
   const markdown = loadKnowledge(dir);
+  const workImpact = loadWorkImpactDocs(join(dir, "..", "data"));
 
   let entries: string[] = [];
   try {
@@ -34,7 +38,8 @@ export async function loadIngestDocs(dir: string = CONTENT_DIR): Promise<Knowled
     }),
   );
 
-  return [...markdown, ...pdfs].sort((a, b) => a.slug.localeCompare(b.slug));
+  return [...markdown, ...pdfs, ...workImpact].sort((a, b) => a.slug.localeCompare(b.slug));
 }
 
 export { loadPdf } from "./pdf";
+export { loadWorkImpactDocs } from "./work-impact";

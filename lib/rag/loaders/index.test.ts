@@ -25,4 +25,24 @@ describe("loadIngestDocs", () => {
     const pdfDoc = docs.find((d) => d.slug === "resume.pdf");
     expect(pdfDoc?.body).toContain("Thet Naing Resume Fixture");
   });
+
+  it("merges work-impact packs from the sibling data/ dir", async () => {
+    const root = mkdtempSync(join(tmpdir(), "meclaw-root-"));
+    const contentDir = join(root, "content");
+    mkdirSync(contentDir, { recursive: true });
+    writeFileSync(join(contentDir, "persona.md"), "# Persona\n\nThet is an engineer.");
+
+    const packDir = join(root, "data", "work_impact_incube8");
+    mkdirSync(packDir, { recursive: true });
+    writeFileSync(
+      join(packDir, "04_rag_entries.json"),
+      JSON.stringify([{ category: "revenue_billing", summary: "Did revenue work." }]),
+    );
+
+    const docs = await loadIngestDocs(contentDir);
+
+    expect(docs.map((d) => d.slug)).toEqual(["persona.md", "work/incube8"]);
+    const work = docs.find((d) => d.slug === "work/incube8");
+    expect(work?.body).toContain("Did revenue work.");
+  });
 });
