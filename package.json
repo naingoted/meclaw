@@ -23,6 +23,7 @@
     "@ai-sdk/anthropic": "^3.0.81",
     "@ai-sdk/react": "^3.0.195",
     "@meclaw/core": "workspace:*",
+    "@meclaw/rag": "workspace:*",
     "@meclaw/ui": "workspace:*",
     "ai": "^6.0.193",
     "class-variance-authority": "^0.7.1",

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { KnowledgeDoc } from "@/lib/content";
+import type { KnowledgeDoc } from "@meclaw/core/content";
 
 import { chunkKnowledgeDocs } from "./chunk";
 

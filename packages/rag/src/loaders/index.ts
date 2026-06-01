@@ -1,7 +1,7 @@
 import { readdirSync } from "node:fs";
 import { join, sep } from "node:path";
 
-import { loadKnowledge, type KnowledgeDoc } from "../../content";
+import { loadKnowledge, type KnowledgeDoc } from "@meclaw/core/content";
 
 import { loadPdf } from "./pdf";
 import { loadWorkImpactDocs } from "./work-impact";

@@ -3,7 +3,7 @@ import { basename } from "node:path";
 
 import { extractText, getDocumentProxy } from "unpdf";
 
-import type { KnowledgeDoc } from "../../content";
+import type { KnowledgeDoc } from "@meclaw/core/content";
 
 /**
  * Loads a PDF file into a KnowledgeDoc for the RAG ingest pipeline.

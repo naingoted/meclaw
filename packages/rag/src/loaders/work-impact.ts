@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import type { KnowledgeDoc } from "../../content";
+import type { KnowledgeDoc } from "@meclaw/core/content";
 
 /**
  * Work-impact loader.

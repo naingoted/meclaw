@@ -1,4 +1,4 @@
-import type { KnowledgeDoc } from "../content";
+import type { KnowledgeDoc } from "@meclaw/core/content";
 
 import { loadIngestDocs } from "./loaders";
 import { chunkKnowledgeDocs } from "./chunk";

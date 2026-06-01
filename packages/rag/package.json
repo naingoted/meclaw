@@ -1,0 +1,26 @@
+{
+  "name": "@meclaw/rag",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@meclaw/core": "workspace:*",
+    "drizzle-orm": "^0.45.2",
+    "postgres": "^3.4.9",
+    "unpdf": "^1.6.2",
+    "zod": "^4.4.3"
+  },
+  "scripts": {
+    "ingest": "jiti scripts/ingest.ts",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "jiti": "^2.7.0",
+    "vitest": "^4.1.7"
+  }
+}

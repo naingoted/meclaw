@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { KnowledgeDoc } from "@/lib/content";
+import type { KnowledgeDoc } from "@meclaw/core/content";
 
 import { ingestKnowledge } from "./ingest";
 import type { RagChunk, VectorStoreClient } from "./types";
@@ -175,11 +175,11 @@ describe("ingestKnowledge", () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
 
     vi.resetModules();
-    vi.doMock("@/lib/rag/ingest", () => ({
+    vi.doMock("./ingest", () => ({
       ingestKnowledge: vi.fn(async () => ({ docs: 3, chunks: 9 })),
     }));
 
-    const { runIngestCli } = await import("@/scripts/ingest");
+    const { runIngestCli } = await import("../scripts/ingest");
 
     process.exitCode = undefined;
     await runIngestCli();
@@ -188,13 +188,13 @@ describe("ingestKnowledge", () => {
     expect(process.exitCode).toBeUndefined();
 
     vi.resetModules();
-    vi.doMock("@/lib/rag/ingest", () => ({
+    vi.doMock("./ingest", () => ({
       ingestKnowledge: vi.fn(async () => {
         throw new Error("boom");
       }),
     }));
 
-    const { runIngestCli: runIngestCliWithFailure } = await import("@/scripts/ingest");
+    const { runIngestCli: runIngestCliWithFailure } = await import("../scripts/ingest");
 
     process.exitCode = undefined;
     await runIngestCliWithFailure();

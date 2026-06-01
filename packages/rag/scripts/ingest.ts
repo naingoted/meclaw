@@ -1,7 +1,7 @@
 import { pathToFileURL } from "node:url";
 
-import { ingestKnowledge } from "../lib/rag/ingest";
-import { embedderFromEnv, storeFromEnv } from "../lib/rag/config";
+import { ingestKnowledge } from "../src/ingest";
+import { embedderFromEnv, storeFromEnv } from "../src/config";
 
 export async function runIngestCli(): Promise<void> {
   try {
