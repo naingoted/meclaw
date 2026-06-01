@@ -1,3 +1,5 @@
+import { DashboardClient } from "@/components/admin/dashboard-client";
+
 export default function AdminHome() {
-  return <h1 className="text-xl font-semibold">Dashboard</h1>;
+  return <DashboardClient />;
 }
