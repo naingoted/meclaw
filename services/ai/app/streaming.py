@@ -72,7 +72,7 @@ def run_stream(
     draft_stream_fn: DraftStreamFn,
     schedule_fn: Callable[[], dict],
     contact_fn: Callable[[], dict],
-    corpus_version_fn: Callable[[], "int | None"] = lambda: None,
+    corpus_version_fn: Callable[[], int | None] = lambda: None,
     knowledge_system: str | None = None,
     scheduler_system: str | None = None,
     contact_system: str | None = None,
