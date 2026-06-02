@@ -21,4 +21,16 @@ describe("ui primitives", () => {
     const { container } = render(<Skeleton className="h-4 w-20" />);
     expect(container.querySelector("[data-slot='skeleton']")).toBeTruthy();
   });
+
+  it("disables and shows a spinner when loading", () => {
+    render(<Button loading>Save</Button>);
+    const btn = screen.getByRole("button", { name: /save/i });
+    expect((btn as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole("status", { name: /loading/i })).toBeTruthy();
+  });
+
+  it("supports the ghost-danger variant", () => {
+    render(<Button variant="ghost-danger">Delete</Button>);
+    expect(screen.getByRole("button", { name: /delete/i })).toBeTruthy();
+  });
 });
