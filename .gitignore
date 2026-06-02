@@ -8,6 +8,9 @@ out/
 next-env.d.ts
 *.tsbuildinfo
 
+# turbo
+.turbo/
+
 # env (NEVER commit secrets)
 .env
 .env.local
