@@ -19,7 +19,7 @@ export function DocumentsClient() {
 
   const load = React.useCallback(async () => setDocs(await (await fetch("/api/admin/documents")).json()), []);
   const loadJobs = React.useCallback(async () => setJobs(await (await fetch("/api/admin/jobs")).json()), []);
-  React.useEffect(() => { void load(); void loadJobs(); }, [load, loadJobs]);
+  React.useEffect(() => { void (async () => { await load(); await loadJobs(); })(); }, [load, loadJobs]);
 
   // Latest job per document. listJobs returns ascending by createdAt, so the
   // last write for each documentId wins (= most recent).
