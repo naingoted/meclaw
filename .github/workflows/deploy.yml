@@ -29,31 +29,33 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build & push web
+      - name: Build & push chat
         uses: docker/build-push-action@v6
         with:
           context: .
+          file: apps/chat/Dockerfile
           target: runner
           push: true
           tags: |
-            ghcr.io/${{ steps.owner.outputs.lc }}/meclaw-web:latest
-            ghcr.io/${{ steps.owner.outputs.lc }}/meclaw-web:${{ github.sha }}
+            ghcr.io/${{ steps.owner.outputs.lc }}/meclaw-chat:latest
+            ghcr.io/${{ steps.owner.outputs.lc }}/meclaw-chat:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Build & push ingest
+      - name: Build & push admin
         uses: docker/build-push-action@v6
         with:
           context: .
-          target: builder
+          file: apps/admin/Dockerfile
+          target: runner
           push: true
           tags: |
-            ghcr.io/${{ steps.owner.outputs.lc }}/meclaw-ingest:latest
-            ghcr.io/${{ steps.owner.outputs.lc }}/meclaw-ingest:${{ github.sha }}
+            ghcr.io/${{ steps.owner.outputs.lc }}/meclaw-admin:latest
+            ghcr.io/${{ steps.owner.outputs.lc }}/meclaw-admin:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Build & push ai (Phase 3)
+      - name: Build & push ai
         if: ${{ hashFiles('services/ai/Dockerfile') != '' }}
         uses: docker/build-push-action@v6
         with:
@@ -62,6 +64,18 @@ jobs:
           tags: |
             ghcr.io/${{ steps.owner.outputs.lc }}/meclaw-ai:latest
             ghcr.io/${{ steps.owner.outputs.lc }}/meclaw-ai:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build & push ops
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/Dockerfile.ops
+          push: true
+          tags: |
+            ghcr.io/${{ steps.owner.outputs.lc }}/meclaw-ops:latest
+            ghcr.io/${{ steps.owner.outputs.lc }}/meclaw-ops:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -81,10 +95,10 @@ jobs:
             cd /opt/meclaw
             echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u "${{ secrets.GHCR_USER }}" --password-stdin
             git pull --ff-only
-            docker compose -f docker-compose.prod.yml pull
-            docker compose -f docker-compose.prod.yml up -d --wait postgres
-            docker compose -f docker-compose.prod.yml run --rm ingest pnpm db:migrate
-            docker compose -f docker-compose.prod.yml up -d
-            docker compose -f docker-compose.prod.yml exec -T ollama ollama pull nomic-embed-text
-            docker compose -f docker-compose.prod.yml run --rm ingest pnpm ingest
+            docker compose -f infra/docker-compose.prod.yml pull
+            docker compose -f infra/docker-compose.prod.yml up -d --wait postgres
+            docker compose -f infra/docker-compose.prod.yml run --rm ops pnpm --filter @meclaw/core db:migrate
+            docker compose -f infra/docker-compose.prod.yml up -d
+            docker compose -f infra/docker-compose.prod.yml exec -T ollama ollama pull nomic-embed-text
+            docker compose -f infra/docker-compose.prod.yml run --rm ops pnpm --filter @meclaw/rag ingest
             docker image prune -f
