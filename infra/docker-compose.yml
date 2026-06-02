@@ -37,6 +37,9 @@ services:
     environment:
       AI_SERVICE_URL: http://ai:8000
       DATABASE_URL: postgres://meclaw:meclaw@postgres:5432/meclaw
+      # `next dev` runs from the package dir (/app/apps/chat), so anchor the
+      # content loader to the repo-root corpus mounted at /app/content.
+      MECLAW_CONTENT_DIR: /app/content
     volumes:
       - ../:/app
       - /app/node_modules
@@ -53,6 +56,9 @@ services:
       AUTH_URL: http://localhost:3001
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH}
+      # Ingest/seed reads the corpus via @meclaw/core; anchor to /app/content
+      # (next dev cwd is the package dir, not the repo root).
+      MECLAW_CONTENT_DIR: /app/content
     volumes:
       - ../:/app
       - /app/node_modules
