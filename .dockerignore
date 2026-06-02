@@ -7,6 +7,8 @@ content/knowledge
 *.local
 .env
 .env.*
+**/.env
+**/.env.*
 docs
 .claude
 coverage

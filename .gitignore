@@ -13,6 +13,7 @@ next-env.d.ts
 
 # env (NEVER commit secrets)
 .env
+infra/.env
 .env.local
 .env.*.local
 
