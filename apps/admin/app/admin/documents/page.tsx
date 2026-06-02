@@ -1,4 +1,3 @@
-"use client";
 import { DocumentsClient } from "@/components/admin/documents-client";
 import { CorpusStrip } from "@/components/admin/corpus-strip";
 
