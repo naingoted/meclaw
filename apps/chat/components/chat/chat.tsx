@@ -327,7 +327,7 @@ export function Chat() {
                   <button
                     key={chip}
                     onClick={() => handleChipClick(chip)}
-                    className="rounded-lg border border-border bg-background px-3 py-2 text-left text-sm transition-colors hover:bg-muted hover:text-foreground"
+                    className="rounded-sm border border-border bg-card px-3 py-2 text-left text-sm transition-colors hover:border-primary hover:text-primary"
                   >
                     {chip}
                   </button>
@@ -363,7 +363,7 @@ export function Chat() {
                         part.type === "text" ? (
                           <div
                             key={`${message.id}-${i}`}
-                            className="prose prose-sm max-w-none dark:prose-invert"
+                            className="prose prose-sm max-w-none font-sans dark:prose-invert"
                           >
                             <ReactMarkdown>{part.text}</ReactMarkdown>
                           </div>
@@ -402,14 +402,14 @@ export function Chat() {
         <div ref={endRef} />
       </div>
 
-      <form onSubmit={handleSubmit} className="flex gap-2 border-t p-4">
+      <form onSubmit={handleSubmit} className="flex gap-2 border-t border-border p-4">
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Say something…"
-          className="flex-1 rounded-md border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex-1 rounded-sm border border-input bg-card px-3 py-2 font-mono text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
         />
-        <Button type="submit" disabled={isStreaming || input.trim().length === 0}>
+        <Button type="submit" loading={isStreaming} disabled={isStreaming || input.trim().length === 0}>
           Send
         </Button>
       </form>

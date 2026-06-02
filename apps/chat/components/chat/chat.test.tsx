@@ -221,7 +221,7 @@ describe("Chat component — M4 behavioral tests", () => {
     render(<Chat />);
 
     // Assert Send button is disabled during streaming
-    const sendButton = screen.getByRole("button", { name: "Send" });
+    const sendButton = screen.getByRole("button", { name: /Send/ });
     expect(sendButton).toBeDisabled();
   });
 
