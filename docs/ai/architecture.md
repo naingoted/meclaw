@@ -1,55 +1,97 @@
 # Architecture
 
-## The loop
+## High level
 
-1. Visitor loads `/` → `useChat` (`@ai-sdk/react`) renders the chat UI.
-2. User sends a message → `POST /api/chat` with `{ messages }`.
-3. Route handler applies guards, proxies to the Python AI sidecar, and tees the
-   streamed response for persistence.
-4. Tokens stream back → UI renders incrementally (markdown, auto-scroll).
-5. On finish → best-effort persist of conversation + messages to PostgreSQL
-   (failures are logged, never break the stream).
-6. Tools: `showResume`, `scheduleCall`, `getContactInfo`, and a meta "how does
-   this bot work?" tool.
+A monorepo with two Next.js apps (public chat + admin) sharing three packages (core DB, RAG, UI), plus a Python LLM sidecar and Docker infra. Visitors chat with a personal bot; admins ingest + edit knowledge. Everything local-first; VPS deploy via GitHub Actions.
 
-## Decisions that shape the code
+```
+User (browser)
+  ↓
+Next.js apps (chat + admin) @ :3000 + :3001 (dev) / subdomain (prod)
+  ├─ @meclaw/chat       — public chat, stateless
+  ├─ @meclaw/admin      — content/ingest editor, Auth.js login
+  └─ shared packages
+      ├─ @meclaw/core   — DB (Drizzle + postgres-js), content loader, settings
+      ├─ @meclaw/rag    — ingest script, retrieval config (read-only)
+      └─ @meclaw/ui     — shadcn components + cn helper
+  ↓
+Python sidecar (services/ai) @ :8000
+  ├─ FastAPI + LangGraph triage agent
+  ├─ reads: LLM gateway (qwen + glm), Ollama embeddings, Postgres pgvector
+  ├─ writes: nothing (read-only over Postgres + Ollama)
+  └─ streams UI-message-stream SSE protocol back to Next
+  ↓
+Postgres (conversation history + RAG vectors)
+Ollama (nomic-embed-text embeddings)
+```
 
-- **Anthropic-compatible gateway, not real Anthropic.** Model is `qwen3.6-plus` via DashScope. We use `@ai-sdk/anthropic` with a custom `baseURL`. The provider may append `/v1/messages` — verify the path in M1 and adjust `baseURL` if it double-appends.
-- **Local RAG with graceful fallback.** Markdown is embedded locally through Ollama and retrieved from PostgreSQL via the `pgvector` extension; if retrieval is unavailable or unnecessary, the app falls back to the full corpus.
-- **PostgreSQL persistence.** `postgres-js` + Drizzle, configured by `DATABASE_URL`; schema is owned by Drizzle migrations (`pnpm db:migrate`). Both conversation history (`conversations`, `messages`) and knowledge vectors (`rag_chunks` with 768-dim vectors and HNSW cosine index) live in one datastore.
-- **Provider-agnostic seam.** `lib/ai/provider.ts` is the only place that knows the model/gateway.
+## Request flow: public chat
 
-## V2 Phase 1 RAG (Postgres pgvector)
+1. Visitor loads `/` in `apps/chat/app/page.tsx` → Next hydrates `useChat` client component.
+2. User types message → `POST /api/chat` in `apps/chat/app/api/chat/route.ts`.
+3. Route handler:
+   - IP rate-limit check (in-memory map, 429 on exceed)
+   - Injection guard (regex patterns, returns UI stream refusal if flagged)
+   - Proxies to Python sidecar at `AI_SERVICE_URL` (default `http://localhost:8000`)
+   - Tees the streamed response: streams to browser AND accumulates in memory for persistence
+4. Python sidecar (services/ai):
+   - Triage intent (glm-4.7 non-stream, routing rules)
+   - Retrieves top-K matching chunks from Postgres pgvector (by cosine similarity)
+   - Builds persona prompt (persona.md + retrieved chunks or full corpus fallback)
+   - Drafts response with qwen3.6-plus (stream to client)
+5. Tokens stream back to browser → UI renders markdown with auto-scroll + live trace checklist.
+6. On stream finish → best-effort persist of conversation + messages to Postgres (failures logged, never break stream).
 
-Phase 1 keeps the existing chat route and persona builder, but swaps the knowledge path from blanket stuffing to retrieval over `content/**`.
+## Request flow: admin console
 
-- **Embeddings:** Ollama runs locally and serves `nomic-embed-text` on `http://localhost:11434` (768-dim vectors).
-- **Vector store:** PostgreSQL via the `pgvector` extension, in the `rag_chunks` table with HNSW cosine index. Same `DATABASE_URL` datastore that holds conversation history.
-- **Top K:** default retrieval fan-out is `4`.
-- **Dev sources:** when enabled, the chat UI can surface retrieved sources in development.
+1. Visitor hits `/` in `apps/admin/app/page.tsx` → redirects to Auth.js login.
+2. Admin enters scrypt-verified password (salt:hash in env), gets JWT in session.
+3. Authenticated routes show content editor (forms) → `POST /api/actions/*` for mutations.
+4. Admin updates persona/knowledge markdown → editor writes to `content/` (local filesystem).
+5. Admin clicks "ingest" → calls `pnpm --filter @meclaw/rag ingest` (one-shot, embeds corpus → Postgres).
 
-Request flow (TS write path, Python read path):
+## Decisions
 
-1. User sends a message.
-2. The Python sidecar embeds the query with Ollama and searches PostgreSQL for the best matching chunks from `content/**` using cosine kNN.
-3. If retrieval succeeds and the corpus is large enough to need narrowing, the prompt is built from the retrieved chunks plus the existing persona rules.
-4. If the corpus is tiny, Ollama is unavailable, or PostgreSQL is unavailable, retrieval falls back to the old full-corpus prompt so chat still works.
-5. Ingestion (TS `pnpm ingest` → `lib/rag/pgvector.ts` `PgVectorStore`) writes embeddings to `rag_chunks`; no separate ingest service.
-
-This keeps Phase 1 additive: local infra improves relevance, but a service outage does not block the owner from using the app. Single datastore (`DATABASE_URL`) now owns both transactional (conversations/messages) and vector (rag_chunks) data.
+- **Anthropic-compatible gateway** (not real Anthropic) via DashScope. Model: `qwen3.6-plus` (draft, streaming) + `glm-4.7` (triage, non-stream). Vercel AI SDK `@ai-sdk/anthropic` with custom `baseURL` (must include `/v1` suffix for TS, must OMIT `/v1` for Python sidecar).
+- **Python sidecar for LLM calls** (Phase 3 cutover). Allows multi-step reasoning (triage → retrieve → draft), tool integration via LangGraph, and easy model swaps without Next rebuild.
+- **Postgres pgvector for RAG** (single datastore). Ollama `nomic-embed-text` (768-dim) → embedded locally → stored in `rag_chunks` table with HNSW cosine index. Retrieval falls back to full-corpus if services are unavailable (graceful degradation).
+- **Drizzle migrations** owned by schema; migrations live in `packages/core/drizzle/` and are applied at deploy time via the `ops` Docker image.
+- **No multi-tenant auth in v1.** Single admin (scrypt + JWT), single visitor stream per session.
+- **Monorepo discipline.** Packages (`@meclaw/*`) use relative or package-name imports (never `@/` from root) to avoid breaking the Next build; `pnpm-workspace.yaml` + turbo for orchestration.
 
 ## Data model (PostgreSQL)
 
-- `conversations` — `id, createdAt, visitorMeta(json?)`
-- `messages` — `id, conversationId, role(user|assistant|tool), content, toolCalls(json?), createdAt`
-- `rag_chunks` — `id, source, title, text, ordinal, embedding(vector, 768-dim)` with HNSW cosine index
+Tables:
+- **conversations** — `id (uuid), createdAt (timestamp)`
+- **messages** — `id (uuid), conversationId (fk), role (user|assistant), content (text), toolCalls (json), createdAt (timestamp)`
+- **rag_chunks** — `id (uuid), source (text), title (text), text (text), ordinal (int), embedding (vector, 768-dim, pgvector)` with HNSW cosine index
 
-No orgs/users/auth/subscriptions/plugins — stripped from the multi-tenant ancestor.
+Both `conversations` + `messages` (transactional) and `rag_chunks` (vectors) live in the same `DATABASE_URL` Postgres instance.
+
+## Production topology
+
+**Reverse proxy** (Caddy, `infra/Caddyfile`):
+- `yourdomain.com` → chat container (port 3000)
+- `admin.yourdomain.com` → admin container (port 3000)
+
+**Service containers**:
+- `meclaw-chat` (port 3000 internal) — public chat, stateless
+- `meclaw-admin` (port 3000 internal) — admin console, reads/writes `content/` bind-mount + Postgres
+- `meclaw-ai` (port 8000 internal) — Python sidecar, read-only Postgres + Ollama
+- `meclaw-ops` (one-shot) — runs migrations + ingest on deploy, then exits
+
+**Data** (persistent volumes):
+- Postgres (`postgres_data` volume)
+- Ollama (`ollama_storage` volume for model cache)
+- `content/knowledge` bind-mounted into ops + admin (for ingest + editing)
+
+Chat + admin containers do NOT have `content/` mounted (they use pre-computed embeddings); see `docs/ai/deploy.md` "Known limitations" for workaround.
 
 ## Error handling
 
-- Missing `ANTHROPIC_API_KEY` / `ANTHROPIC_BASE_URL` → loud boot error + friendly UI message.
-- Gateway error/timeout → stream error event → UI retry, no crash.
-- DB write failure → log only; persistence is best-effort.
-- Rate limiting + prompt-injection guard → **M6**.
-- Tiny corpus, RAG service outage, or empty results → fall back to the full `content/**` prompt and keep chatting.
+- **Rate limiting:** 429 Retry-After before parsing body.
+- **Injection guard:** request with high-confidence extraction patterns → UI stream refusal (never reaches sidecar).
+- **Tiny corpus:** if `content/**` is < 8000 chars, RAG prompt uses full corpus (no retrieval narrowing needed).
+- **Ollama/Postgres unavailable:** chat falls back to full-corpus prompt, stays usable.
+- **Gateway error/timeout:** stream error event → UI retry, no crash.
+- **DB write failure:** logged, persistence best-effort (never breaks stream).

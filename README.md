@@ -1,114 +1,96 @@
 # meclaw
 
-A personal bot for Thet Naing. Visitors open a public chat page and ask about
-the owner's work, schedule, and contact details; it answers on his behalf and
-is set up to grow into message routing and always-on access later. Local-first:
-knowledge lives in editable markdown under `content/`; no cloud DB, no auth in v1.
+A personal bot for Thet Naing. Visitors chat with a public page; an AI answers about the owner's work, schedule, and contact details. Admins can log in to edit knowledge and re-ingest. Local-first: knowledge in markdown under `content/`, no cloud DB.
+
+**Status:** Monorepo complete (Plan C). All milestones (M0–M6 chat, Phase 1 RAG, Phase 3 sidecar, Phase 5 deploy infra) done.
 
 ## Stack
 
-Next.js 16 (App Router) · React 19 · TypeScript · Tailwind 4 + shadcn/ui ·
-Vercel AI SDK · Drizzle ORM + PostgreSQL (`postgres-js`) · **Python AI sidecar** (FastAPI +
-LangGraph) · Qdrant (vector store) + Ollama (embeddings) · Vitest.
+**Monorepo:**
+- `apps/chat` — Next.js 16 public chat (port 3000)
+- `apps/admin` — Next.js 16 content editor, Auth.js login (port 3001)
+- `packages/core` — Drizzle ORM + Postgres (postgres-js), content loader
+- `packages/rag` — ingest + retrieval config
+- `packages/ui` — shadcn/ui components + cn helper
+- `services/ai` — Python FastAPI + LangGraph sidecar (port 8000)
+- `infra/` — Docker Compose (dev + prod), Caddy reverse proxy, deploy config
 
-Since Phase 3 the chat answer is produced by the **Python sidecar** (`services/ai`),
-not in-process TS. The Next route at `app/api/chat/route.ts` proxies to it over
-`AI_SERVICE_URL` (default `http://localhost:8000`).
+**Tech:** Next.js 16 (App Router) · React 19 · TypeScript · Tailwind 4 · shadcn/ui · Vercel AI SDK · **Python sidecar** (FastAPI + LangGraph) · PostgreSQL + pgvector (RAG) · Ollama (embeddings) · Vitest · turbo (monorepo orchestration).
 
-## Two ways to run
+The Next.js chat app at `apps/chat/app/api/chat/route.ts` proxies all LLM calls to the Python sidecar (`services/ai`) over `AI_SERVICE_URL` (default `http://localhost:8000`).
 
-| | `pnpm dev:full` (Docker) | `pnpm dev` (host) |
-|---|---|---|
-| Runs | qdrant + ollama + **ai** sidecar + **web** (Next, HMR) — full stack | Next server only |
-| Needs sidecar running? | included | **yes — start it yourself** (`pnpm dev:ai`) or chat 500s |
-| Installs deps | inside containers (node + python) | you run `pnpm install` on host |
-| Reads env from | **`.env`** (compose interpolation) | **`.env.local`** (Next) |
-| Use when | end-to-end, closest to prod | fast UI iteration, tests, typecheck |
-
-> **Env file gotcha:** Docker Compose auto-loads **`.env`**; Next auto-loads
-> **`.env.local`**. They are *different files* (both gitignored). If you switch
-> between `dev:full` and `dev`, keep both, or symlink one to the other.
-
-## Prerequisites
-
-- **Node 20+** and **pnpm 9+** (`corepack enable` if pnpm is missing). _(Host-only
-  path; `dev:full` brings its own toolchain in containers.)_
-- **Docker + Docker Compose** — required for `dev:full`, `pnpm services`, and RAG.
-- **PostgreSQL** runs through Docker Compose for local persistence. Run
-  `pnpm services` and `pnpm db:migrate` before expecting chat turns to persist.
-
-## Quickstart A — full stack (recommended)
+## Quickstart A — Full stack in Docker (recommended)
 
 ```bash
-cp .env.example .env            # compose reads .env; fill in ANTHROPIC_API_KEY
-pnpm dev:full                   # builds + boots qdrant, ollama, ai sidecar, web
+cp .env.example .env              # Docker Compose reads .env
+pnpm dev:full                     # boots postgres, ollama, ai sidecar, chat (:3000), admin (:3001)
 ```
 
-`dev:full` (= `docker compose up --build`) **pulls** the qdrant/ollama/postgres
-images and **builds** the `ai` (Python deps via `uv`) and `web` (node deps via
-`pnpm`) images. App at http://localhost:3000.
-
-It does **not** stop containers on exit — tear down with `docker compose down`.
-
-### Make RAG actually work (one-time)
-
-`dev:full` boots the vector/embedding services but does **not** download the embed
-model or load your corpus. Until you do this, retrieval is empty and chat falls
-back to stuffing the full corpus into the prompt:
-
+One-time (after services are up):
 ```bash
 docker compose exec ollama ollama pull nomic-embed-text   # download embed model
-pnpm ingest                                               # embed corpus → Qdrant
+pnpm --filter @meclaw/rag ingest                           # embed corpus → Postgres
 ```
 
-## Quickstart B — host dev (fast UI loop)
+## Quickstart B — Host dev (fast UI loop)
 
 ```bash
 pnpm install
-cp .env.example .env.local      # Next reads .env.local; fill in ANTHROPIC_API_KEY + DATABASE_URL
+cp .env.example .env.local        # Next.js reads .env.local; fill ANTHROPIC_API_KEY + DATABASE_URL
+pnpm services                     # postgres + ollama (data plane)
+pnpm --filter @meclaw/core db:migrate   # create tables
+pnpm dev:ai                       # Python sidecar :8000 (needs uv)
 
-# the chat route proxies to the sidecar — start it (host, via uv):
-pnpm dev:ai                     # FastAPI sidecar on :8000  (needs `uv`)
-pnpm services                   # qdrant + ollama + postgres
-pnpm db:migrate                 # create the conversations/messages tables
-
-pnpm dev                        # Next on http://localhost:3000
+# In another terminal:
+pnpm --filter @meclaw/chat dev    # chat :3000
+pnpm --filter @meclaw/admin dev   # admin :3001 (requires AUTH_SECRET + ADMIN_PASSWORD_HASH)
 ```
 
-Then run the RAG one-time steps above (`ollama pull` + `pnpm ingest`) if you want
-retrieval.
+**Env file gotcha:** Docker reads `.env`; Next reads `.env.local`. Keep both if switching paths, or symlink.
 
-## Environment variables
-
-Full table in [`docs/ai/setup.md`](docs/ai/setup.md#environment-variables).
-Minimum to chat: **`ANTHROPIC_API_KEY`**. The gateway base-URL `/v1` suffix
-differs by consumer — see the comments in `.env.example` before editing.
-
-## Commands
+## Key commands
 
 | Command | Does |
 |---------|------|
-| `pnpm dev` | Next dev server only (needs the sidecar running separately). |
-| `pnpm dev:ai` | Python AI sidecar on :8000 (host, via `uv`). |
-| `pnpm dev:full` | Build + boot the whole stack in Docker (`docker compose up --build`). |
-| `pnpm services` | qdrant + ollama + postgres (data plane). |
-| `pnpm db:migrate` | Apply Drizzle migrations to `DATABASE_URL`. |
-| `pnpm ingest` | Embed the `content/` corpus into Qdrant. |
-| `pnpm build` / `pnpm start` | Production build / serve. |
-| `pnpm verify` | lint + typecheck + build — pre-merge gate. |
-| `pnpm test` / `pnpm test:watch` | Vitest. |
+| `pnpm dev:full` | Docker: postgres, ollama, ai sidecar, chat, admin (full stack HMR). |
+| `pnpm dev:ai` | Python sidecar :8000 on host (via `uv`). |
+| `pnpm services` | Docker: postgres + ollama only (data plane). |
+| `pnpm --filter @meclaw/chat dev` | Chat Next.js dev :3000. |
+| `pnpm --filter @meclaw/admin dev` | Admin Next.js dev :3001. |
+| `pnpm --filter @meclaw/core db:migrate` | Apply Drizzle migrations to DATABASE_URL. |
+| `pnpm --filter @meclaw/rag ingest` | Embed content/ corpus → Postgres. |
+| `pnpm --filter @meclaw/admin gen:admin-hash <password>` | Mint scrypt admin password hash. |
+| `pnpm verify` | Lint + typecheck + build (turbo, all packages). |
+| `pnpm test` | Vitest. |
+| `docker compose -f infra/docker-compose.yml config -q` | Validate dev compose syntax. |
+| `docker compose -f infra/docker-compose.prod.yml config -q` | Validate prod compose syntax. |
 
-## Knowledge corpus & privacy
+## Deployment
 
-The bot only knows what's in `content/`. A fresh clone ships starter content
-(`persona.md`, `resume.md`, `projects/`) plus `*_sample_*` docs so chat works
-immediately. **Your own `content/knowledge/**` and `data/**` are gitignored** —
-they stay local and never reach a public remote. See `content/README.md`.
+VPS deploy: `git push origin main` → GitHub Actions → builds four GHCR images (chat, admin, ai, ops) → SSHes to VPS → pulls + runs `infra/docker-compose.prod.yml`. Caddy reverse proxy routes apex domain → chat, `admin.<domain>` → admin. See `docs/ai/deploy.md` for full setup.
+
+## Environment variables
+
+**Dev** (`.env.local`):
+- `ANTHROPIC_API_KEY` — gateway key (required)
+- `ANTHROPIC_BASE_URL` — `https://coding-intl.dashscope.aliyuncs.com/apps/anthropic/v1`
+- `ANTHROPIC_MODEL` — `qwen3.6-plus`
+- `DATABASE_URL` — Postgres conn (default: `postgres://meclaw:meclaw@localhost:5432/meclaw`)
+- `AI_SERVICE_URL` — sidecar (default: `http://localhost:8000` for host dev; `http://ai:8000` in Docker)
+- `AUTH_SECRET` — Auth.js random 32-byte hex (only for admin app)
+- `ADMIN_PASSWORD_HASH` — scrypt `salt:hash` (only for admin app; mint via `gen:admin-hash`)
+
+Full reference: `docs/ai/setup.md`.
+
+## Knowledge & privacy
+
+Bot learns from `content/` markdown. Fresh clone ships with starter files + samples so chat works immediately. **Your own `content/knowledge/**` stays local & gitignored** — never reaches public remotes. See `content/README.md`.
 
 ## Docs
 
-- `docs/ai/HANDOFF.md` — current build state + next milestone (read first when resuming).
-- `docs/ai/setup.md` — deeper local-setup reference.
-- `docs/ai/architecture.md` — how it fits together.
-- `docs/ai/repo-index.md` — where things live.
-- archived design notes under `docs/superpowers/specs/` — locked design decisions.
+- `docs/ai/HANDOFF.md` — current state + milestones (read first when resuming)
+- `docs/ai/setup.md` — local dev reference
+- `docs/ai/architecture.md` — topology & request flow
+- `docs/ai/deploy.md` — VPS deploy guide
+- `docs/ai/repo-index.md` — where things live
+- `docs/superpowers/specs/` — archived design decisions

@@ -5,16 +5,21 @@
 
 ## What this project is
 
-Personal bot (single user). Public chat page; AI answers about the owner (Thet Naing) from markdown knowledge files. Local-first: no cloud DB, no signups. Flat Next.js 15 app.
+Personal bot (single user). Public chat page; AI answers about the owner (Thet Naing) from markdown knowledge files. Admin console for content/ingest management (Auth.js login). Local-first: no cloud DB. Monorepo (chat + admin apps, shared packages, Python sidecar, Docker infra).
 
 ## Locked decisions (do not re-litigate)
 
-- Flat single Next.js app (App Router, React 19, TS). **Next 16** (current latest; user approved bump from the originally-locked 15 during M0).
-- LLM: `qwen3.6-plus` via Anthropic-compatible gateway. Use Vercel AI SDK `@ai-sdk/anthropic` with custom `baseURL`.
-- Local RAG: markdown knowledge embedded locally via Ollama, stored in Postgres via `pgvector` (`rag_chunks`, HNSW cosine), with full-corpus fallback. Qdrant removed 2026-06-01.
-- Persistence: **PostgreSQL + Drizzle** (`postgres-js`). Local + VPS via docker-compose, one `DATABASE_URL`. (Migrated off SQLite/`better-sqlite3` 2026-05-31.)
-- Public chat only. No auth/admin in v1.
-- UI: Tailwind 4 + shadcn/ui. Validation: Zod. Tests: Vitest (TDD).
+- **Monorepo** (pnpm workspaces + turbo): `apps/{chat,admin}`, `packages/{core,rag,ui}`, `services/ai`, `infra/`.
+- **Two Next.js apps** (App Router, React 19, TS). **Next 16** (current latest).
+  - `apps/chat` — public chat, stateless.
+  - `apps/admin` — content editor + ingest dashboard, Auth.js v5 login (scrypt password), reads/writes `content/` filesystem.
+- **Python LLM sidecar** (services/ai): FastAPI + LangGraph triage agent. Handles multi-step routing, tool integration, model swaps without Next rebuilds. Phase 3 cutover complete.
+- **LLM:** `qwen3.6-plus` (draft, streaming) via DashScope Anthropic-compatible gateway. Triage intent via `glm-4.7`. Custom `baseURL` differs by SDK: TS appends `/v1` → needs suffix, Python appends `/v1/messages` → omit suffix.
+- **Local RAG:** Ollama `nomic-embed-text` (768-dim) → Postgres pgvector (`rag_chunks`, HNSW cosine). Retrieval falls back to full corpus if unavailable. Qdrant removed 2026-06-01.
+- **Persistence:** PostgreSQL + Drizzle ORM (`postgres-js`). Local (Docker Compose) + VPS (managed by `infra/docker-compose.prod.yml`). Migrations in `packages/core/drizzle/`, applied at deploy via `ops` image. Migrated from SQLite 2026-05-31.
+- **Admin auth:** single admin (scrypt password hash in env), JWT session (Auth.js v5). No multi-tenant, no OAuth in v1.
+- **UI:** Tailwind 4 + shadcn/ui. Validation: Zod. Tests: Vitest (TDD).
+- **Deploy:** GitHub Actions → four GHCR images (chat, admin, ai, ops) → VPS `infra/docker-compose.prod.yml` + Caddy subdomain routing (apex → chat, admin.* → admin).
 
 ## Environment (names only — NEVER commit values)
 
@@ -35,7 +40,10 @@ ANTHROPIC_MODEL=qwen3.6-plus
 
 ## Build order (milestones)
 
-Status: **v2 Phase 3 (Python sidecar) + Phase 5 (CI/CD + VPS deploy) both done & verified.** Phase 3: FastAPI + LangGraph sidecar live-verified (see Progress log 2026-05-31); TS query-time retrieval removed after the Python cutover. Phase 5: all 8 deploy tasks done, E2E dry-run passed (images build, ingest → qdrant points_count 55), deploy guide `deploy.md`, RAG clients read `QDRANT_URL`/`OLLAMA_BASE_URL` via `lib/rag/config.ts`, `pnpm dev:full`/`pnpm services` for the local data plane. 2026-05-31 latency thinking-off pass DONE & live-benched: split triage(`glm-4.7`)/draft(`qwen3.6-plus`), both thinking-off via `thinking={\"type\": \"disabled\"}`; end-to-end `/chat` total stream time dropped ~5–20× (tech 30.1→5.7s, contact 22.7→1.8s, scheduler 29.4→1.9s); `ai` container rebuilt to serve the new code. With Phase 3 landed, the full 5-service deploy is unblocked. Build sequentially; each must run in the browser before moving on. Use TDD (Vitest) where logic exists. **Browser-verify each milestone with the Playwright MCP via the Docker MCP toolkit** (`MCP_DOCKER` `browser_*` tools, already connected) — see `conventions.md`. Browser runs in Docker, so reach the host at `http://host.docker.internal:3000` (already allow-listed via `allowedDevOrigins` in `next.config.ts`).
+Status: **All milestones (M0–M6) + Phase 1 RAG + Phase 3 (sidecar) + Phase 5 (deploy) complete.** 
+**Plan C (monorepo restructure + infra/) complete:** workspace = `apps/*` + `packages/*` + `services/ai` + `infra/`; root flat app/shims removed; turbo orchestration + four Docker images (chat, admin, ai, ops) + subdomain Caddy routing. All docs updated. Ready for VPS deploy.
+
+Earlier milestones (M0–M6 chat, Phase 1 RAG, Phase 3 sidecar, latency tuning, postgres migration, qdrant→pgvector) are locked-in; see Progress log below. Build sequentially; each change must render in browser before moving on. Use TDD (Vitest). **Browser-verify via Playwright MCP** (`MCP_DOCKER` `browser_*` tools) — see `conventions.md`.
 
 - **M0 — Repo + agentic harness** ✅ DONE
   - Scaffold Next.js 15 (App Router, TS, Tailwind, ESLint) into this existing dir (flat).

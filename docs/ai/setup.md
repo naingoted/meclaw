@@ -1,109 +1,116 @@
 # Local setup
 
 > New here? Start with the root [`README.md`](../../README.md) for the
-> clone → running-chat quickstart. This file is the deeper reference.
+> clone → running quickstart. This file is the deeper reference.
 
 ## Prerequisites
 
-- Node 20+ / pnpm 9+ (`corepack enable` if missing). The Docker images pin
-  Node 20 + pnpm 9; the host path works on 20+ too. _(`.nvmrc` not enforced.)_
-- Docker + Docker Compose — required for `pnpm dev:full`, `pnpm services`, and
-  local RAG retrieval.
-- `uv` (Python package runner) if you run the AI sidecar on the host via
-  `pnpm dev:ai`. Not needed when you use `pnpm dev:full` (sidecar runs in Docker).
-- **PostgreSQL:** persistence uses Postgres via `postgres-js` (pure JS — no
-  native build). Local dev runs it as a docker-compose service (`pnpm services`).
-  Apply the schema once before chatting persists: `pnpm db:migrate`. If the DB
-  is down, chat still works (persistence is best-effort).
+- **Node 20+** and **pnpm 9+** (`corepack enable` if missing). The Docker images
+  pin Node 20 + pnpm 9. _(`.nvmrc` not enforced.)_
+- **Docker + Docker Compose** — required for `pnpm dev:full` and local RAG infra
+  (`pnpm services`).
+- **`uv`** (Python package runner) if you run the AI sidecar on the host via
+  `pnpm dev:ai`. Not needed when using `pnpm dev:full` (sidecar runs in Docker).
+- **PostgreSQL** (via Docker Compose for local dev). Persistence uses `postgres-js`
+  (pure JS — no native build). Run `pnpm services` + `pnpm db:migrate` once before
+  expecting chat persistence. If DB is down, chat still works (best-effort).
 
-## Steps
-
-Two paths — pick one (the root README compares them side by side):
+## Quick start
 
 **Full stack in Docker (recommended):**
 ```bash
-cp .env.example .env         # compose reads .env (NOT .env.local); fill ANTHROPIC_API_KEY
-pnpm dev:full                # builds + boots ollama, postgres (pgvector), ai sidecar, web → :3000
+cp .env.example .env              # compose reads .env; fill ANTHROPIC_API_KEY
+pnpm dev:full                     # builds + boots postgres, ollama, ai sidecar, chat, admin
 ```
+Chat at http://localhost:3000 · Admin at http://localhost:3001.
 
 **Host dev (fast UI loop):**
 ```bash
 pnpm install
-cp .env.example .env.local   # Next reads .env.local; fill ANTHROPIC_API_KEY + DATABASE_URL
-pnpm services                # ollama + postgres (pgvector)
-pnpm db:migrate              # create the conversations/messages tables
-pnpm dev:ai                  # the chat route proxies here — start the sidecar (needs uv)
-pnpm dev                     # Next only → http://localhost:3000
+cp .env.example .env.local        # Next reads .env.local
+pnpm services                     # postgres + ollama (data plane)
+pnpm db:migrate                   # create tables
+pnpm dev:ai                       # Python sidecar :8000 (needs uv)
+
+# In another terminal:
+pnpm --filter @meclaw/chat dev    # chat :3000
+pnpm --filter @meclaw/admin dev   # admin :3001
 ```
-
-> **`.env` vs `.env.local`:** Docker Compose auto-loads **`.env`**; Next auto-loads
-> **`.env.local`**. Different files, both gitignored. `dev:full` reads `.env`;
-> `pnpm dev` reads `.env.local`. Keep both (or symlink) if you switch paths.
-
-> **`pnpm dev` is Next only.** Since the Phase-3 cutover the chat answer comes from
-> the Python sidecar (`services/ai`); `app/api/chat/route.ts` proxies to
-> `AI_SERVICE_URL` (default `http://localhost:8000`). With `pnpm dev` alone and no
-> sidecar running, the chat request fails — start the sidecar with `pnpm dev:ai`,
-> or use `pnpm dev:full` which runs everything in Docker.
-
-> **Host prod build (`pnpm build && pnpm start`)?** Next reads `.env`/`.env.local`,
-> where `AI_SERVICE_URL` may be `http://ai:8000` (the compose-network name, valid
-> only inside Docker). On the host that DNS doesn't resolve → `ENOTFOUND ai`.
-> Override for a host run: `AI_SERVICE_URL=http://localhost:8000 pnpm start`
-> (the Dockerized prod path in `docker-compose.prod.yml` keeps `ai:8000` — correct there).
-
-## Phase 1 RAG services
-
-Start the local vector and embedding services before ingesting (`pnpm services` is shorthand for the compose line):
-
-```bash
-docker compose up -d ollama postgres        # or: pnpm services
-docker compose exec ollama ollama pull nomic-embed-text
-pnpm db:migrate                              # creates conversations, messages, rag_chunks
-pnpm ingest                                  # writes embeddings to rag_chunks
-```
-
-`pnpm dev` runs only the Next server — the data plane is intentionally separate (stateful, slow to boot, survives Next restarts). **`pnpm dev:full`** (= `docker compose up --build`) is the whole stack in Docker: it pulls the ollama/postgres images and builds the **`ai`** sidecar (Python deps via `uv`) and **`web`** (node deps via `pnpm`) images, then runs all services with the repo bind-mounted for HMR. It does **not** run a host `pnpm install`, pull the embed model, migrate Postgres, or ingest — see "Phase 1 RAG services" below for those one-time steps. Nothing stops the containers on exit; tear down with `docker compose down`.
-
-If Ollama or PostgreSQL is down, the chat path falls back to the existing full-corpus prompt. The app stays usable, but retrieval is disabled until the services come back.
-When the markdown corpus is still small enough to fit comfortably in the prompt, the app also keeps using the full-corpus prompt instead of narrowing context to retrieved chunks.
-
-## Knowledge corpus
-
-A fresh clone ships with starter content (`content/persona.md`, `content/resume.md`, `content/projects/`) plus a couple of `*_sample_*` docs in `content/knowledge/`, so `pnpm ingest` and chat work immediately. See `content/README.md` for the layout and privacy model. Your own `content/knowledge/**` and `data/**` are git-ignored — they stay local and never reach a public remote.
 
 ## Environment variables
 
-Set in `.env.local` (gitignored — never commit real values):
+### Dev (`.env.local`, both paths)
 
 | Var | Purpose |
 |-----|---------|
-| `ANTHROPIC_API_KEY` | Gateway key. Required. Owner's earlier key is exposed — rotate it. |
+| `ANTHROPIC_API_KEY` | Gateway key. Required. Rotate if exposed. |
 | `ANTHROPIC_BASE_URL` | `https://coding-intl.dashscope.aliyuncs.com/apps/anthropic/v1` |
 | `ANTHROPIC_MODEL` | `qwen3.6-plus` |
-| `DATABASE_URL` | Postgres connection. Local default `postgres://meclaw:meclaw@localhost:5432/meclaw`. Required for persistence. |
+| `DATABASE_URL` | Postgres connection. Default: `postgres://meclaw:meclaw@localhost:5432/meclaw` |
+| `AI_SERVICE_URL` | Sidecar URL. Default (host dev): `http://localhost:8000`; (Docker): `http://ai:8000` |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` |
 | `OLLAMA_EMBED_MODEL` | `nomic-embed-text` |
-| `RAG_TOP_K` | `4` |
-| `RAG_DEV_SOURCES` | `true` to include retrieved source metadata in development streams; `false` to omit it. |
+| `RAG_TOP_K` | Retrieval fan-out. Default: `4` |
+| `RAG_DEV_SOURCES` | `true` to show sources in dev; `false` to omit. |
+| `AUTH_SECRET` | Auth.js secret. Random 32-byte hex. Only needed for admin (next-auth). |
+| `ADMIN_PASSWORD_HASH` | scrypt hash in `salt:hash` format. Mint via `pnpm --filter @meclaw/admin gen:admin-hash <password>` |
 
-## Scripts
+### Prod (VPS `infra/.env`)
+
+See `infra/.env.prod.example`. Keys:
+- `DOMAIN` — apex domain (e.g., `yourdomain.com`)
+- `IMAGE_TAG` — GHCR image tag (git commit SHA or `latest`)
+- `GHCR_OWNER` — GitHub username for `ghcr.io/<owner>/meclaw-*`
+- `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `ANTHROPIC_MODEL` — same as dev
+- `AUTH_SECRET` — mint: `openssl rand -hex 32`
+- `ADMIN_PASSWORD_HASH` — mint: `pnpm --filter @meclaw/admin gen:admin-hash <password>`
+- `OLLAMA_EMBED_MODEL` — `nomic-embed-text`
+
+## Key differences: `.env` vs `.env.local`
+
+| | `.env` | `.env.local` |
+|---|---|---|
+| **Loaded by** | Docker Compose (`pnpm dev:full`) | Next.js (`pnpm dev`) |
+| **Git** | Gitignored | Gitignored |
+| **Use** | Full Docker stack | Host dev |
+
+Keep both if switching between paths, or symlink one to the other.
+
+## Scripts (root workspace)
 
 | Command | Does |
 |---------|------|
-| `pnpm dev` | Dev server (Next only; chat needs the sidecar running separately). |
-| `pnpm dev:ai` | Python AI sidecar on :8000 (host, via `uv`). |
-| `pnpm dev:full` | Build + boot the whole stack in Docker (ollama, postgres, ai, web). |
-| `pnpm services` | Start ollama + postgres (data plane only). |
-| `pnpm db:generate` | Regenerate Drizzle migrations from `lib/db/schema.ts` into `drizzle/`. |
-| `pnpm db:migrate` | Apply pending migrations to `DATABASE_URL`. |
-| `pnpm build` | Production build (`output: standalone`). |
-| `pnpm start` | Serve the standalone prod build locally (copies `public/` + `.next/static` into `.next/standalone`, then runs `server.js`). |
-| `pnpm lint` | ESLint (next config). |
-| `pnpm typecheck` | `tsc --noEmit`. |
-| `pnpm verify` | lint + typecheck + build — the pre-merge gate. |
-| `pnpm test` | Vitest (run once). |
-| `pnpm test:watch` | Vitest watch mode. |
+| `pnpm dev:full` | Docker Compose: postgres, ollama, ai sidecar, chat (:3000), admin (:3001) — full stack with HMR. |
+| `pnpm dev:ai` | Python sidecar on :8000 (host, via `uv`). Requires sidecar `.env` with `ANTHROPIC_*` (no `/v1`), `OLLAMA_BASE_URL`, `QDRANT_URL`. |
+| `pnpm services` | Docker Compose data plane: postgres + ollama only (no app containers). |
+| `pnpm --filter @meclaw/chat dev` | Chat Next dev server (:3000 with HMR). |
+| `pnpm --filter @meclaw/admin dev` | Admin Next dev server (:3001 with HMR, requires `AUTH_SECRET` + `ADMIN_PASSWORD_HASH`). |
+| `pnpm --filter @meclaw/core db:generate` | Regenerate Drizzle migrations from `packages/core/lib/db/schema.ts` → `packages/core/drizzle/`. |
+| `pnpm --filter @meclaw/core db:migrate` | Apply pending migrations to `DATABASE_URL`. |
+| `pnpm --filter @meclaw/rag ingest` | Embed `content/` → Postgres `rag_chunks` table. |
+| `pnpm --filter @meclaw/admin gen:admin-hash <password>` | Mint scrypt admin password hash. |
+| `pnpm install` | Install all monorepo dependencies (pnpm workspaces). |
+| `pnpm verify` | Lint + typecheck + build (pre-merge gate). Runs turbo: `turbo run lint typecheck test build`. |
+| `pnpm test` | Vitest (all packages). |
+| `docker compose -f infra/docker-compose.yml config -q` | Validate dev compose. |
+| `docker compose -f infra/docker-compose.prod.yml config -q` | Validate prod compose. |
+
+## RAG one-time setup
+
+After `pnpm services` (or `pnpm dev:full`), run once:
+
+```bash
+docker compose exec ollama ollama pull nomic-embed-text   # download embed model
+pnpm --filter @meclaw/rag ingest                           # embed corpus → Postgres
+```
+
+If Ollama or Postgres is down, chat falls back to full-corpus prompt. App stays usable.
+
+## Knowledge corpus
+
+`content/` ships with starter files (`persona.md`, `resume.md`, `projects/`) + samples
+in `content/knowledge/` so chat works immediately. Your own `content/knowledge/**`
+and `data/**` are gitignored (local-only). See `content/README.md` for details.
 
 ## Adding a shadcn component
 
