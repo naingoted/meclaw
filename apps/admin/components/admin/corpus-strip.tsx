@@ -6,9 +6,13 @@ type CorpusState = {
   documents: number | null;
   chunks: number | null;
   lastIngestedAt: string | null;
-  embedModel: string;
+  embedModel: string; // part of the /api/admin/corpus shape; not rendered here
 };
 
+// Local on purpose: @meclaw/ui's relativeTime returns bare units ("5m", "now")
+// and can't express the corpus-specific copy we need here ("never ingested" for
+// a never-ingested corpus, "just now", "…m ago"). Keep these strings in sync with
+// the spec, not with the ui formatter.
 function relativeTime(iso: string | null): string {
   if (!iso) return "never ingested";
   const diffMs = Date.now() - new Date(iso).getTime();
