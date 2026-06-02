@@ -23,6 +23,8 @@ import {
   extractSteps,
   hasRenderedText,
   LiveTrace,
+  groundingLabel,
+  extractCorpusVersion,
 } from "@/components/chat/chat";
 
 describe("shouldShowThinking", () => {
@@ -423,6 +425,25 @@ describe("Chat conversationId threading", () => {
     expect(mockSendMessage).toHaveBeenCalledTimes(1);
     const [, options] = mockSendMessage.mock.calls[0];
     expect(options?.body?.conversationId).toMatch(/^[0-9a-f-]{36}$/i);
+  });
+});
+
+describe("groundingLabel", () => {
+  it("knowledge route with sources => grounded on N sources", () => {
+    expect(groundingLabel("tech", 2)).toBe("grounded on 2 sources");
+  });
+
+  it("knowledge route with zero sources => no matching corpus content", () => {
+    expect(groundingLabel("general", 0)).toBe("no matching corpus content");
+  });
+
+  it("non-knowledge route => answered without corpus", () => {
+    expect(groundingLabel("scheduler", 0)).toBe("answered without corpus (intent: scheduler)");
+  });
+
+  it("extractCorpusVersion reads metadata.corpus_version", () => {
+    const msg = { role: "assistant", metadata: { corpus_version: 7 } } as never;
+    expect(extractCorpusVersion(msg)).toBe(7);
   });
 });
 

@@ -112,6 +112,22 @@ function extractRoute(message: ChatMessageLike): string | undefined {
   return metadata ? readString(metadata.route) ?? readString(metadata.intent) : undefined;
 }
 
+const KNOWLEDGE_ROUTES = new Set(["tech", "project", "general"]);
+
+export function groundingLabel(route: string | undefined, sourceCount: number): string {
+  if (route && KNOWLEDGE_ROUTES.has(route)) {
+    return sourceCount > 0 ? `grounded on ${sourceCount} sources` : "no matching corpus content";
+  }
+  return `answered without corpus (intent: ${route ?? "unknown"})`;
+}
+
+export function extractCorpusVersion(message: ChatMessageLike): number | undefined {
+  if (message.role !== "assistant") return undefined;
+  const metadata = isRecord(message.metadata) ? message.metadata : null;
+  const v = metadata ? metadata.corpus_version : undefined;
+  return typeof v === "number" ? v : undefined;
+}
+
 export function extractSteps(message: ChatMessageLike): string[] {
   if (message.role !== "assistant") return [];
   const metadata = isRecord(message.metadata) ? message.metadata : null;
@@ -214,9 +230,24 @@ export function LiveTrace({ steps }: { steps: string[] }) {
   );
 }
 
-function SourcesPanel({ sources, route }: { sources: RenderedSource[]; route?: string }) {
+function SourcesPanel({
+  sources,
+  route,
+  label,
+  corpusVersion,
+}: {
+  sources: RenderedSource[];
+  route?: string;
+  label?: string;
+  corpusVersion?: number;
+}) {
   return (
     <div className="w-full max-w-[85%] rounded-xl border border-border bg-background px-3 py-2 text-xs text-muted-foreground">
+      {label ? (
+        <p className="font-mono text-xs text-muted-foreground">
+          {label}{typeof corpusVersion === "number" ? ` · corpus v${corpusVersion}` : ""}
+        </p>
+      ) : null}
       <div className="flex items-center justify-between gap-2">
         <p className="font-medium text-foreground">Sources used</p>
         {route ? (
@@ -371,7 +402,12 @@ export function Chat() {
                       )}
                     </div>
                     {answered && (sources.length > 0 || route) ? (
-                      <SourcesPanel sources={sources} route={route} />
+                      <SourcesPanel
+                        sources={sources}
+                        route={route}
+                        label={groundingLabel(route, sources.length)}
+                        corpusVersion={extractCorpusVersion(message)}
+                      />
                     ) : null}
                     {answered && steps.length > 0 ? <ThinkingTrace steps={steps} /> : null}
                   </div>
