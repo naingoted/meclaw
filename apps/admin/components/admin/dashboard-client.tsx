@@ -1,5 +1,5 @@
 "use client";
-import { Button } from "@meclaw/ui";
+import { Button, PageHeader, StatTile, Skeleton, relativeTime } from "@meclaw/ui";
 import * as React from "react";
 
 type Stats = { documents: number; dirty: number; lastIngest: string | null };
@@ -8,62 +8,66 @@ type DashboardData = { stats: Stats; activity: Activity[] };
 
 export function DashboardClient() {
   const [data, setData] = React.useState<DashboardData | null>(null);
+  const [reingesting, setReingesting] = React.useState(false);
 
   const load = React.useCallback(async () => {
-    const response = await fetch("/api/admin/stats");
-    const json = (await response.json()) as DashboardData;
+    const json = (await (await fetch("/api/admin/stats")).json()) as DashboardData;
     setData(json);
   }, []);
 
-  React.useEffect(() => {
-    void (async () => {
-      await load();
-    })();
-  }, [load]);
-
-  if (!data) return <p>Loading…</p>;
+  React.useEffect(() => { void load(); }, [load]);
 
   async function reingestAll() {
-    await fetch("/api/admin/jobs", {
-      method: "POST",
-      body: JSON.stringify({ all: true }),
-    });
-    await load();
+    setReingesting(true);
+    try {
+      await fetch("/api/admin/jobs", { method: "POST", body: JSON.stringify({ all: true }) });
+      await load();
+    } finally {
+      setReingesting(false);
+    }
   }
+
+  const dirty = data?.stats.dirty ?? 0;
 
   return (
     <div>
-      <h1 className="mb-4 text-xl font-semibold">Dashboard</h1>
-      <div className="mb-4 grid grid-cols-3 gap-3">
-        <Stat label="Documents" value={data.stats.documents} />
-        <Stat label="Dirty docs" value={data.stats.dirty} />
-        <Stat
-          label="Last ingest"
-          value={
-            data.stats.lastIngest ? new Date(data.stats.lastIngest).toLocaleString() : "—"
-          }
-        />
-      </div>
-      <Button onClick={reingestAll}>Reingest all dirty</Button>
-      <h2 className="mb-2 mt-6 text-sm font-semibold uppercase text-muted-foreground">
-        Recent activity
-      </h2>
-      <ul className="space-y-1 text-sm">
-        {data.activity.map((a) => (
-          <li key={a.id}>
-            {new Date(a.ts).toLocaleTimeString()} — {a.summary}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
+      <PageHeader
+        title="Dashboard"
+        subtitle={data ? `${data.stats.documents} documents` : undefined}
+        action={
+          <Button onClick={reingestAll} loading={reingesting} disabled={!data || dirty === 0}>
+            {dirty > 0 ? `Reingest ${dirty} dirty` : "All ingested"}
+          </Button>
+        }
+      />
 
-function Stat({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="rounded-lg border p-4">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="text-2xl font-semibold">{value}</div>
+      {!data ? (
+        <div className="grid grid-cols-3 gap-3">
+          <Skeleton className="h-20" /><Skeleton className="h-20" /><Skeleton className="h-20" />
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-3 gap-3">
+            <StatTile label="Documents" value={data.stats.documents} />
+            <StatTile label="Dirty docs" value={data.stats.dirty} tone={data.stats.dirty > 0 ? "warning" : "neutral"} />
+            <StatTile label="Last ingest" value={data.stats.lastIngest ? relativeTime(data.stats.lastIngest) : "—"} />
+          </div>
+
+          <h2 className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Recent activity</h2>
+          {data.activity.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No activity yet.</p>
+          ) : (
+            <ul className="divide-y divide-border rounded-md border border-border bg-card text-sm">
+              {data.activity.map((a) => (
+                <li key={a.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                  <span className="text-foreground">{a.summary}</span>
+                  <span className="shrink-0 font-mono text-xs text-muted-foreground">{relativeTime(a.ts)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
     </div>
   );
 }
