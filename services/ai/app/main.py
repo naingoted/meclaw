@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
 from app import stream as sse
+from app.corpus import corpus_state
 
 app = FastAPI(title="meclaw-ai", version="0.1.0")
 
@@ -31,6 +32,11 @@ def get_runner(config: dict | None = None):
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/corpus-status")
+def corpus_status_route() -> dict:
+    return corpus_state()
 
 
 @app.post("/chat")
