@@ -11,14 +11,7 @@ RUN pnpm dlx turbo prune @meclaw/admin --docker
 ##### deps #####
 FROM base AS deps
 COPY --from=prune /app/out/json/ ./
-# Use the repo's FULL lockfile, not turbo prune's out/pnpm-lock.yaml. While the
-# repo root (".") is still a fat legacy-app workspace member (it's removed in the
-# post-sweep cleanup — see pnpm-workspace.yaml), turbo prune keeps the root
-# importer but drops its root-only devDeps (concurrently, drizzle-kit, …) from the
-# pruned lockfile, so the pruned lockfile fails --frozen-lockfile. admin's closure
-# already includes every workspace member, so the full lockfile is the consistent,
-# frozen-installable one. Revert to out/pnpm-lock.yaml once "." leaves the workspace.
-COPY --from=prune /app/pnpm-lock.yaml ./
+COPY --from=prune /app/out/pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 
 ##### dev: hot-reload (compose dev only) #####
