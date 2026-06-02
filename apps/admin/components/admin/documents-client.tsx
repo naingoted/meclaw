@@ -1,5 +1,5 @@
 "use client";
-import { Button, Input, Textarea, StatusPill, PageHeader, Skeleton, EmptyState, Table, THead, TBody, TR, TH, TD } from "@meclaw/ui";
+import { Button, Input, Textarea, StatusPill, PageHeader, Skeleton, EmptyState, Spinner, Table, THead, TBody, TR, TH, TD } from "@meclaw/ui";
 import { Trash2 } from "lucide-react";
 import * as React from "react";
 
@@ -11,6 +11,13 @@ export function DocumentsClient() {
   const [editing, setEditing] = React.useState<Doc | null>(null);
   const [busyId, setBusyId] = React.useState<string | null>(null);
   const [confirmId, setConfirmId] = React.useState<string | null>(null);
+  const [openingId, setOpeningId] = React.useState<string | null>(null);
+
+  async function openEditor(id: string) {
+    setOpeningId(id);
+    try { setEditing(await (await fetch(`/api/admin/documents/${id}`)).json()); }
+    finally { setOpeningId(null); }
+  }
 
   const load = React.useCallback(async () => setDocs(await (await fetch("/api/admin/documents")).json()), []);
   React.useEffect(() => { void (async () => { await load(); })(); }, [load]);
@@ -60,7 +67,13 @@ export function DocumentsClient() {
             {docs.map((d) => (
               <TR key={d.id}>
                 <TD>
-                  <button className="text-left text-foreground hover:text-primary hover:underline" onClick={async () => setEditing(await (await fetch(`/api/admin/documents/${d.id}`)).json())}>
+                  <button
+                    className="inline-flex items-center gap-2 rounded-sm text-left text-foreground transition-colors hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50 disabled:pointer-events-none active:text-primary"
+                    aria-busy={openingId === d.id || undefined}
+                    disabled={openingId === d.id}
+                    onClick={() => openEditor(d.id)}
+                  >
+                    {openingId === d.id ? <Spinner className="h-3.5 w-3.5 border-current border-t-transparent" /> : null}
                     {d.title}
                   </button>
                 </TD>

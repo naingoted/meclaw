@@ -12,7 +12,9 @@ RUN pnpm dlx turbo prune @meclaw/chat --docker
 FROM base AS deps
 COPY --from=prune /app/out/json/ ./
 COPY --from=prune /app/out/pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+# turbo prune regenerates a pruned lockfile that pnpm's frozen check can reject
+# (desyncs vs a workspace package.json) even when the full lockfile is in sync.
+RUN pnpm install --no-frozen-lockfile
 
 ##### dev: hot-reload (compose dev only) #####
 FROM deps AS dev
