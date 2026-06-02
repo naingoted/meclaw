@@ -1,15 +1,22 @@
 "use client";
-import { Button, Input, Textarea, Label, Tabs, TabsList, TabsTrigger, TabsContent } from "@meclaw/ui";
+import { Button, Input, Textarea, Label, Skeleton, Tabs, TabsList, TabsTrigger, TabsContent } from "@meclaw/ui";
 import * as React from "react";
 import type { SettingsValue } from "@meclaw/core/settings";
 
 export function ConfigClient() {
   const [cfg, setCfg] = React.useState<SettingsValue | null>(null);
   const [msg, setMsg] = React.useState("");
+  const [saving, setSaving] = React.useState(false);
   React.useEffect(() => {
     void (async () => { setCfg(await (await fetch("/api/admin/settings")).json()); })();
   }, []);
-  if (!cfg) return <p>Loading…</p>;
+  if (!cfg) return (
+    <div className="max-w-2xl space-y-3">
+      <Skeleton className="h-7 w-32" />
+      <Skeleton className="h-9" />
+      <Skeleton className="h-40" />
+    </div>
+  );
   const set = (path: string[], v: unknown): void =>
     setCfg((c) => {
       if (!c) return c;
@@ -20,12 +27,19 @@ export function ConfigClient() {
       return n;
     });
   async function save() {
-    const res = await fetch("/api/admin/settings", { method: "PUT", body: JSON.stringify(cfg) });
-    setMsg(res.ok ? "Saved. Next message uses the new config." : "Invalid — fix the highlighted fields.");
+    setSaving(true);
+    try {
+      const res = await fetch("/api/admin/settings", { method: "PUT", body: JSON.stringify(cfg) });
+      setMsg(res.ok ? "Saved. Next message uses the new config." : "Invalid — fix the highlighted fields.");
+    } catch {
+      setMsg("Save failed — check your connection and retry.");
+    } finally {
+      setSaving(false);
+    }
   }
   return (
     <div className="max-w-2xl">
-      <h1 className="mb-4 text-xl font-semibold">Config</h1>
+      <h1 className="mb-4 text-lg font-bold tracking-tight text-foreground">Config</h1>
       <Tabs defaultValue="agents">
         <TabsList>
           <TabsTrigger value="agents">Agents &amp; Prompts</TabsTrigger>
@@ -61,7 +75,10 @@ export function ConfigClient() {
           <Label>GitHub URL</Label><Input value={cfg.public.githubUrl} onChange={(e) => set(["public","githubUrl"], e.target.value)} />
         </TabsContent>
       </Tabs>
-      <div className="mt-4 flex items-center gap-3"><Button onClick={save}>Save</Button><span className="text-sm text-muted-foreground">{msg}</span></div>
+      <div className="mt-4 flex items-center gap-3">
+        <Button onClick={save} loading={saving}>Save</Button>
+        <span className={`text-sm ${msg.startsWith("Saved") ? "text-success" : msg ? "text-destructive" : "text-muted-foreground"}`}>{msg}</span>
+      </div>
     </div>
   );
 }
