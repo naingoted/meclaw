@@ -8,6 +8,7 @@ import { StatusPill } from "./status-pill";
 import { StatTile } from "./stat-tile";
 import { PageHeader } from "./page-header";
 import { EmptyState } from "./empty-state";
+import { ThemeProvider, ThemeToggle } from "./theme";
 
 describe("ui primitives", () => {
   it("renders a button and a badge", () => {
@@ -59,5 +60,14 @@ describe("ui primitives", () => {
   it("renders an empty state", () => {
     render(<EmptyState title="No documents yet" />);
     expect(screen.getByText("No documents yet")).toBeTruthy();
+  });
+
+  it("renders a theme toggle button inside the provider", () => {
+    render(
+      <ThemeProvider>
+        <ThemeToggle />
+      </ThemeProvider>,
+    );
+    expect(screen.getByRole("button", { name: /toggle theme/i })).toBeTruthy();
   });
 });
