@@ -56,7 +56,7 @@ export function AdminSidebar() {
         <Link href="/" className="block text-muted-foreground hover:text-foreground">Back to chat</Link>
         <div className="flex items-center justify-between">
           <form action={signOutAction}>
-            <Button type="submit" variant="ghost" size="sm" className="gap-2 px-2 text-muted-foreground hover:text-accent">
+            <Button type="submit" variant="ghost-danger" size="sm" className="gap-2 px-2">
               <LogOut className="h-3.5 w-3.5" /> Sign out
             </Button>
           </form>
