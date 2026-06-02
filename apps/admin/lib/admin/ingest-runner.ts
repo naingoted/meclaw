@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { asc, eq } from "drizzle-orm";
-import { documents, ingestionJobs } from "@/lib/db/schema";
-import type { Db } from "@/lib/db/types";
-import { ingesterFor, type IngestDocumentResult } from "@/lib/rag/ingest-document";
+import { documents, ingestionJobs } from "@meclaw/core/db/schema";
+import type { Db } from "@meclaw/core/db/types";
+import { ingesterFor, type IngestDocumentResult } from "@meclaw/rag";
 import { listDocuments, isDirty } from "./documents";
-import { logAudit } from "./audit";
+import { logAudit } from "@meclaw/core/settings";
 
 type IngestFn = (doc: { id: string; title: string; body: string; kind: string }) => Promise<IngestDocumentResult>;
 

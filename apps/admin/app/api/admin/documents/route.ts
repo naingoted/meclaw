@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { adminGuard, clientIp, db } from "@/lib/admin/request";
+import { clientIp, db } from "@/lib/admin/request";
 import { listDocuments, createDocument } from "@/lib/admin/documents";
 
 const Body = z.object({
@@ -9,14 +9,12 @@ const Body = z.object({
 });
 
 export async function GET() {
-  const blocked = adminGuard();
-  if (blocked) return blocked;
+// access enforced by middleware.ts (Auth.js)
   return Response.json(await listDocuments(await db()));
 }
 
 export async function POST(req: Request) {
-  const blocked = adminGuard();
-  if (blocked) return blocked;
+// access enforced by middleware.ts (Auth.js)
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success)
     return Response.json({ error: parsed.error?.flatten() }, { status: 400 });

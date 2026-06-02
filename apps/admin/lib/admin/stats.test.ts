@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { describe, it, expect } from "vitest";
-import { makeTestDb } from "@/lib/db/test-db";
-import { ingestionJobs } from "@/lib/db/schema";
+import { makeTestDb } from "@meclaw/core/db/test-db";
+import { ingestionJobs } from "@meclaw/core/db/schema";
 import { createDocument } from "./documents";
 import { computeStats } from "./stats";
 

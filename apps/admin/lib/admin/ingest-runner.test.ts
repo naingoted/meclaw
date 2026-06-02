@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { makeTestDb } from "@/lib/db/test-db";
+import { makeTestDb } from "@meclaw/core/db/test-db";
 import { createDocument } from "./documents";
 import { enqueueSingle, enqueueAllDirty, runNextJob, resetOrphanedJobs } from "./ingest-runner";
-import { ingestionJobs, documents } from "@/lib/db/schema";
+import { ingestionJobs, documents } from "@meclaw/core/db/schema";
 import { eq } from "drizzle-orm";
 
 describe("ingestion runner", () => {

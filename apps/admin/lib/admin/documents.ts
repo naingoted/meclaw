@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { eq, desc } from "drizzle-orm";
-import { documents } from "@/lib/db/schema";
-import type { Db } from "@/lib/db/types";
+import { documents } from "@meclaw/core/db/schema";
+import type { Db } from "@meclaw/core/db/types";
 import { contentHash } from "./hash";
-import { logAudit } from "./audit";
+import { logAudit } from "@meclaw/core/settings";
 
 export type DocumentRow = typeof documents.$inferSelect;
 export type DocumentInput = { title: string; body: string; category?: string };

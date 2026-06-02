@@ -1,10 +1,9 @@
-import { adminGuard, db } from "@/lib/admin/request";
+import { db } from "@/lib/admin/request";
 import { computeStats } from "@/lib/admin/stats";
-import { recentAudit } from "@/lib/admin/audit";
+import { recentAudit } from "@meclaw/core/settings";
 
 export async function GET() {
-  const blocked = adminGuard();
-  if (blocked) return blocked;
+// access enforced by middleware.ts (Auth.js)
 
   const database = await db();
   const stats = await computeStats(database);

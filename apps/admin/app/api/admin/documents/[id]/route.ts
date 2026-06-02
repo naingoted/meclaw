@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { adminGuard, clientIp, db } from "@/lib/admin/request";
+import { clientIp, db } from "@/lib/admin/request";
 import {
   getDocument,
   updateDocument,
@@ -15,8 +15,7 @@ const Body = z.object({
 type Ctx = { params: Promise<{ id: string }> };
 
 export async function GET(req: Request, { params }: Ctx) {
-  const blocked = adminGuard();
-  if (blocked) return blocked;
+// access enforced by middleware.ts (Auth.js)
   const doc = await getDocument(await db(), (await params).id);
   return doc
     ? Response.json(doc)
@@ -24,8 +23,7 @@ export async function GET(req: Request, { params }: Ctx) {
 }
 
 export async function PUT(req: Request, { params }: Ctx) {
-  const blocked = adminGuard();
-  if (blocked) return blocked;
+// access enforced by middleware.ts (Auth.js)
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success)
     return Response.json({ error: parsed.error?.flatten() }, { status: 400 });
@@ -35,8 +33,7 @@ export async function PUT(req: Request, { params }: Ctx) {
 }
 
 export async function DELETE(req: Request, { params }: Ctx) {
-  const blocked = adminGuard();
-  if (blocked) return blocked;
+// access enforced by middleware.ts (Auth.js)
   await deleteDocument(await db(), (await params).id, clientIp(req));
   return new Response(null, { status: 204 });
 }

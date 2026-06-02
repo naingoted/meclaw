@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { makeTestDb } from "@/lib/db/test-db";
+import { makeTestDb } from "@meclaw/core/db/test-db";
 import { createDocument, updateDocument, deleteDocument, getDocument, isDirty } from "./documents";
-import { recentAudit } from "./audit";
+import { recentAudit } from "@meclaw/core/settings";
 
 describe("document service", () => {
   it("creates a document, hashes body, writes an audit row, and is dirty (never ingested)", async () => {

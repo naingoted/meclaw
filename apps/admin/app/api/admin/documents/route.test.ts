@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("@/lib/admin/request", () => ({
-  adminGuard: () => null,
   clientIp: () => "ip",
   db: async () => ({}),
 }));

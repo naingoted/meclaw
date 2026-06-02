@@ -1,4 +1,4 @@
-import type { Db } from "@/lib/db/types";
+import type { Db } from "@meclaw/core/db/types";
 import { listDocuments, isDirty } from "./documents";
 import { listJobs } from "./ingest-runner";
 

@@ -1,7 +1,7 @@
-import { adminGuard, db } from "@/lib/admin/request";
-import { recentAudit } from "@/lib/admin/audit";
+import { db } from "@/lib/admin/request";
+import { recentAudit } from "@meclaw/core/settings";
 
 export async function GET() {
-  const blocked = adminGuard(); if (blocked) return blocked;
+// access enforced by middleware.ts (Auth.js)
   return Response.json(await recentAudit(await db(), 200));
 }

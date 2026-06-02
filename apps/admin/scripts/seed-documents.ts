@@ -1,7 +1,7 @@
-import { loadKnowledge, type KnowledgeDoc } from "../lib/content";
+import { loadKnowledge, type KnowledgeDoc } from "@meclaw/core/content";
 import { listDocuments, createDocument } from "../lib/admin/documents";
 import { contentHash } from "../lib/admin/hash";
-import type { Db } from "../lib/db/types";
+import type { Db } from "@meclaw/core/db/types";
 
 type SeedOptions = { loadDocs?: () => KnowledgeDoc[] };
 
@@ -22,7 +22,7 @@ export async function seedDocuments(db: Db, opts: SeedOptions = {}): Promise<{ i
 // CLI entry: `pnpm seed:docs`
 if (process.argv[1]?.includes("seed-documents")) {
   (async () => {
-    const { initDb } = await import("../lib/db");
+    const { initDb } = await import("@meclaw/core/db");
     const { imported } = await seedDocuments(await initDb());
     console.log(`[seed] imported ${imported} documents`);
     process.exit(0);

@@ -1,10 +1,6 @@
 "use client";
+import { Button, Input, Textarea, Badge, Table, THead, TBody, TR, TH, TD } from "@meclaw/ui";
 import * as React from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
-import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 
 type Doc = { id: string; title: string; body?: string; category?: string | null; status: string; updatedAt: string; lastIngestedAt: string | null };
 const isDirty = (d: Doc) => !d.lastIngestedAt || new Date(d.updatedAt) > new Date(d.lastIngestedAt);

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("@/lib/admin/request", () => ({ adminGuard: () => null, clientIp: () => "ip", db: async () => ({}) }));
+vi.mock("@/lib/admin/request", () => ({ clientIp: () => "ip", db: async () => ({}) }));
 
 vi.mock("@/lib/admin/ingest-runner", () => ({
   enqueueSingle: vi.fn(async () => ({ id: "j1" })),

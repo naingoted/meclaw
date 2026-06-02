@@ -1,6 +1,4 @@
-import { initDb } from "@/lib/db";
-
-export { adminGuard } from "./guard";
+import { initDb } from "@meclaw/core/db";
 
 export function clientIp(req: Request): string {
   const fwd = req.headers.get("x-forwarded-for");

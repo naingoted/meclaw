@@ -1,4 +1,4 @@
-import { initDb } from "@/lib/db";
+import { initDb } from "@meclaw/core/db";
 import { resetOrphanedJobs } from "./ingest-runner";
 
 let done = false;

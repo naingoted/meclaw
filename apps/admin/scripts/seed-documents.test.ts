@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { makeTestDb } from "@/lib/db/test-db";
+import { makeTestDb } from "@meclaw/core/db/test-db";
 import { seedDocuments } from "./seed-documents";
 import { listDocuments } from "@/lib/admin/documents";
 

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-vi.mock("@/lib/admin/request", () => ({ adminGuard: () => null, clientIp: () => "ip", db: async () => ({}) }));
+vi.mock("@/lib/admin/request", () => ({ clientIp: () => "ip", db: async () => ({}) }));
 const value = { agents: { triage: { model: "glm-4.7", thinking: false, prompt: "t" }, knowledge: { model: "qwen3.6-plus", thinking: false, prompt: "k" }, scheduler: { model: "qwen3.6-plus", thinking: false, prompt: "s" }, contact: { model: "qwen3.6-plus", thinking: false, prompt: "c" } }, shared: { persona: "" }, rag: { topK: 4, scoreThreshold: 0, tinyCorpusThreshold: 8000 }, public: { greeting: "Hi", suggestions: [], calUrl: "", githubUrl: "" } };
-vi.mock("@/lib/admin/settings", async (importOriginal) => {
+vi.mock("@meclaw/core/settings", async (importOriginal) => {
   const actual = await importOriginal() as Record<string, unknown>;
   return { ...actual, getSettings: vi.fn(async () => value), updateSettings: vi.fn(async (_db, v) => v) };
 });

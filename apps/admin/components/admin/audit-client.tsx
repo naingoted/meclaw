@@ -1,6 +1,6 @@
 "use client";
+import { Table, THead, TBody, TR, TH, TD } from "@meclaw/ui";
 import * as React from "react";
-import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 
 type AuditRow = { id: string; ts: string; action: string; summary: string };
 

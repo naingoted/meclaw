@@ -1,11 +1,7 @@
 "use client";
+import { Button, Input, Textarea, Label, Tabs, TabsList, TabsTrigger, TabsContent } from "@meclaw/ui";
 import * as React from "react";
-import type { SettingsValue } from "@/lib/admin/settings";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import type { SettingsValue } from "@meclaw/core/settings";
 
 export function ConfigClient() {
   const [cfg, setCfg] = React.useState<SettingsValue | null>(null);

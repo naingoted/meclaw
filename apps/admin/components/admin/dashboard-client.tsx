@@ -1,6 +1,6 @@
 "use client";
+import { Button } from "@meclaw/ui";
 import * as React from "react";
-import { Button } from "@/components/ui/button";
 
 type Stats = { documents: number; dirty: number; lastIngest: string | null };
 type Activity = { id: string; ts: string; action: string; entityType: string; entityId: string | null; summary: string; meta: unknown | null; actorIp: string | null };

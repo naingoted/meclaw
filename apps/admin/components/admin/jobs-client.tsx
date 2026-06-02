@@ -1,8 +1,6 @@
 "use client";
+import { Button, Badge, Table, THead, TBody, TR, TH, TD } from "@meclaw/ui";
 import * as React from "react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 
 type Job = { id: string; kind: string; status: string; error: string | null; chunksWritten: number | null; documentId: string | null };
 
