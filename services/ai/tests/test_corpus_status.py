@@ -17,3 +17,4 @@ def test_corpus_status_returns_state(monkeypatch):
     res = TestClient(app).get("/corpus-status")
     assert res.status_code == 200
     assert res.json()["version"] == 7
+    assert res.json()["embedModel"] == "nomic-embed-text"

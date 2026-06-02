@@ -35,7 +35,7 @@ def health() -> dict[str, str]:
 
 
 @app.get("/corpus-status")
-def corpus_status_route() -> dict:
+def corpus_status() -> dict:
     return corpus_state()
 
 
