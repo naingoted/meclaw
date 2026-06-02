@@ -11,7 +11,7 @@ export function TabsList({ children }: { children: React.ReactNode }) {
 }
 export function TabsTrigger({ value, children }: { value: string; children: React.ReactNode }) {
   const c = React.useContext(Ctx)!;
-  return <button onClick={() => c.set(value)} className={cn("rounded px-3 py-1 text-sm", c.value === value && "bg-background shadow")}>{children}</button>;
+  return <button onClick={() => c.set(value)} className={cn("cursor-pointer rounded px-3 py-1 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", c.value === value && "bg-background shadow")}>{children}</button>;
 }
 export function TabsContent({ value, children }: { value: string; children: React.ReactNode }) {
   const c = React.useContext(Ctx)!;
