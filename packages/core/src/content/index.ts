@@ -16,14 +16,23 @@ export type KnowledgeDoc = {
   body: string;
 };
 
-const CONTENT_DIR = join(process.cwd(), "content");
+/**
+ * Resolve the content corpus root. Honors `MECLAW_CONTENT_DIR` (an absolute
+ * path, for containers whose cwd is not the repo root — e.g. the standalone
+ * prod image runs from `/app` with `content/` bind-mounted there), otherwise
+ * falls back to `<cwd>/content` (the dev convention: run from the repo root).
+ * Resolved per call so tests and runtime pick up the env at call time.
+ */
+export function contentDir(): string {
+  return process.env.MECLAW_CONTENT_DIR ?? join(process.cwd(), "content");
+}
 
 function titleFrom(body: string, slug: string): string {
   const h1 = body.match(/^#\s+(.+?)\s*$/m);
   return h1 ? h1[1] : slug;
 }
 
-export function loadKnowledge(dir: string = CONTENT_DIR): KnowledgeDoc[] {
+export function loadKnowledge(dir: string = contentDir()): KnowledgeDoc[] {
   let entries: string[];
   try {
     entries = readdirSync(dir, { recursive: true }) as string[];

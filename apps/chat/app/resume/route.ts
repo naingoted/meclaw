@@ -1,3 +1,4 @@
+import { contentDir } from "@meclaw/core/content";
 import { promises as fs } from "fs";
 import { join } from "path";
 
@@ -7,11 +8,10 @@ import { join } from "path";
  */
 export async function GET() {
   try {
-    // content/ is resolved from process.cwd() — the same convention as
-    // @meclaw/core/content and @meclaw/rag. The standalone prod image runs from
-    // /app with content/ bind-mounted there (the corpus is not baked into the
-    // image); run dev from a cwd that contains content/ (the repo root).
-    const resumePath = join(process.cwd(), "content", "resume.md");
+    // content/ root comes from @meclaw/core's contentDir() — honors
+    // MECLAW_CONTENT_DIR (set to /app/content in the prod image, where the
+    // corpus is bind-mounted rather than baked in), else <cwd>/content for dev.
+    const resumePath = join(contentDir(), "resume.md");
     const content = await fs.readFile(resumePath, "utf-8");
 
     return new Response(content, {

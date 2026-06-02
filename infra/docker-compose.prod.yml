@@ -15,7 +15,14 @@ services:
     image: ghcr.io/${GHCR_OWNER}/meclaw-chat:${IMAGE_TAG:-latest}
     restart: unless-stopped
     env_file: .env
+    environment:
+      # Corpus is bind-mounted, not baked into the image. Anchor the content
+      # loader to the mount path (the image runs from /app). The /resume route
+      # reads content/resume.md from here.
+      MECLAW_CONTENT_DIR: /app/content
     expose: ["3000"]
+    volumes:
+      - ../content:/app/content:ro
     depends_on: [ai, postgres]
 
   admin:
@@ -57,8 +64,13 @@ services:
     image: ghcr.io/${GHCR_OWNER}/meclaw-ops:${IMAGE_TAG:-latest}
     profiles: ["tools"]
     env_file: .env
+    environment:
+      MECLAW_CONTENT_DIR: /app/content
     volumes:
-      - ../content/knowledge:/app/content/knowledge:ro
+      # Full corpus (knowledge/*.md + PDFs at the content root) — ingest reads
+      # the whole content tree, not just knowledge/. Work-impact packs, if any,
+      # live in a sibling ../data dir; mount it here too when present.
+      - ../content:/app/content:ro
     depends_on: [postgres, ollama]
 
 volumes:

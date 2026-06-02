@@ -1,12 +1,10 @@
 import { readdirSync } from "node:fs";
 import { join, sep } from "node:path";
 
-import { loadKnowledge, type KnowledgeDoc } from "@meclaw/core/content";
+import { contentDir, loadKnowledge, type KnowledgeDoc } from "@meclaw/core/content";
 
 import { loadPdf } from "./pdf";
 import { loadWorkImpactDocs } from "./work-impact";
-
-const CONTENT_DIR = join(process.cwd(), "content");
 
 /**
  * Loads every ingestable doc under `dir`: markdown via loadKnowledge (sync),
@@ -15,7 +13,7 @@ const CONTENT_DIR = join(process.cwd(), "content");
  * normalized to the content-relative path (matching loadKnowledge's slug
  * convention). Result is sorted by slug.
  */
-export async function loadIngestDocs(dir: string = CONTENT_DIR): Promise<KnowledgeDoc[]> {
+export async function loadIngestDocs(dir: string = contentDir()): Promise<KnowledgeDoc[]> {
   const markdown = loadKnowledge(dir);
   const workImpact = loadWorkImpactDocs(join(dir, "..", "data"));
 

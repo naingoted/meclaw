@@ -130,14 +130,15 @@ docker compose -f infra/docker-compose.prod.yml up -d
 docker compose -f infra/docker-compose.prod.yml restart
 ```
 
-## Known limitations
+## Content directory
 
-**Content directory:** The chat and admin containers' working directory is `/app`. The ingest and retrieval logic loads corpus from `process.cwd() + /content`. In prod, the `ops` service bind-mounts `content/knowledge` for ingest, but the **chat and admin containers do not have `/app/content` mounted**. This means:
-- `@meclaw/core`'s content loader and `@meclaw/rag`'s ingest script read from `/app/content` as intended (they run in the ops container during the deployment step).
-- But the running chat/admin apps cannot load the corpus at runtime if they try to re-read `content/` (currently they don't — they rely on pre-computed RAG embeddings in Postgres).
-- **Workaround (tracked for follow-up):** either bind-mount a read-only `content/` volume into chat + admin containers, or anchor the content path to an environment variable (e.g. `CONTENT_DIR=/opt/meclaw/content` mounted + passed to containers).
+The corpus is **bind-mounted, not baked into the images** (so editing markdown doesn't require a rebuild). `@meclaw/core`'s `contentDir()` resolves the corpus root, honoring the `MECLAW_CONTENT_DIR` env var (else `<cwd>/content`).
 
-This is acceptable for v1 because the chat and admin apps use pre-computed embeddings + full-corpus fallback, not runtime filesystem loads. If future features require real-time corpus reading, mount the volume.
+- **chat** mounts `../content` read-only at `/app/content` and sets `MECLAW_CONTENT_DIR=/app/content`. This serves the `/resume` route (reads `content/resume.md`) at runtime. Conversational knowledge itself comes from pre-computed RAG embeddings in Postgres, not filesystem reads.
+- **ops** mounts the full `../content` tree (not just `knowledge/`) and sets `MECLAW_CONTENT_DIR=/app/content` so `pnpm ingest` reads markdown + PDFs from the content root. Work-impact packs, if used, live in a sibling `../data` dir — add that mount when present.
+- **admin** does not read the corpus at runtime (no mount needed).
+
+On the VPS, `/opt/meclaw/content/` is the source dir (`../content` relative to `infra/`). Drop the real `.md`/`.pdf` corpus there before running ingest.
 
 ## Notes
 - Postgres schema is owned by Drizzle migrations; deploy runs them via the `ops` image before serving.
