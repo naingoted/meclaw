@@ -72,6 +72,7 @@ def run_stream(
     draft_stream_fn: DraftStreamFn,
     schedule_fn: Callable[[], dict],
     contact_fn: Callable[[], dict],
+    corpus_version_fn: Callable[[], "int | None"] = lambda: None,
     knowledge_system: str | None = None,
     scheduler_system: str | None = None,
     contact_system: str | None = None,
@@ -82,6 +83,7 @@ def run_stream(
     # appends the label here, so the terminal metadata can carry the full,
     # persisted "How I answered" trace.
     steps: list[str] = []
+    corpus_version = corpus_version_fn()
 
     def status(label: str, stage: str) -> str:
         steps.append(label)
@@ -104,6 +106,7 @@ def run_stream(
                 "intent": "lead",
                 "steps": list(steps),
                 "lead": lead,
+                "corpus_version": corpus_version,
             },
         )
         return
@@ -126,7 +129,13 @@ def run_stream(
         text = triage.clarifying_question or fallback_text()
         yield from _emit_static(
             text,
-            {"sources": [], "route": "respond", "intent": intent, "steps": list(steps)},
+            {
+                "sources": [],
+                "route": "respond",
+                "intent": intent,
+                "steps": list(steps),
+                "corpus_version": corpus_version,
+            },
         )
         return
 
@@ -153,7 +162,13 @@ def run_stream(
             # end, offer to capture contact (or stay neutral if already captured).
             yield from _emit_static(
                 fallback_text(),
-                {"sources": [], "route": intent, "intent": intent, "steps": list(steps)},
+                {
+                    "sources": [],
+                    "route": intent,
+                    "intent": intent,
+                    "steps": list(steps),
+                    "corpus_version": corpus_version,
+                },
             )
             return
         context = "\n\n".join(chunk.text for chunk in retrieval.chunks)
@@ -170,6 +185,7 @@ def run_stream(
         "route": intent,
         "intent": intent,
         "steps": list(steps),
+        "corpus_version": corpus_version,
     }
     yield sse.sse_start(metadata)
     yield sse.sse_text_start(_TEXT_ID)

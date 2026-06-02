@@ -4,6 +4,7 @@ retriever, and tools. Imported lazily so tests can stub get_runner."""
 from functools import lru_cache, partial
 
 from app.config import DRAFT_MODEL, TRIAGE_MODEL
+from app.corpus import corpus_version
 from app.graph.nodes import default_draft_stream_fn, default_triage_fn
 from app.provider import get_chat_model
 from app.retriever import Retriever
@@ -25,6 +26,7 @@ def build_production_runner():
         draft_stream_fn=default_draft_stream_fn(draft_model),
         schedule_fn=schedule_call,
         contact_fn=get_contact_info,
+        corpus_version_fn=corpus_version,
     )
 
 
@@ -51,6 +53,7 @@ def build_runner(cfg: RuntimeConfig):
         draft_stream_fn=default_draft_stream_fn(draft_model),
         schedule_fn=schedule_call,
         contact_fn=get_contact_info,
+        corpus_version_fn=corpus_version,
         knowledge_system=cfg.prompts.get("knowledge"),
         scheduler_system=cfg.prompts.get("scheduler"),
         contact_system=cfg.prompts.get("contact"),

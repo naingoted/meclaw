@@ -410,3 +410,27 @@ def test_persona_prefix_empty_string_does_not_prepend():
     # System should NOT start with "\n\n" (no prefix applied)
     assert not captured["system"].startswith("\n\n")
     assert '"delta":"Python."' in body
+
+
+def test_metadata_includes_corpus_version():
+    def retrieve(query):
+        return RetrievalResult(
+            chunks=[_chunk("Thet uses Python.")],
+            sources=[{"source": "about.md", "title": "About", "score": 0.8}],
+        )
+
+    def draft_stream(system, messages, context):
+        yield "ok"
+
+    body = _collect(
+        run_stream(
+            [{"role": "user", "content": "stack?"}],
+            triage_fn=_triage("tech", 0.9),
+            retriever_retrieve=retrieve,
+            draft_stream_fn=draft_stream,
+            schedule_fn=lambda: {},
+            contact_fn=lambda: {},
+            corpus_version_fn=lambda: 7,
+        )
+    )
+    assert '"corpus_version":7' in body
