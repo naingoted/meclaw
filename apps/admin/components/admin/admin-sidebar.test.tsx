@@ -1,13 +1,21 @@
 import { render, screen } from "@testing-library/react";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+
+vi.mock("next/navigation", () => ({ usePathname: () => "/admin/documents" }));
+vi.mock("@/app/admin/actions", () => ({ signOutAction: vi.fn() }));
+
 import { AdminSidebar } from "./admin-sidebar";
 
 describe("AdminSidebar", () => {
-  it("renders the three groups and links", () => {
+  it("renders groups, links, active state, account, and theme toggle", () => {
     render(<AdminSidebar />);
     expect(screen.getByText("Knowledge")).toBeTruthy();
     expect(screen.getByText("Documents")).toBeTruthy();
     expect(screen.getByText("Audit log")).toBeTruthy();
     expect(screen.getByText("Back to chat")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /sign out/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /toggle theme/i })).toBeTruthy();
+    // active link carries aria-current
+    expect(screen.getByRole("link", { name: "Documents" }).getAttribute("aria-current")).toBe("page");
   });
 });
