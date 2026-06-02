@@ -9,10 +9,9 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     globals: true,
-    // The PGlite-backed admin/db tests (documents, stats, ingest-runner,
-    // seed-documents) spin up a WASM Postgres and can blow the 5s default when
-    // `turbo run … build test` saturates the CPU. Generous timeouts keep them
-    // green under load without serializing the whole (mostly fast) suite.
+    // Generous timeouts (30s) keep the suite green when `turbo run … build test`
+    // saturates the CPU across the workspace. The chat suite itself is fast
+    // (jsdom, no DB), but it shares a turbo run with heavier packages.
     testTimeout: 30000,
     hookTimeout: 30000,
     setupFiles: ["./vitest.setup.ts"],
