@@ -9,7 +9,8 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "seed:docs": "jiti scripts/seed-documents.ts"
+    "seed:docs": "jiti scripts/seed-documents.ts",
+    "gen:admin-hash": "jiti scripts/gen-admin-hash.ts"
   },
   "dependencies": {
     "@meclaw/core": "workspace:*",
