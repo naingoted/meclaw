@@ -35,3 +35,6 @@ output/
 # git worktrees (subagent-driven-development)
 .claude/worktrees/
 .verify-shots
+
+# brainstorm visual companion (local-only)
+.superpowers/
