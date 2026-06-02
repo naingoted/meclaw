@@ -1,8 +1,6 @@
 packages:
-  - "."
   - "packages/*"
   - "apps/*"
-  # "." removed in the final sweep
 
 ignoredBuiltDependencies:
   - sharp
