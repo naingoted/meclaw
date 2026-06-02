@@ -1,45 +1,42 @@
+name: meclaw
 services:
   caddy:
     image: caddy:2
     restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
+    ports: ["80:80", "443:443"]
     env_file: .env
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
-    depends_on:
-      - web
+    depends_on: [chat, admin]
 
-  web:
-    image: ghcr.io/${GHCR_OWNER}/meclaw-web:${IMAGE_TAG:-latest}
+  chat:
+    image: ghcr.io/${GHCR_OWNER}/meclaw-chat:${IMAGE_TAG:-latest}
     restart: unless-stopped
     env_file: .env
-    expose:
-      - "3000"
-    depends_on:
-      - ai
-      - postgres
+    expose: ["3000"]
+    depends_on: [ai, postgres]
+
+  admin:
+    image: ghcr.io/${GHCR_OWNER}/meclaw-admin:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file: .env
+    expose: ["3000"]
+    depends_on: [postgres]
 
   ai:
     image: ghcr.io/${GHCR_OWNER}/meclaw-ai:${IMAGE_TAG:-latest}
     restart: unless-stopped
     env_file: .env
-    expose:
-      - "8000"
-    depends_on:
-      - postgres
-      - ollama
+    expose: ["8000"]
+    depends_on: [postgres, ollama]
 
   ollama:
     image: ollama/ollama:0.3.14
     restart: unless-stopped
-    expose:
-      - "11434"
-    volumes:
-      - ollama_storage:/root/.ollama
+    expose: ["11434"]
+    volumes: ["ollama_storage:/root/.ollama"]
 
   postgres:
     image: pgvector/pgvector:pg16
@@ -48,26 +45,21 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-meclaw}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB:-meclaw}
-    expose:
-      - "5432"
+    expose: ["5432"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-meclaw} -d ${POSTGRES_DB:-meclaw}"]
       interval: 10s
       timeout: 5s
       retries: 5
-    volumes:
-      - pgdata:/var/lib/postgresql/data
+    volumes: ["pgdata:/var/lib/postgresql/data"]
 
-  ingest:
-    image: ghcr.io/${GHCR_OWNER}/meclaw-ingest:${IMAGE_TAG:-latest}
-    profiles:
-      - tools
+  ops:
+    image: ghcr.io/${GHCR_OWNER}/meclaw-ops:${IMAGE_TAG:-latest}
+    profiles: ["tools"]
     env_file: .env
     volumes:
-      - ./content/knowledge:/app/content/knowledge:ro
-    depends_on:
-      - ollama
-      - postgres
+      - ../content/knowledge:/app/content/knowledge:ro
+    depends_on: [postgres, ollama]
 
 volumes:
   ollama_storage:

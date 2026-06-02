@@ -1,0 +1,7 @@
+{$DOMAIN} {
+	reverse_proxy chat:3000
+}
+
+admin.{$DOMAIN} {
+	reverse_proxy admin:3000
+}
