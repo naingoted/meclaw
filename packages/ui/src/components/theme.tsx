@@ -19,8 +19,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
 export function ThemeToggle({ className }: { className?: string }) {
   const { resolvedTheme, setTheme } = useTheme();
-  const [mounted, setMounted] = React.useState(false);
-  React.useEffect(() => setMounted(true), []);
+  // Hydration-safe "mounted" flag without setState-in-effect: the server snapshot
+  // is false (renders a placeholder matching SSR), then flips to true after hydration.
+  const mounted = React.useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
   const dark = resolvedTheme === "dark";
   return (
     <button

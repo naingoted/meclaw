@@ -15,7 +15,7 @@ export function DashboardClient() {
     setData(json);
   }, []);
 
-  React.useEffect(() => { void load(); }, [load]);
+  React.useEffect(() => { void (async () => { await load(); })(); }, [load]);
 
   async function reingestAll() {
     setReingesting(true);

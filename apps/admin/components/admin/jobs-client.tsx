@@ -21,7 +21,7 @@ export function JobsClient() {
   }, []);
 
   React.useEffect(() => {
-    void load();
+    void (async () => { await load(); })();
     const t = setInterval(() => { void load(); }, 2000);
     return () => clearInterval(t);
   }, [load]);

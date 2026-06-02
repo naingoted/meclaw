@@ -13,7 +13,7 @@ export function DocumentsClient() {
   const [confirmId, setConfirmId] = React.useState<string | null>(null);
 
   const load = React.useCallback(async () => setDocs(await (await fetch("/api/admin/documents")).json()), []);
-  React.useEffect(() => { void load(); }, [load]);
+  React.useEffect(() => { void (async () => { await load(); })(); }, [load]);
 
   async function save(d: { id?: string; title: string; body: string; category?: string }) {
     const url = d.id ? `/api/admin/documents/${d.id}` : "/api/admin/documents";
