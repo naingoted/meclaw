@@ -1,0 +1,65 @@
+# Dev stack. Build contexts are the repo root (one level up from infra/).
+name: meclaw
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    ports: ["5432:5432"]
+    environment:
+      POSTGRES_USER: meclaw
+      POSTGRES_PASSWORD: meclaw
+      POSTGRES_DB: meclaw
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:0.3.14
+    ports: ["11434:11434"]
+    volumes: ["ollama_storage:/root/.ollama"]
+    restart: unless-stopped
+
+  ai:
+    build: ../services/ai
+    ports: ["8000:8000"]
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-qwen3.6-plus}
+      DATABASE_URL: postgres://meclaw:meclaw@postgres:5432/meclaw
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_EMBED_MODEL: ${OLLAMA_EMBED_MODEL:-nomic-embed-text}
+      RAG_TOP_K: ${RAG_TOP_K:-4}
+    depends_on: [postgres, ollama]
+    restart: unless-stopped
+
+  chat:
+    build: { context: .., dockerfile: apps/chat/Dockerfile, target: dev }
+    ports: ["3000:3000"]
+    environment:
+      AI_SERVICE_URL: http://ai:8000
+      DATABASE_URL: postgres://meclaw:meclaw@postgres:5432/meclaw
+    volumes:
+      - ../:/app
+      - /app/node_modules
+      - /app/apps/chat/.next
+    depends_on: [ai, postgres]
+    restart: unless-stopped
+
+  admin:
+    build: { context: .., dockerfile: apps/admin/Dockerfile, target: dev }
+    ports: ["3001:3001"]
+    environment:
+      DATABASE_URL: postgres://meclaw:meclaw@postgres:5432/meclaw
+      AUTH_SECRET: ${AUTH_SECRET}
+      AUTH_URL: http://localhost:3001
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH}
+    volumes:
+      - ../:/app
+      - /app/node_modules
+      - /app/apps/admin/.next
+    depends_on: [postgres]
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  ollama_storage:
