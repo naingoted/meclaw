@@ -43,7 +43,7 @@ export function ChatLayout({ children }: { children: React.ReactNode }) {
               href={githubUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-foreground hover:text-primary hover:underline"
+              className="inline-flex items-center gap-1 rounded-sm text-foreground transition-colors hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <GitBranch className="h-3 w-3" />
               GitHub

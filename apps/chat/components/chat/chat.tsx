@@ -327,7 +327,7 @@ export function Chat() {
                   <button
                     key={chip}
                     onClick={() => handleChipClick(chip)}
-                    className="rounded-sm border border-border bg-card px-3 py-2 text-left text-sm transition-colors hover:border-primary hover:text-primary"
+                    className="cursor-pointer rounded-sm border border-border bg-card px-3 py-2 text-left text-sm transition-colors hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     {chip}
                   </button>
