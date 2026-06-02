@@ -33,7 +33,7 @@ jobs:
       - name: Enable pnpm
         run: |
           corepack enable
-          corepack prepare pnpm@9.15.9 --activate
+          corepack prepare pnpm@10.32.1 --activate
 
       - uses: actions/setup-node@v4
         with:
@@ -43,21 +43,14 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
-      - name: Typecheck
-        run: pnpm typecheck
-
-      - name: Lint
-        run: pnpm lint
-
       - name: Migrate (Postgres)
-        run: pnpm db:migrate
+        run: pnpm --filter @meclaw/core db:migrate
 
-      - name: Test
-        run: pnpm test
-
-      - name: Build
-        run: pnpm build
+      - name: Lint / Typecheck / Test / Build
+        run: pnpm -w turbo run lint typecheck test build
         env:
           ANTHROPIC_API_KEY: dummy-ci-key
           ANTHROPIC_BASE_URL: https://example.invalid/anthropic
           ANTHROPIC_MODEL: qwen3.6-plus
+          AUTH_SECRET: ci-secret-not-used-at-runtime
+          ADMIN_PASSWORD_HASH: deadbeef:deadbeef
