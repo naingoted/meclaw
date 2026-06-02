@@ -25,6 +25,13 @@ describe("corpus API", () => {
     (getCorpusState as unknown as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("db down"));
     const res = await GET();
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ version: null });
+    expect(await res.json()).toEqual({
+      version: null,
+      documents: null,
+      chunks: null,
+      lastIngestedAt: null,
+      embedModel: "nomic-embed-text",
+    });
+    expect(getCorpusState).toHaveBeenCalled();
   });
 });
