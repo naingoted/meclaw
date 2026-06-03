@@ -3,10 +3,15 @@
 import { Button, ThemeToggle } from "@meclaw/ui";
 import { Download, Calendar, GitBranch } from "lucide-react";
 
-const calUrl = process.env.NEXT_PUBLIC_CAL_URL || "https://cal.com/tet-nai";
-const githubUrl = process.env.NEXT_PUBLIC_GITHUB_URL || "https://github.com/your-username";
-
-export function ChatLayout({ children }: { children: React.ReactNode }) {
+export function ChatLayout({
+  children,
+  calUrl,
+  githubUrl,
+}: {
+  children: React.ReactNode;
+  calUrl: string;
+  githubUrl: string;
+}) {
   return (
     <div className="flex h-screen flex-col">
       {/* Header: brand left, actions right (Book a call = primary CTA) */}
