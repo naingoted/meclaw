@@ -24,3 +24,17 @@ def test_show_resume_path():
 
 def test_how_this_works_is_nonempty_string():
     assert "meclaw" in how_this_works().lower()
+
+
+def test_contact_info_uses_supplied_email_and_github():
+    info = get_contact_info(email="owner@example.com", github="https://github.com/x")
+    assert info == {"email": "owner@example.com", "github": "https://github.com/x"}
+
+
+def test_contact_info_omits_blank_github():
+    info = get_contact_info(email="owner@example.com", github="")
+    assert info == {"email": "owner@example.com"}
+
+
+def test_schedule_call_uses_supplied_url():
+    assert schedule_call(url="https://cal.com/custom") == {"url": "https://cal.com/custom"}

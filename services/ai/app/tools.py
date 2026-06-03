@@ -6,16 +6,16 @@ import os
 OWNER_EMAIL = "naingoted@gmail.com"
 
 
-def get_contact_info() -> dict[str, str]:
-    info = {"email": OWNER_EMAIL}
-    github = os.getenv("NEXT_PUBLIC_GITHUB_URL")
-    if github:
-        info["github"] = github
+def get_contact_info(email: str = OWNER_EMAIL, github: str | None = None) -> dict[str, str]:
+    info = {"email": email}
+    gh = github if github is not None else os.getenv("NEXT_PUBLIC_GITHUB_URL")
+    if gh:
+        info["github"] = gh
     return info
 
 
-def schedule_call() -> dict[str, str]:
-    return {"url": os.getenv("NEXT_PUBLIC_CAL_URL", "https://cal.com/tet-nai")}
+def schedule_call(url: str | None = None) -> dict[str, str]:
+    return {"url": url or os.getenv("NEXT_PUBLIC_CAL_URL", "https://cal.com/tet-nai")}
 
 
 def show_resume() -> dict[str, str]:
