@@ -1,0 +1,116 @@
+import { desc, eq, inArray, sql } from "drizzle-orm";
+import { gapClusters, chatMisses } from "@meclaw/core/db/schema";
+import type { Db } from "@meclaw/core/db/types";
+import { logAudit } from "@meclaw/core/settings";
+
+export type GapClusterRow = typeof gapClusters.$inferSelect;
+export type ChatMissRow = typeof chatMisses.$inferSelect;
+
+export type GapClusterSummary = {
+  id: string;
+  exemplarQuery: string | null;
+  count: number;
+  status: string;
+  updatedAt: string;
+  /** reason -> count across member misses (e.g. { floor: 3, fallback: 1 }) */
+  reasons: Record<string, number>;
+};
+
+/** Clusters in a given status, ranked by hit count desc, with reason mix. */
+export async function listClusters(db: Db, status = "new"): Promise<GapClusterSummary[]> {
+  const clusters = await db
+    .select()
+    .from(gapClusters)
+    .where(eq(gapClusters.status, status))
+    .orderBy(desc(gapClusters.count));
+  if (clusters.length === 0) return [];
+
+  const ids = clusters.map((c) => c.id);
+  const reasonRows = await db
+    .select({
+      clusterId: chatMisses.clusterId,
+      reason: chatMisses.reason,
+      n: sql<number>`count(*)::int`,
+    })
+    .from(chatMisses)
+    .where(inArray(chatMisses.clusterId, ids))
+    .groupBy(chatMisses.clusterId, chatMisses.reason);
+
+  const byCluster = new Map<string, Record<string, number>>();
+  for (const r of reasonRows) {
+    const m = byCluster.get(r.clusterId) ?? {};
+    m[r.reason] = Number(r.n);
+    byCluster.set(r.clusterId, m);
+  }
+
+  return clusters.map((c) => ({
+    id: c.id,
+    exemplarQuery: c.exemplarQuery,
+    count: c.count,
+    status: c.status,
+    updatedAt: c.updatedAt.toISOString(),
+    reasons: byCluster.get(c.id) ?? {},
+  }));
+}
+
+/** A cluster plus its member misses (newest first), or null if not found. */
+export async function getCluster(
+  db: Db,
+  id: string,
+): Promise<{ cluster: GapClusterRow; misses: ChatMissRow[] } | null> {
+  const rows = await db.select().from(gapClusters).where(eq(gapClusters.id, id));
+  const cluster = rows[0];
+  if (!cluster) return null;
+  const misses = await db
+    .select()
+    .from(chatMisses)
+    .where(eq(chatMisses.clusterId, id))
+    .orderBy(desc(chatMisses.createdAt));
+  return { cluster, misses };
+}
+
+/** Close the loop: mark resolved + link the curated document. */
+export async function resolveCluster(db: Db, id: string, documentId: string, actorIp: string): Promise<void> {
+  const now = new Date();
+  await db
+    .update(gapClusters)
+    .set({ status: "resolved", resolvedDocumentId: documentId, resolvedAt: now, updatedAt: now })
+    .where(eq(gapClusters.id, id))
+    .execute();
+  await logAudit(db, { action: "gap.resolve", entityType: "gap", entityId: id, summary: `resolved gap → document ${documentId}`, actorIp });
+}
+
+/** Hide a cluster from the default view without curating content. */
+export async function ignoreCluster(db: Db, id: string, actorIp: string): Promise<void> {
+  await db
+    .update(gapClusters)
+    .set({ status: "ignored", updatedAt: new Date() })
+    .where(eq(gapClusters.id, id))
+    .execute();
+  await logAudit(db, { action: "gap.ignore", entityType: "gap", entityId: id, summary: `ignored gap ${id}`, actorIp });
+}
+
+/** Export all misses as CSV (both tables are plain relational → trivially exportable). */
+export async function exportMissesCsv(db: Db): Promise<string> {
+  const rows = await db
+    .select({
+      clusterId: chatMisses.clusterId,
+      query: chatMisses.query,
+      reason: chatMisses.reason,
+      topScore: chatMisses.topScore,
+      conversationId: chatMisses.conversationId,
+      createdAt: chatMisses.createdAt,
+    })
+    .from(chatMisses)
+    .orderBy(desc(chatMisses.createdAt));
+
+  const header = "clusterId,query,reason,topScore,conversationId,createdAt";
+  const esc = (v: unknown) => {
+    const s = v == null ? "" : String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const lines = rows.map((r) =>
+    [r.clusterId, r.query, r.reason, r.topScore ?? "", r.conversationId, r.createdAt.toISOString()].map(esc).join(","),
+  );
+  return [header, ...lines].join("\n");
+}

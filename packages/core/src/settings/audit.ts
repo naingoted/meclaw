@@ -5,11 +5,12 @@ import type { Db } from "../db/types";
 
 export type AuditAction =
   | "document.create" | "document.update" | "document.delete"
-  | "config.update" | "ingest.start" | "ingest.succeed" | "ingest.fail";
+  | "config.update" | "ingest.start" | "ingest.succeed" | "ingest.fail"
+  | "gap.resolve" | "gap.ignore";
 
 export type AuditInput = {
   action: AuditAction;
-  entityType: "document" | "settings" | "job";
+  entityType: "document" | "settings" | "job" | "gap";
   entityId?: string;
   summary: string;
   meta?: unknown;
