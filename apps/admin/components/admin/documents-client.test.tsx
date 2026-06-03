@@ -1,5 +1,17 @@
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+
+const nav = vi.hoisted(() => ({
+  replace: vi.fn(),
+  search: new URLSearchParams(),
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: nav.replace }),
+  usePathname: () => "/admin/documents",
+  useSearchParams: () => nav.search,
+}));
+
 import { DocumentsClient } from "./documents-client";
 
 const NOW = "2026-06-03T00:00:00.000Z";
@@ -22,6 +34,11 @@ function stubFetchLive(get: () => State) {
   );
 }
 
+beforeEach(() => {
+  nav.replace.mockClear();
+  nav.search = new URLSearchParams();
+});
+
 describe("DocumentsClient", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -40,7 +57,7 @@ describe("DocumentsClient", () => {
   it("shows a running pill, disables Ingest while active, clears on success", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const state: State = {
-      docs: [{ id: "d1", title: "Resume", status: "draft", updatedAt: NOW, lastIngestedAt: null }], // dirty
+      docs: [{ id: "d1", title: "Resume", status: "draft", updatedAt: NOW, lastIngestedAt: null }],
       jobs: [{ id: "j1", status: "running", error: null, documentId: "d1", createdAt: NOW }],
     };
     stubFetchLive(() => state);
@@ -49,11 +66,10 @@ describe("DocumentsClient", () => {
     await waitFor(() => expect(screen.getByText("running")).toBeTruthy());
     expect((screen.getByRole("button", { name: /ingest/i }) as HTMLButtonElement).disabled).toBe(true);
 
-    // Job finishes; doc is no longer dirty.
     state.jobs = [{ id: "j1", status: "succeeded", error: null, documentId: "d1", createdAt: NOW }];
     state.docs = [{ id: "d1", title: "Resume", status: "ready", updatedAt: NOW, lastIngestedAt: LATER }];
 
-    await vi.advanceTimersByTimeAsync(2100); // trigger the 2s poll
+    await vi.advanceTimersByTimeAsync(2100);
 
     await waitFor(() => expect(screen.getByText("succeeded")).toBeTruthy());
     expect((screen.getByRole("button", { name: /ingest/i }) as HTMLButtonElement).disabled).toBe(false);
@@ -69,15 +85,15 @@ describe("DocumentsClient", () => {
     }));
     render(<DocumentsClient />);
     await waitFor(() => expect(screen.getByText("Gap doc")).toBeTruthy());
-    // gap pill should appear next to Gap doc in the table, not next to Manual doc
     const gapDocRow = screen.getByText("Gap doc").closest("tr");
     const manualDocRow = screen.getByText("Manual doc").closest("tr");
     expect(gapDocRow?.textContent).toContain("gap");
     expect(manualDocRow?.textContent).not.toContain("gap");
   });
 
-  it("requests ?origin=gap when the gap filter is selected", async () => {
+  it("reads ?filter=gap from the URL: fetches ?origin=gap and marks the gap button pressed", async () => {
     const urls: string[] = [];
+    nav.search = new URLSearchParams("filter=gap");
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url: unknown) => {
@@ -88,8 +104,16 @@ describe("DocumentsClient", () => {
       }),
     );
     render(<DocumentsClient />);
-    await waitFor(() => expect(urls.some((u) => u.startsWith("/api/admin/documents"))).toBe(true));
-    fireEvent.click(screen.getByRole("button", { name: "gap" }));
     await waitFor(() => expect(urls.some((u) => u.includes("/api/admin/documents?origin=gap"))).toBe(true));
+    expect(screen.getByRole("button", { name: "gap" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("button", { name: "all" }).getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("writes ?filter=gap to the URL when the gap filter is clicked", async () => {
+    stubFetchLive(() => ({ docs: [], jobs: [] }));
+    render(<DocumentsClient />);
+    await waitFor(() => expect(screen.getByRole("button", { name: "gap" })).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "gap" }));
+    expect(nav.replace).toHaveBeenCalledWith("/admin/documents?filter=gap", { scroll: false });
   });
 });

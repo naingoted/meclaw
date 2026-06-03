@@ -1,5 +1,20 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+
+const nav = vi.hoisted(() => ({
+  replace: vi.fn(),
+  search: new URLSearchParams(),
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: nav.replace }),
+  usePathname: () => "/admin/config",
+  useSearchParams: () => {
+    // Return the current nav.search, so test mutations are visible
+    return nav.search;
+  },
+}));
+
 import { ConfigClient } from "./config-client";
 
 const SETTINGS = {
@@ -26,7 +41,11 @@ function mockFetch(putOk = true) {
   });
 }
 
-beforeEach(() => vi.stubGlobal("fetch", mockFetch()));
+beforeEach(() => {
+  nav.replace.mockClear();
+  nav.search = new URLSearchParams();
+  vi.stubGlobal("fetch", mockFetch());
+});
 afterEach(() => vi.unstubAllGlobals());
 
 describe("ConfigClient", () => {
@@ -34,7 +53,6 @@ describe("ConfigClient", () => {
     render(<ConfigClient />);
     expect(await screen.findByText("Router model")).toBeInTheDocument();
     expect(screen.getByText("Answer model")).toBeInTheDocument();
-    // scheduler/contact models are NOT editable
     expect(screen.queryByDisplayValue("scheduler-only-model")).not.toBeInTheDocument();
     expect(screen.queryByDisplayValue("contact-only-model")).not.toBeInTheDocument();
   });
@@ -52,23 +70,32 @@ describe("ConfigClient", () => {
     expect(screen.getByDisplayValue("0.5")).toBeInTheDocument();
   });
 
-  it("renders the suggestions editor and contact email", async () => {
+  it("renders the suggestions editor and contact email when ?tab=public", async () => {
+    nav.search = new URLSearchParams("tab=public");
     render(<ConfigClient />);
-    await screen.findByText("Router model");
-    fireEvent.click(screen.getByRole("button", { name: /^Public page$/ }));
-    expect(screen.getByText("Suggestions")).toBeInTheDocument();
-    const suggestionsTextarea = screen.getAllByRole("textbox").find(el => (el as HTMLTextAreaElement).value === "a\nb");
+    await screen.findByText("Suggestions");
+    const suggestionsTextarea = screen
+      .getAllByRole("textbox")
+      .find((el) => (el as HTMLTextAreaElement).value === "a\nb");
     expect(suggestionsTextarea).toBeInTheDocument();
     expect(screen.getByText("Contact email")).toBeInTheDocument();
     expect(screen.getByDisplayValue("owner@example.com")).toBeInTheDocument();
   });
 
-  it("renders the previously-hidden RAG knobs", async () => {
+  it("renders the previously-hidden RAG knobs when ?tab=rag", async () => {
+    nav.search = new URLSearchParams("tab=rag");
+    render(<ConfigClient />);
+    await screen.findByText("Score floor");
+    expect(screen.getByText("Cluster radius")).toBeInTheDocument();
+  });
+
+  it("writes ?tab= to the URL when a tab is clicked", async () => {
     render(<ConfigClient />);
     await screen.findByText("Router model");
-    fireEvent.click(screen.getByRole("button", { name: /RAG params/i }));
-    expect(screen.getByText("Score floor")).toBeInTheDocument();
-    expect(screen.getByText("Cluster radius")).toBeInTheDocument();
+    const ragTab = screen.getByRole("tab", { name: /RAG params/i });
+    ragTab.focus(); // Radix Tabs requires focus before click registers onValueChange in jsdom
+    fireEvent.click(ragTab);
+    expect(nav.replace).toHaveBeenCalledWith("/admin/config?tab=rag", { scroll: false });
   });
 
   it("shows the immediate-propagation toast on save", async () => {

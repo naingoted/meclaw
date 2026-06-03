@@ -1,6 +1,7 @@
 "use client";
 import { Button, Input, Textarea, StatusPill, PageHeader, Skeleton, EmptyState, Table, THead, TBody, TR, TH, TD, relativeTime } from "@meclaw/ui";
 import * as React from "react";
+import { useUrlState } from "@/lib/use-url-state";
 
 type ClusterSummary = {
   id: string; exemplarQuery: string | null; count: number; status: string;
@@ -14,7 +15,7 @@ const reasonSummary = (r: Record<string, number>) =>
   Object.entries(r).map(([k, v]) => `${k}:${v}`).join("  ") || "—";
 
 export function GapsClient() {
-  const [status, setStatus] = React.useState<(typeof STATUSES)[number]>("new");
+  const [status, setStatus] = useUrlState("status", "new", STATUSES);
   const [clusters, setClusters] = React.useState<ClusterSummary[] | null>(null);
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
 
@@ -41,7 +42,7 @@ export function GapsClient() {
 
       <div className="mb-4 flex gap-2">
         {STATUSES.map((s) => (
-          <Button key={s} size="sm" variant={s === status ? "default" : "ghost"} onClick={() => setStatus(s)}>
+          <Button key={s} size="sm" variant={s === status ? "default" : "ghost"} aria-pressed={s === status} onClick={() => setStatus(s)}>
             {s}
           </Button>
         ))}
