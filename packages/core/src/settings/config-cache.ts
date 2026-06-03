@@ -11,39 +11,49 @@ function envTtl(): number {
 
 /**
  * Process-local cache of the settings row. Two freshness mechanisms:
- * - `clear()` busts immediately (called on every write — instant freshness in
- *   the writing process, i.e. admin).
- * - a TTL expires the value so a *non-writing* process (chat) re-reads the DB
- *   within `ttlMs`. This is the only cross-process freshness channel, since the
- *   DB is the only thing both processes share. Default 30 min; override via
- *   CONFIG_CACHE_TTL_MS.
+ * - `clear()` busts immediately in the writing process.
+ * - `version` is checked against settings.updatedAt before a cached value is
+ *   reused by a reader process.
+ *
+ * The TTL remains a fallback safety valve.
  */
+export type ConfigCacheEntry = {
+  value: SettingsValue;
+  version: string;
+  expiresAt: number;
+};
+
 export class ConfigCache {
-  private value: SettingsValue | null = null;
-  private expiresAt = 0;
+  private entry: ConfigCacheEntry | null = null;
 
   constructor(
     private readonly ttlMs: number = envTtl(),
     private readonly now: () => number = Date.now,
   ) {}
 
-  get(): SettingsValue | null {
-    if (this.value === null) return null;
-    if (this.now() >= this.expiresAt) {
-      this.value = null;
+  getEntry(): ConfigCacheEntry | null {
+    if (this.entry === null) return null;
+    if (this.now() >= this.entry.expiresAt) {
+      this.clear();
       return null;
     }
-    return this.value;
+    return this.entry;
   }
 
-  set(v: SettingsValue): void {
-    this.value = v;
-    this.expiresAt = this.now() + this.ttlMs;
+  get(): SettingsValue | null {
+    return this.getEntry()?.value ?? null;
+  }
+
+  set(value: SettingsValue, version: string): void {
+    this.entry = {
+      value,
+      version,
+      expiresAt: this.now() + this.ttlMs,
+    };
   }
 
   clear(): void {
-    this.value = null;
-    this.expiresAt = 0;
+    this.entry = null;
   }
 }
 
