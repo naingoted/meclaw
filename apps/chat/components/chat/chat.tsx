@@ -6,12 +6,6 @@ import ReactMarkdown from "react-markdown";
 import { Bot } from "lucide-react";
 import { Button, cn } from "@meclaw/ui";
 
-const SUGGESTION_CHIPS = [
-  "What's Thet's tech stack?",
-  "Walk me through a recent project",
-  "How do I get in touch?",
-];
-
 type SourceMetadata = {
   title?: unknown;
   slug?: unknown;
@@ -293,7 +287,13 @@ function ThinkingTrace({ steps }: { steps: string[] }) {
   );
 }
 
-export function Chat() {
+export function Chat({
+  greeting,
+  suggestions,
+}: {
+  greeting: string;
+  suggestions: string[];
+}) {
   // `liveSteps` accumulates the backend's transient `data-status` labels into an
   // ordered checklist ("Routing…" → "Searching…" → "Writing…") shown live during
   // the pre-answer gap. The same labels persist per-message via metadata.steps.
@@ -343,7 +343,7 @@ export function Chat() {
                 <Bot className="h-5 w-5 text-foreground" />
               </div>
               <div className="space-y-1">
-                <p className="text-sm font-medium">Hi! I&apos;m meclaw, Thet&apos;s personal bot.</p>
+                <p className="text-sm font-medium">{greeting}</p>
                 <p className="text-sm text-muted-foreground">
                   Ask me anything about his work, skills, or projects.
                 </p>
@@ -354,7 +354,7 @@ export function Chat() {
             <div className="space-y-2">
               <p className="text-xs font-medium text-muted-foreground">Try asking:</p>
               <div className="flex flex-col gap-2">
-                {SUGGESTION_CHIPS.map((chip) => (
+                {suggestions.map((chip) => (
                   <button
                     key={chip}
                     onClick={() => handleChipClick(chip)}

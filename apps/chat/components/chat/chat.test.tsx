@@ -27,6 +27,15 @@ import {
   extractCorpusVersion,
 } from "@/components/chat/chat";
 
+const CHAT_PROPS = {
+  greeting: "Hi! I'm meclaw, Thet's personal bot.",
+  suggestions: [
+    "What's Thet's tech stack?",
+    "Walk me through a recent project",
+    "How do I get in touch?",
+  ],
+};
+
 describe("shouldShowThinking", () => {
   const userMsg = { role: "user", parts: [{ type: "text", text: "hi" }] };
   const assistantWithText = {
@@ -138,7 +147,7 @@ describe("Chat component — M4 behavioral tests", () => {
   });
 
   it("renders greeting and all 3 suggestion chips when messages are empty", () => {
-    render(<Chat />);
+    render(<Chat {...CHAT_PROPS} />);
 
     // Assert greeting is rendered
     expect(screen.getByText(/Hi! I'm meclaw, Thet's personal bot/)).toBeInTheDocument();
@@ -158,11 +167,22 @@ describe("Chat component — M4 behavioral tests", () => {
     ).toBeInTheDocument();
   });
 
+  it("renders the greeting from props (not a hardcoded literal)", () => {
+    render(<Chat greeting="Custom greeting line" suggestions={["only chip"]} />);
+    expect(screen.getByText("Custom greeting line")).toBeInTheDocument();
+  });
+
+  it("renders suggestion chips from props", () => {
+    render(<Chat greeting="g" suggestions={["chip one", "chip two"]} />);
+    expect(screen.getByRole("button", { name: "chip one" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "chip two" })).toBeInTheDocument();
+  });
+
   it("sends message when a suggestion chip is clicked", () => {
     const mockSend = vi.fn();
     mockState.sendMessage = mockSend;
 
-    render(<Chat />);
+    render(<Chat {...CHAT_PROPS} />);
 
     // Click the first chip
     const chipButton = screen.getByRole("button", {
@@ -194,7 +214,7 @@ describe("Chat component — M4 behavioral tests", () => {
       },
     ];
 
-    render(<Chat />);
+    render(<Chat {...CHAT_PROPS} />);
 
     // Assert greeting is NOT rendered
     expect(
@@ -220,7 +240,7 @@ describe("Chat component — M4 behavioral tests", () => {
   it("disables Send button when streaming", () => {
     mockState.status = "streaming";
 
-    render(<Chat />);
+    render(<Chat {...CHAT_PROPS} />);
 
     // Assert Send button is disabled during streaming
     const sendButton = screen.getByRole("button", { name: /Send/ });
@@ -233,7 +253,7 @@ describe("Chat component — M4 behavioral tests", () => {
       { id: "1", role: "user" as const, parts: [{ type: "text" as const, text: "stack?" }] },
     ];
 
-    render(<Chat />);
+    render(<Chat {...CHAT_PROPS} />);
 
     expect(screen.getByText(/Thinking…/i)).toBeInTheDocument();
   });
@@ -245,7 +265,7 @@ describe("Chat component — M4 behavioral tests", () => {
       { id: "2", role: "assistant" as const, parts: [{ type: "text" as const, text: "Python." }] },
     ];
 
-    render(<Chat />);
+    render(<Chat {...CHAT_PROPS} />);
 
     expect(screen.queryByText(/Thinking…/i)).not.toBeInTheDocument();
   });
@@ -268,7 +288,7 @@ describe("Chat component — M4 behavioral tests", () => {
       },
     ];
 
-    render(<Chat />);
+    render(<Chat {...CHAT_PROPS} />);
 
     expect(screen.getByText("Sources used")).toBeInTheDocument();
     expect(screen.getByText("Projects")).toBeInTheDocument();
@@ -294,7 +314,7 @@ describe("Chat component — M4 behavioral tests", () => {
       },
     ];
 
-    render(<Chat />);
+    render(<Chat {...CHAT_PROPS} />);
 
     expect(screen.queryByText("Sources used")).not.toBeInTheDocument();
     expect(screen.queryByText("Projects")).not.toBeInTheDocument();
@@ -319,7 +339,7 @@ describe("Chat component — M4 behavioral tests", () => {
       },
     ];
 
-    render(<Chat />);
+    render(<Chat {...CHAT_PROPS} />);
 
     expect(screen.queryByText("Sources used")).not.toBeInTheDocument();
     expect(screen.queryByText("Projects")).not.toBeInTheDocument();
@@ -339,7 +359,7 @@ describe("Chat component — M4 behavioral tests", () => {
       },
     ];
 
-    render(<Chat />);
+    render(<Chat {...CHAT_PROPS} />);
 
     expect(screen.getByText(/Routed:/i)).toBeInTheDocument();
     expect(screen.getByText(/Routed:\s*tech/i)).toBeInTheDocument();
@@ -355,7 +375,7 @@ describe("Chat component — M4 behavioral tests", () => {
       },
     ];
 
-    render(<Chat />);
+    render(<Chat {...CHAT_PROPS} />);
 
     expect(screen.getByText(/Routed:\s*general/i)).toBeInTheDocument();
   });
@@ -370,7 +390,7 @@ describe("Chat component — M4 behavioral tests", () => {
       },
     ];
 
-    render(<Chat />);
+    render(<Chat {...CHAT_PROPS} />);
 
     expect(screen.queryByText(/Routed:/i)).not.toBeInTheDocument();
   });
@@ -386,7 +406,7 @@ describe("Chat component — M4 behavioral tests", () => {
       },
     ];
 
-    render(<Chat />);
+    render(<Chat {...CHAT_PROPS} />);
 
     expect(screen.queryByText(/Routed:/i)).not.toBeInTheDocument();
   });
@@ -399,7 +419,7 @@ describe("Chat conversationId threading", () => {
     mockState.messages = [];
     mockState.status = "ready";
 
-    render(<Chat />);
+    render(<Chat {...CHAT_PROPS} />);
     const input = screen.getByPlaceholderText("Say something…");
     fireEvent.change(input, { target: { value: "hello" } });
     const form = input.closest("form");
@@ -416,7 +436,7 @@ describe("Chat conversationId threading", () => {
     mockState.messages = [];
     mockState.status = "ready";
 
-    render(<Chat />);
+    render(<Chat {...CHAT_PROPS} />);
     const chipButton = screen.getByRole("button", {
       name: "What's Thet's tech stack?",
     });
@@ -480,7 +500,7 @@ describe("ThinkingTrace (persisted How I answered)", () => {
       },
     ];
 
-    render(<Chat />);
+    render(<Chat {...CHAT_PROPS} />);
 
     const summary = screen.getByText("How I answered");
     expect(summary).toBeInTheDocument();
@@ -503,7 +523,7 @@ describe("ThinkingTrace (persisted How I answered)", () => {
       },
     ];
 
-    render(<Chat />);
+    render(<Chat {...CHAT_PROPS} />);
 
     expect(screen.getByText("How I answered")).toBeInTheDocument();
   });
@@ -529,7 +549,7 @@ describe("ThinkingTrace (persisted How I answered)", () => {
       },
     ];
 
-    render(<Chat />);
+    render(<Chat {...CHAT_PROPS} />);
 
     // metadata arrived early, but the persisted blocks must not coexist with the
     // live checklist — they appear only once answer text starts streaming.
@@ -547,7 +567,7 @@ describe("ThinkingTrace (persisted How I answered)", () => {
       },
     ];
 
-    render(<Chat />);
+    render(<Chat {...CHAT_PROPS} />);
 
     expect(screen.queryByText("How I answered")).not.toBeInTheDocument();
   });
