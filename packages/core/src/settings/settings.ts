@@ -65,18 +65,49 @@ export function defaultSettings(): SettingsValue {
   };
 }
 
+function toSettingsVersion(updatedAt: Date | string): string {
+  return updatedAt instanceof Date
+    ? updatedAt.toISOString()
+    : new Date(updatedAt).toISOString();
+}
+
+async function readSettingsRows(db: Db) {
+  return db.select().from(settings).where(eq(settings.id, 1));
+}
+
+export async function getSettingsVersion(db: Db): Promise<string | null> {
+  const rows = await db
+    .select({ updatedAt: settings.updatedAt })
+    .from(settings)
+    .where(eq(settings.id, 1))
+    .limit(1);
+  return rows[0] ? toSettingsVersion(rows[0].updatedAt) : null;
+}
+
 export async function getSettings(db: Db): Promise<SettingsValue> {
-  const cached = configCache.get();
-  if (cached) return cached;
-  const rows = await db.select().from(settings).where(eq(settings.id, 1));
+  const cached = configCache.getEntry();
+  if (cached) {
+    const currentVersion = await getSettingsVersion(db).catch(() => null);
+    if (currentVersion === cached.version) {
+      return cached.value;
+    }
+  }
+
+  const rows = await readSettingsRows(db);
   let value: SettingsValue;
+  let version: string;
+
   if (rows[0]) {
     value = SettingsSchema.parse({ agents: rows[0].agents, shared: rows[0].shared, rag: rows[0].rag, public: rows[0].public });
+    version = toSettingsVersion(rows[0].updatedAt);
   } else {
     value = defaultSettings();
-    await db.insert(settings).values({ id: 1, ...value, updatedAt: new Date() }).execute();
+    const now = new Date();
+    await db.insert(settings).values({ id: 1, ...value, updatedAt: now }).execute();
+    version = now.toISOString();
   }
-  configCache.set(value);
+
+  configCache.set(value, version);
   return value;
 }
 
