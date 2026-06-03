@@ -143,4 +143,24 @@ describe("version-aware settings cache", () => {
     await expect(getSettingsVersion(db)).resolves.toBe("2026-06-03T07:08:09.002Z");
     expect(firstVersion).toBe("2026-06-03T07:08:09.001Z");
   });
+
+  it("updateSettings advances the version for overlapping same-clock writes", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-03T08:09:10.000Z"));
+    const { db } = await makeTestDb();
+    configCache.clear();
+
+    const current = await getSettings(db);
+    const first = structuredClone(current);
+    first.public.greeting = "Concurrent save one";
+    const second = structuredClone(current);
+    second.public.greeting = "Concurrent save two";
+
+    await Promise.all([
+      updateSettings(db, first, "127.0.0.1"),
+      updateSettings(db, second, "127.0.0.1"),
+    ]);
+
+    await expect(getSettingsVersion(db)).resolves.toBe("2026-06-03T08:09:10.002Z");
+  });
 });
