@@ -55,7 +55,7 @@ export function ConfigClient() {
         public: { ...values.public, suggestions: values.public.suggestions.map((s) => s.trim()).filter(Boolean) },
       };
       const res = await fetch("/api/admin/settings", { method: "PUT", body: JSON.stringify(payload) });
-      setMsg(res.ok ? "Saved. Live within ~30 min." : "Invalid — fix the highlighted fields.");
+      setMsg(res.ok ? "Saved. Chat updates within seconds." : "Invalid — fix the highlighted fields.");
     } catch {
       setMsg("Save failed — check your connection and retry.");
     }

@@ -71,12 +71,13 @@ describe("ConfigClient", () => {
     expect(screen.getByText("Cluster radius")).toBeInTheDocument();
   });
 
-  it("shows the bounded-propagation toast on save", async () => {
+  it("shows the immediate-propagation toast on save", async () => {
     render(<ConfigClient />);
     await screen.findByText("Router model");
     fireEvent.click(screen.getByRole("button", { name: /^Save$/ }));
     await waitFor(() =>
-      expect(screen.getByText(/Live within ~30 min/i)).toBeInTheDocument(),
+      expect(screen.getByText(/Saved\. Chat updates within seconds\./i)).toBeInTheDocument(),
     );
+    expect(screen.queryByText(/Live within ~30 min/i)).not.toBeInTheDocument();
   });
 });
