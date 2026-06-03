@@ -3,6 +3,8 @@ import { ChatLayout } from "@/components/chat/chat-layout";
 import { initDb } from "@meclaw/core/db";
 import { defaultSettings, getSettings, getSettingsVersion } from "@meclaw/core/settings";
 
+export const dynamic = "force-dynamic";
+
 // Read config server-side so the public page reflects /admin edits with no
 // client fetch and no flash. The version prop lets an already-open tab refresh
 // itself after another process updates the singleton settings row.
