@@ -44,3 +44,21 @@ def test_resolve_ignores_unknown_agents_and_falls_back_to_env(monkeypatch):
     assert cfg.top_k == 5
     assert cfg.persona == ""
     assert cfg.prompts == {}
+
+
+def test_resolve_config_reads_score_floor_and_cluster_radius():
+    from app.runtime_config import resolve_config
+
+    cfg = resolve_config({"rag": {"topK": 6, "scoreFloor": 0.5, "clusterRadius": 0.2}})
+    assert cfg.score_floor == 0.5
+    assert cfg.cluster_radius == 0.2
+
+
+def test_resolve_config_defaults_gap_tunables(monkeypatch):
+    from app.runtime_config import resolve_config
+
+    monkeypatch.delenv("RAG_SCORE_FLOOR", raising=False)
+    monkeypatch.delenv("CLUSTER_RADIUS", raising=False)
+    cfg = resolve_config({})
+    assert cfg.score_floor == 0.35
+    assert cfg.cluster_radius == 0.15

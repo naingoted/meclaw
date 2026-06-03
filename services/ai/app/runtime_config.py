@@ -21,6 +21,8 @@ class RuntimeConfig:
     top_k: int
     persona: str = ""
     prompts: dict = field(default_factory=dict)
+    score_floor: float = 0.35
+    cluster_radius: float = 0.15
 
 
 def resolve_config(payload: dict | None) -> RuntimeConfig:
@@ -73,6 +75,15 @@ def resolve_config(payload: dict | None) -> RuntimeConfig:
         if isinstance(req_top_k, int):
             top_k = req_top_k
 
+    # Resolve gap tunables: request > env > default.
+    score_floor = float(os.getenv("RAG_SCORE_FLOOR", "0.35"))
+    if isinstance(rag, dict) and isinstance(rag.get("scoreFloor"), (int, float)):
+        score_floor = float(rag["scoreFloor"])
+
+    cluster_radius = float(os.getenv("CLUSTER_RADIUS", "0.15"))
+    if isinstance(rag, dict) and isinstance(rag.get("clusterRadius"), (int, float)):
+        cluster_radius = float(rag["clusterRadius"])
+
     # Resolve persona: request > empty default
     persona = ""
     shared = payload.get("shared", {})
@@ -98,4 +109,6 @@ def resolve_config(payload: dict | None) -> RuntimeConfig:
         top_k=top_k,
         persona=persona,
         prompts=prompts,
+        score_floor=score_floor,
+        cluster_radius=cluster_radius,
     )

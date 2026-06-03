@@ -3,7 +3,8 @@ retriever, and tools. Imported lazily so tests can stub get_runner."""
 
 from functools import lru_cache, partial
 
-from app.config import DRAFT_MODEL, TRIAGE_MODEL
+from app import gaps
+from app.config import CLUSTER_RADIUS, DRAFT_MODEL, RAG_SCORE_FLOOR, TRIAGE_MODEL
 from app.corpus import corpus_version
 from app.graph.nodes import default_draft_stream_fn, default_triage_fn
 from app.provider import get_chat_model
@@ -27,6 +28,9 @@ def build_production_runner():
         schedule_fn=schedule_call,
         contact_fn=get_contact_info,
         corpus_version_fn=corpus_version,
+        score_floor=RAG_SCORE_FLOOR,
+        embed_fn=retriever.embed,
+        assign_cluster_fn=lambda emb, q: gaps.assign_cluster(emb, q, radius=CLUSTER_RADIUS),
     )
 
 
@@ -38,7 +42,8 @@ def build_runner(cfg: RuntimeConfig):
     lru_cache'd by model name, so per-request rebuilds are cheap.
 
     Args:
-        cfg: RuntimeConfig with triage_model, draft_model, top_k, persona, prompts.
+        cfg: RuntimeConfig with triage_model, draft_model, top_k, persona, prompts,
+             score_floor, cluster_radius.
 
     Returns:
         A partial(run_stream, ...) callable that accepts (messages: list[dict]).
@@ -58,4 +63,7 @@ def build_runner(cfg: RuntimeConfig):
         scheduler_system=cfg.prompts.get("scheduler"),
         contact_system=cfg.prompts.get("contact"),
         persona_prefix=cfg.persona,
+        score_floor=cfg.score_floor,
+        embed_fn=retriever.embed,
+        assign_cluster_fn=lambda emb, q: gaps.assign_cluster(emb, q, radius=cfg.cluster_radius),
     )
