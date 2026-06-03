@@ -42,13 +42,16 @@ export async function initDb(databaseUrl?: string) {
  *
  * Accepts an optional stable conversationId (default = randomUUID()) to enable
  * multi-turn sessions: calling with the same id across turns upserts instead of
- * failing on re-insert.
+ * failing on re-insert. Accepts an optional assistantMessageId (default =
+ * randomUUID()) for the assistant row id, enabling caller-supplied idempotency
+ * keys (e.g., the chat flush can reuse the same id for miss logging).
  */
 export async function saveTurn(
   db: Awaited<ReturnType<typeof initDb>>,
   userMessages: PersistentMessage[],
   assistantMessage: PersistentMessage,
   conversationId: string = randomUUID(),
+  assistantMessageId: string = randomUUID(),
 ): Promise<string> {
   const now = new Date();
 
@@ -74,7 +77,7 @@ export async function saveTurn(
     }
 
     await tx.insert(schema.messages).values({
-      id: randomUUID(),
+      id: assistantMessageId,
       conversationId,
       role: assistantMessage.role,
       content: assistantMessage.content,
@@ -131,4 +134,39 @@ export async function saveLead(
     trigger: lead.trigger,
     createdAt: new Date(),
   });
+}
+
+/** A captured RAG miss (one missed message). */
+export type MissInput = {
+  messageId: string;
+  conversationId: string;
+  clusterId: string;
+  query: string;
+  reason: "floor" | "fallback" | "clarify";
+  topScore: number | null;
+};
+
+/**
+ * Persist a missed message. Idempotent on messageId (unique index): a flush
+ * retry with the same assistant message id is a no-op. Best-effort caller
+ * contract (the chat route swallows failures).
+ */
+export async function saveMiss(
+  db: Awaited<ReturnType<typeof initDb>>,
+  miss: MissInput,
+): Promise<void> {
+  await db
+    .insert(schema.chatMisses)
+    .values({
+      id: randomUUID(),
+      messageId: miss.messageId,
+      conversationId: miss.conversationId,
+      clusterId: miss.clusterId,
+      query: miss.query,
+      reason: miss.reason,
+      topScore: miss.topScore,
+      createdAt: new Date(),
+    })
+    .onConflictDoNothing({ target: schema.chatMisses.messageId })
+    .execute();
 }

@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { saveTurn, saveLead, type PersistentMessage } from "./index";
+import {
+  saveTurn,
+  saveLead,
+  saveMiss,
+  type PersistentMessage,
+} from "./index";
+import { makeTestDb } from "./test-db";
+import { messages, chatMisses, gapClusters } from "./schema";
+import { eq } from "drizzle-orm";
 
 /**
  * saveTurn persistence — mocked tests (no DB needed).
@@ -175,5 +183,65 @@ describe("saveLead (mocked)", () => {
       trigger: "provided",
     });
     expect(inserts).toHaveLength(0);
+  });
+});
+
+describe("saveMiss + assistant messageId", () => {
+  it("saveTurn uses the provided assistantMessageId for the assistant row", async () => {
+    const { db } = await makeTestDb();
+
+    await saveTurn(
+      db as never,
+      [{ role: "user", content: "q" }],
+      { role: "assistant", content: "a" },
+      "conv-1",
+      "assistant-msg-1",
+    );
+    const rows = await db
+      .select()
+      .from(messages)
+      .where(eq(messages.role, "assistant"));
+    expect(rows[0].id).toBe("assistant-msg-1");
+  });
+
+  it("saveMiss inserts a row and is idempotent on duplicate messageId", async () => {
+    const { db } = await makeTestDb();
+
+    const now = new Date();
+    const clusterId = "55555555-5555-4555-8555-555555555555";
+    await db
+      .insert(gapClusters)
+      .values({
+        id: clusterId,
+        centroid: Array(768).fill(0),
+        count: 1,
+        status: "new",
+        exemplarQuery: "q",
+        createdAt: now,
+        updatedAt: now,
+      })
+      .execute();
+
+    const input = {
+      messageId: "assistant-msg-1",
+      conversationId: "conv-1",
+      clusterId,
+      query: "q",
+      reason: "floor" as const,
+      topScore: 0.2,
+    };
+    await saveMiss(
+      db as never,
+      input,
+    );
+    await saveMiss(
+      db as never,
+      input,
+    ); // duplicate — must not insert a second row
+
+    const rows = await db.select().from(chatMisses);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].clusterId).toBe(clusterId);
+    expect(rows[0].reason).toBe("floor");
   });
 });
