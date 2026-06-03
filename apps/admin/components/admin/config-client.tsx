@@ -4,6 +4,7 @@ import * as React from "react";
 import { useForm, Controller, type Path } from "react-hook-form";
 import type { SettingsValue } from "@meclaw/core/settings";
 import { Field } from "./field-label";
+import { useUrlState } from "@/lib/use-url-state";
 
 // Only two real models exist; scheduler/contact reuse the draft model, so only
 // these two agents expose an editable model field.
@@ -39,7 +40,7 @@ export function ConfigClient() {
   const [agentKeys, setAgentKeys] = React.useState<(keyof SettingsValue["agents"])[]>([]);
   const [loaded, setLoaded] = React.useState(false);
   const [msg, setMsg] = React.useState("");
-  const [tab, setTab] = React.useState("agents");
+  const [tab, setTab] = useUrlState("tab", "agents", ["agents", "rag", "public"]);
   const { register, handleSubmit, control, reset, setError, clearErrors, formState: { isSubmitting, errors } } = useForm<SettingsValue>();
 
   React.useEffect(() => {
