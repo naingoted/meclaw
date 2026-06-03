@@ -562,3 +562,65 @@ def test_clustering_failure_emits_null_miss_and_still_streams():
     )
     assert '"miss":null' in body          # clustering failed → no miss recorded
     assert body.rstrip().endswith("[DONE]")
+
+
+def test_grounded_answer_admitting_missing_fact_records_answer_gap():
+    captured = {"assigned": None}
+
+    def assign(_embedding, query):
+        captured["assigned"] = query
+        return "cluster-ag"
+
+    def retrieve(_query):
+        # retrieval passes the floor — a nearby chunk scores high…
+        return RetrievalResult(
+            chunks=[RetrievedChunk(id="d#0", source="about.md", title="About", text="Thet likes coffee.", ordinal=0, score=0.7)],
+            sources=[{"source": "about.md", "title": "About", "score": 0.7}],
+        )
+
+    def draft_stream(system, messages, context):
+        # …but the model admits the actual fact isn't present.
+        yield "The provided context "
+        yield "does not explicitly state his favorite language."
+
+    body = _collect(
+        run_stream(
+            [{"role": "user", "content": "fav language?"}],
+            triage_fn=_triage("tech", 0.9),
+            retriever_retrieve=retrieve,
+            draft_stream_fn=draft_stream,
+            schedule_fn=lambda: {},
+            contact_fn=lambda: {},
+            score_floor=0.35,
+            embed_fn=_embed_stub,
+            assign_cluster_fn=assign,
+        )
+    )
+
+    assert '"reason":"answer_gap"' in body
+    assert '"clusterId":"cluster-ag"' in body
+    assert '"topScore":0.7' in body
+    assert captured["assigned"] == "fav language?"
+    # the answer still streamed (we don't retract)
+    assert '"does not explicitly state' in body
+    assert body.rstrip().endswith("[DONE]")
+
+
+def test_tool_route_does_not_run_answer_gap_detection():
+    # contact route returns a missing-fact-looking draft, but tool routes are
+    # tool-owned → no answer_gap miss.
+    body = _collect(
+        run_stream(
+            [{"role": "user", "content": "his number?"}],
+            triage_fn=_triage("contact", 0.9),
+            retriever_retrieve=lambda q: RetrievalResult([], []),
+            draft_stream_fn=lambda s, m, c: iter(["I don't know his phone number."]),
+            schedule_fn=lambda: {},
+            contact_fn=lambda: {"email": "a@b.c"},
+            score_floor=0.35,
+            embed_fn=_embed_stub,
+            assign_cluster_fn=_assign_stub("should-not-be-used"),
+        )
+    )
+    assert '"miss":null' in body
+    assert '"reason":"answer_gap"' not in body

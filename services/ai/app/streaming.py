@@ -20,6 +20,7 @@ import logging
 from typing import Callable, Iterator
 
 from app import stream as sse
+from app.answer_gap import is_missing_fact_answer
 from app.config import TRIAGE_CONFIDENCE_THRESHOLD
 from app.graph.nodes import (
     CONTACT_PERSONA,
@@ -138,6 +139,9 @@ def run_stream(
     # Don't nag for contact again once it's been captured this conversation.
     suppress = has_prior_confirm(messages)
 
+    # Non-None only on a grounded non-tool route → eligible for answer-gap detection.
+    answer_gap_score: float | None = None
+
     def fallback_text() -> str:
         if suppress:
             return NEUTRAL_FALLBACK
@@ -198,6 +202,7 @@ def run_stream(
         context = "\n\n".join(chunk.text for chunk in retrieval.chunks)
         system = knowledge_system or PERSONAS.get(intent, PERSONAS["general"])
         sources = retrieval.sources
+        answer_gap_score = top_score
 
     # Apply persona prefix if configured
     if persona_prefix:
@@ -214,9 +219,16 @@ def run_stream(
     }
     yield sse.sse_start(metadata)
     yield sse.sse_text_start(_TEXT_ID)
+    draft_text = ""
     for delta in draft_stream_fn(system, messages, context):
         if delta:
+            draft_text += delta
             yield sse.sse_text_delta(_TEXT_ID, delta)
+    # Answer-level missing-fact signal: retrieval passed the floor but the draft
+    # admits the fact isn't actually present. Non-tool grounded routes only; we
+    # don't retract the streamed answer, just record the gap in terminal metadata.
+    if answer_gap_score is not None and is_missing_fact_answer(draft_text):
+        metadata["miss"] = detect_miss("answer_gap", answer_gap_score)
     # Connect-intent answers invite the visitor to leave their own contact too.
     if intent in ("scheduler", "contact") and not suppress:
         yield sse.sse_text_delta(_TEXT_ID, "\n\n" + CONNECT_OFFER)
