@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, ListChecks, SlidersHorizontal, LayoutDashboard, ScrollText, LogOut } from "lucide-react";
+import { FileText, ListChecks, SlidersHorizontal, LayoutDashboard, ScrollText, LogOut, Inbox } from "lucide-react";
 import { Button, ThemeToggle, cn } from "@meclaw/ui";
 import { signOutAction } from "@/app/admin/actions";
 
@@ -9,6 +9,7 @@ const GROUPS = [
   { label: "Knowledge", items: [
     { label: "Documents", href: "/admin/documents", Icon: FileText },
     { label: "Ingestion & Jobs", href: "/admin/jobs", Icon: ListChecks },
+    { label: "Gaps", href: "/admin/gaps", Icon: Inbox },
   ] },
   { label: "Configuration", items: [
     { label: "Config", href: "/admin/config", Icon: SlidersHorizontal },
