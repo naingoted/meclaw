@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 const POLL_MS = 3000;
 
@@ -25,9 +25,9 @@ export function ConfigRefreshPoller({
   status: ConfigRefreshStatus;
 }) {
   const router = useRouter();
-  const [deferred, setDeferred] = useState(false);
   const latestVersion = useRef(initialConfigVersion);
   const statusRef = useRef(status);
+  const deferredRef = useRef(false);
   const refreshingRef = useRef(false);
   const refreshTimeoutRef = useRef<number | null>(null);
 
@@ -45,7 +45,7 @@ export function ConfigRefreshPoller({
 
   useEffect(() => {
     latestVersion.current = initialConfigVersion;
-    setDeferred(false);
+    deferredRef.current = false;
     refreshingRef.current = false;
     if (refreshTimeoutRef.current !== null) {
       window.clearTimeout(refreshTimeoutRef.current);
@@ -55,11 +55,11 @@ export function ConfigRefreshPoller({
 
   useEffect(() => {
     statusRef.current = status;
-    if (deferred && !shouldDeferConfigRefresh(status)) {
-      setDeferred(false);
+    if (deferredRef.current && !shouldDeferConfigRefresh(status)) {
+      deferredRef.current = false;
       refreshOnce();
     }
-  }, [deferred, refreshOnce, status]);
+  }, [refreshOnce, status]);
 
   useEffect(() => {
     let cancelled = false;
@@ -74,7 +74,7 @@ export function ConfigRefreshPoller({
         if (!version || version === latestVersion.current) return;
 
         if (shouldDeferConfigRefresh(statusRef.current)) {
-          setDeferred(true);
+          deferredRef.current = true;
           return;
         }
 
