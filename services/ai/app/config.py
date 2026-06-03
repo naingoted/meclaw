@@ -20,3 +20,10 @@ RAG_TOP_K = int(os.getenv("RAG_TOP_K", "4"))
 
 # Triage confidence threshold below which we ask a clarifying question.
 TRIAGE_CONFIDENCE_THRESHOLD = float(os.getenv("TRIAGE_CONFIDENCE_THRESHOLD", "0.5"))
+
+# RAG gap feedback loop. RAG_SCORE_FLOOR: a retrieval is grounded iff its top
+# cosine score >= this; below floor → miss (reason='floor'). CLUSTER_RADIUS:
+# max cosine distance for a miss to fold into an existing gap cluster.
+# Conservative defaults — calibrate against real nomic-embed-text scores once live.
+RAG_SCORE_FLOOR = float(os.getenv("RAG_SCORE_FLOOR", "0.35"))
+CLUSTER_RADIUS = float(os.getenv("CLUSTER_RADIUS", "0.15"))

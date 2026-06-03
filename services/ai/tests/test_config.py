@@ -25,3 +25,24 @@ def test_model_env_overrides(monkeypatch):
         monkeypatch.delenv("TRIAGE_MODEL", raising=False)
         monkeypatch.delenv("DRAFT_MODEL", raising=False)
         importlib.reload(config)
+
+
+def test_gap_defaults(monkeypatch):
+    monkeypatch.delenv("RAG_SCORE_FLOOR", raising=False)
+    monkeypatch.delenv("CLUSTER_RADIUS", raising=False)
+    importlib.reload(config)
+    assert config.RAG_SCORE_FLOOR == 0.35
+    assert config.CLUSTER_RADIUS == 0.15
+
+
+def test_gap_env_overrides(monkeypatch):
+    monkeypatch.setenv("RAG_SCORE_FLOOR", "0.5")
+    monkeypatch.setenv("CLUSTER_RADIUS", "0.2")
+    importlib.reload(config)
+    try:
+        assert config.RAG_SCORE_FLOOR == 0.5
+        assert config.CLUSTER_RADIUS == 0.2
+    finally:
+        monkeypatch.delenv("RAG_SCORE_FLOOR", raising=False)
+        monkeypatch.delenv("CLUSTER_RADIUS", raising=False)
+        importlib.reload(config)
