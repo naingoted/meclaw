@@ -4,7 +4,7 @@ import {
   createUIMessageStreamResponse,
 } from "ai";
 import { randomUUID } from "node:crypto";
-import { initDb, saveTurn, saveLead, type PersistentMessage, type LeadInput } from "@meclaw/core/db";
+import { initDb, saveTurn, saveLead, saveMiss, type PersistentMessage, type LeadInput, type MissInput } from "@meclaw/core/db";
 import { notifyLead } from "@/lib/notify";
 import { chatRateLimiter } from "@/lib/rate-limit";
 import { detectInjection } from "@/lib/ai/guardrails";
@@ -62,6 +62,7 @@ function teeForPersistence(
   let assistantText = "";
   let buffered = "";
   let capturedLead: Omit<LeadInput, "conversationId"> | null = null;
+  let capturedMiss: Omit<MissInput, "messageId" | "conversationId" | "query"> | null = null;
 
   // Shared logic: parse a single SSE line and accumulate text-delta content
   const accumulateDelta = (line: string) => {
@@ -73,7 +74,10 @@ function teeForPersistence(
       const part = JSON.parse(payload) as {
         type?: string;
         delta?: string;
-        messageMetadata?: { lead?: Omit<LeadInput, "conversationId"> };
+        messageMetadata?: {
+          lead?: Omit<LeadInput, "conversationId">;
+          miss?: { reason: "floor" | "fallback" | "clarify"; topScore: number | null; clusterId: string };
+        };
       };
       if (part.type === "text-delta" && typeof part.delta === "string") {
         assistantText += part.delta;
@@ -81,6 +85,10 @@ function teeForPersistence(
       const lead = part.messageMetadata?.lead;
       if (lead && (lead.email || lead.phone)) {
         capturedLead = lead;
+      }
+      const miss = part.messageMetadata?.miss;
+      if (miss && miss.clusterId) {
+        capturedMiss = { reason: miss.reason, topScore: miss.topScore, clusterId: miss.clusterId };
       }
     } catch {
       // ignore non-JSON keep-alive lines
@@ -116,11 +124,20 @@ function teeForPersistence(
           role: "assistant",
           content: assistantText,
         };
+        const assistantMessageId = randomUUID();
         const db = await getDb();
-        await saveTurn(db, userMessages, assistantMessage, conversationId);
+        await saveTurn(db, userMessages, assistantMessage, conversationId, assistantMessageId);
         if (capturedLead) {
           await saveLead(db, { conversationId, ...capturedLead });
           await notifyLead(capturedLead);
+        }
+        if (capturedMiss) {
+          await saveMiss(db, {
+            messageId: assistantMessageId,
+            conversationId,
+            query: userMessages.at(-1)?.content ?? "",
+            ...capturedMiss,
+          });
         }
       } catch (error) {
         // Best-effort: persistence failures (DB down, bad DATABASE_URL, etc.)

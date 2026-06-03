@@ -6,6 +6,7 @@ vi.mock("@meclaw/core/db", () => ({
   initDb: vi.fn(async () => ({})),
   saveTurn: vi.fn(async () => {}),
   saveLead: mockSaveLead,
+  saveMiss: vi.fn(async () => {}),
 }));
 
 vi.mock("@/lib/notify", () => ({
@@ -376,6 +377,89 @@ describe("POST /api/chat — Guard Tests", () => {
         trigger: "edge_case",
       });
       expect(notifyLead).toHaveBeenCalledTimes(1);
+    });
+
+    it("persists a chat_miss emitted in stream metadata, keyed to the assistant message", async () => {
+      const saveTurn = vi.fn().mockResolvedValue(undefined);
+      const saveMiss = vi.fn().mockResolvedValue(undefined);
+      vi.doMock("@meclaw/core/db", () => ({
+        initDb: vi.fn().mockResolvedValue({}),
+        saveTurn,
+        saveMiss,
+        saveLead: vi.fn().mockResolvedValue(undefined),
+      }));
+      vi.resetModules();
+      const { POST: PostWithMock } = await import("./route");
+
+      const missPart =
+        `data: ${JSON.stringify({
+          type: "finish",
+          messageMetadata: { miss: { reason: "floor", topScore: 0.21, clusterId: "cluster-9" } },
+        })}\n\n`;
+      const upstream = new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode(missPart));
+            controller.enqueue(new TextEncoder().encode("data: [DONE]\n\n"));
+            controller.close();
+          },
+        }),
+        { status: 200, headers: { "content-type": "text/event-stream" } },
+      );
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(upstream));
+
+      const req = new Request("http://localhost/api/chat", {
+        method: "POST",
+        body: JSON.stringify({
+          conversationId: "sess-9",
+          messages: [{ id: "1", role: "user", content: "obscure question" }],
+        }),
+      });
+      const res = await PostWithMock(req);
+      await res.text(); // drain so the tee flush runs
+
+      // The assistant message id used by saveTurn (5th arg) must equal the miss messageId.
+      expect(saveTurn).toHaveBeenCalledTimes(1);
+      const assistantMessageId = saveTurn.mock.calls[0][4];
+      expect(typeof assistantMessageId).toBe("string");
+
+      expect(saveMiss).toHaveBeenCalledTimes(1);
+      expect(saveMiss.mock.calls[0][1]).toEqual({
+        messageId: assistantMessageId,
+        conversationId: "sess-9",
+        clusterId: "cluster-9",
+        query: "obscure question",
+        reason: "floor",
+        topScore: 0.21,
+      });
+    });
+
+    it("does NOT call saveMiss when metadata carries no miss", async () => {
+      const saveTurn = vi.fn().mockResolvedValue(undefined);
+      const saveMiss = vi.fn().mockResolvedValue(undefined);
+      vi.doMock("@meclaw/core/db", () => ({
+        initDb: vi.fn().mockResolvedValue({}),
+        saveTurn,
+        saveMiss,
+        saveLead: vi.fn().mockResolvedValue(undefined),
+      }));
+      vi.resetModules();
+      const { POST: PostWithMock } = await import("./route");
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(
+          new Response('data: {"type":"text-delta","id":"0","delta":"hi"}\n\ndata: [DONE]\n\n', {
+            status: 200, headers: { "x-vercel-ai-ui-message-stream": "v1" },
+          }),
+        ),
+      );
+      const req = new Request("http://localhost/api/chat", {
+        method: "POST",
+        body: JSON.stringify({ messages: [{ role: "user", parts: [{ type: "text", text: "hi" }] }] }),
+      });
+      const res = await PostWithMock(req);
+      await res.text();
+      expect(saveMiss).not.toHaveBeenCalled();
     });
   });
 });
