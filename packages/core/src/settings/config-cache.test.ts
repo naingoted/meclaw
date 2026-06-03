@@ -6,7 +6,7 @@ const sample = defaultSettings();
 
 describe("ConfigCache TTL", () => {
   it("returns the cached value before expiry", () => {
-    let t = 1000;
+    const t = 1000;
     const cache = new ConfigCache(5000, () => t);
     cache.set(sample);
     expect(cache.get()).toEqual(sample);
