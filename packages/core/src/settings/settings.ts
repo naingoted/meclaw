@@ -22,6 +22,10 @@ export const SettingsSchema = z.object({
     topK: z.number().int().min(1).max(20),
     scoreThreshold: z.number().min(0).max(1),
     tinyCorpusThreshold: z.number().int().min(0),
+    /** Relevance floor: retrieval is grounded iff top cosine score >= this. */
+    scoreFloor: z.number().min(0).max(1).default(0.35),
+    /** Max cosine distance for a miss to fold into an existing gap cluster. */
+    clusterRadius: z.number().min(0).max(2).default(0.15),
     retriever: z.string().optional(),     // reserved seam: Advanced RAG; default 'vector'
   }),
   public: z.object({
@@ -46,7 +50,7 @@ export function defaultSettings(): SettingsValue {
       contact:   { model: draft,  thinking: false, prompt: "The visitor wants Thet's contact details. Use the contact info in the context." },
     },
     shared: { persona: "" },
-    rag: { topK: Number(process.env.RAG_TOP_K ?? 4), scoreThreshold: 0, tinyCorpusThreshold: 8000 },
+    rag: { topK: Number(process.env.RAG_TOP_K ?? 4), scoreThreshold: 0, tinyCorpusThreshold: 8000, scoreFloor: 0.35, clusterRadius: 0.15 },
     public: {
       greeting: "Hi! I'm meclaw, Thet's personal bot.",
       suggestions: ["What's Thet's tech stack?", "Walk me through a recent project", "How do I get in touch?"],
