@@ -49,4 +49,26 @@ describe("ingestion runner", () => {
     const j = (await db.select().from(ingestionJobs))[0];
     expect(j.status).toBe("failed");
   });
+
+  it("passes documents.origin through to ingestFn", async () => {
+    const { db } = await makeTestDb();
+    const doc = await createDocument(db, { title: "Q?", body: "A.", origin: "gap" }, "ip");
+    await enqueueSingle(db, doc.id, "ip");
+    let seenOrigin: string | undefined;
+    await runNextJob(db, {
+      ingestFn: async (d) => { seenOrigin = d.origin; return { chunks: 1 }; },
+    });
+    expect(seenOrigin).toBe("gap");
+  });
+
+  it("defaults origin to 'manual' for documents created without one", async () => {
+    const { db } = await makeTestDb();
+    const doc = await createDocument(db, { title: "M", body: "body" }, "ip");
+    await enqueueSingle(db, doc.id, "ip");
+    let seenOrigin: string | undefined;
+    await runNextJob(db, {
+      ingestFn: async (d) => { seenOrigin = d.origin; return { chunks: 1 }; },
+    });
+    expect(seenOrigin).toBe("manual");
+  });
 });

@@ -6,7 +6,7 @@ import { ingesterFor, type IngestDocumentResult } from "@meclaw/rag";
 import { listDocuments, isDirty } from "./documents";
 import { logAudit } from "@meclaw/core/settings";
 
-type IngestFn = (doc: { id: string; title: string; body: string; kind: string }) => Promise<IngestDocumentResult>;
+type IngestFn = (doc: { id: string; title: string; body: string; kind: string; origin: string }) => Promise<IngestDocumentResult>;
 
 export async function enqueueSingle(db: Db, documentId: string, actorIp: string) {
   const row = { id: randomUUID(), documentId, kind: "single" as const, status: "queued" as const, error: null, chunksWritten: null, createdAt: new Date(), startedAt: null, finishedAt: null };
@@ -39,7 +39,7 @@ export async function runNextJob(db: Db, opts: { ingestFn?: IngestFn } = {}): Pr
   const doc = (await db.select().from(documents).where(eq(documents.id, job.documentId!)))[0];
   try {
     if (!doc) throw new Error("document not found");
-    const result = await ingestFn({ id: doc.id, title: doc.title, body: doc.body, kind: doc.kind });
+    const result = await ingestFn({ id: doc.id, title: doc.title, body: doc.body, kind: doc.kind, origin: doc.origin });
     const now = new Date();
     await db.update(ingestionJobs).set({ status: "succeeded", chunksWritten: result.chunks, finishedAt: now }).where(eq(ingestionJobs.id, job.id)).execute();
     await db.update(documents).set({ status: "ready", lastIngestedAt: now }).where(eq(documents.id, doc.id)).execute();

@@ -2,7 +2,7 @@ import { chunkKnowledgeDocs } from "./chunk";
 import { embedderFromEnv, storeFromEnv } from "./config";
 import type { EmbeddingClient, VectorStoreClient, RagChunk } from "./types";
 
-export type IngestDocumentInput = { id: string; title: string; body: string };
+export type IngestDocumentInput = { id: string; title: string; body: string; origin: string };
 export type IngestDocumentOptions = {
   store?: VectorStoreClient;
   embedder?: EmbeddingClient;
@@ -31,7 +31,13 @@ export async function ingestDocument(
   // Reuse the existing chunker; the `document:<id>` slug becomes chunk.source
   // (chunk.ts sets source = slug), namespacing this document's chunks.
   const source = `document:${doc.id}`;
-  const knowledgeDoc = { slug: source, title: doc.title, body: doc.body };
+  // Gap documents store the answer in the body and the question in the title.
+  // Manual/seed documents lead their body with an H1 by convention, so the title
+  // is already embedded. Prepend the title as an H1 for gap docs to bring them to
+  // parity — the question lands in chunk[0].text and is embedded, so a matching
+  // query ranks the doc within RAG_TOP_K. Done in-memory; documents.body is untouched.
+  const embedBody = doc.origin === "gap" ? `# ${doc.title}\n\n${doc.body}` : doc.body;
+  const knowledgeDoc = { slug: source, title: doc.title, body: embedBody };
   const chunks = chunkKnowledgeDocs([knowledgeDoc], { chunkSize, overlap });
 
   await store.ensureCollection();
