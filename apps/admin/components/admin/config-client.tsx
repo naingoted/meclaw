@@ -57,8 +57,8 @@ export function ConfigClient() {
               <Input value={cfg.agents[key].model} onChange={(e) => set(["agents", key, "model"], e.target.value)} />
               <Label>Prompt</Label>
               <Textarea value={cfg.agents[key].prompt} onChange={(e) => set(["agents", key, "prompt"], e.target.value)} />
-              <label className="mt-1 flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={cfg.agents[key].thinking} onChange={(e) => set(["agents", key, "thinking"], e.target.checked)} />
+              <label className="mt-1 flex cursor-pointer items-center gap-2 text-sm">
+                <input type="checkbox" className="cursor-pointer" checked={cfg.agents[key].thinking} onChange={(e) => set(["agents", key, "thinking"], e.target.checked)} />
                 thinking
               </label>
             </div>

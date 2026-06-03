@@ -4,23 +4,51 @@ import { Trash2 } from "lucide-react";
 import * as React from "react";
 
 type Doc = { id: string; title: string; body?: string; category?: string | null; status: string; updatedAt: string; lastIngestedAt: string | null };
+type Job = { id: string; status: string; error: string | null; documentId: string | null; createdAt?: string | null };
 const isDirty = (d: Doc) => !d.lastIngestedAt || new Date(d.updatedAt) > new Date(d.lastIngestedAt);
+const isActive = (j?: Job) => j?.status === "queued" || j?.status === "running";
 
 export function DocumentsClient() {
   const [docs, setDocs] = React.useState<Doc[] | null>(null);
+  const [jobs, setJobs] = React.useState<Job[]>([]);
   const [editing, setEditing] = React.useState<Doc | null>(null);
   const [busyId, setBusyId] = React.useState<string | null>(null);
   const [confirmId, setConfirmId] = React.useState<string | null>(null);
   const [openingId, setOpeningId] = React.useState<string | null>(null);
+  const [pendingId, setPendingId] = React.useState<string | null>(null);
+
+  const load = React.useCallback(async () => setDocs(await (await fetch("/api/admin/documents")).json()), []);
+  const loadJobs = React.useCallback(async () => setJobs(await (await fetch("/api/admin/jobs")).json()), []);
+  React.useEffect(() => { void (async () => { await load(); await loadJobs(); })(); }, [load, loadJobs]);
+
+  // Latest job per document. listJobs returns ascending by createdAt, so the
+  // last write for each documentId wins (= most recent).
+  const jobByDoc = React.useMemo(() => {
+    const m = new Map<string, Job>();
+    for (const j of jobs) if (j.documentId) m.set(j.documentId, j);
+    return m;
+  }, [jobs]);
+
+  // Poll the jobs endpoint only while some visible doc has an active job.
+  const anyActive = (docs ?? []).some((d) => isActive(jobByDoc.get(d.id)));
+  React.useEffect(() => {
+    if (!anyActive) return;
+    const t = setInterval(() => { void loadJobs(); }, 2000);
+    return () => clearInterval(t);
+  }, [anyActive, loadJobs]);
+
+  // When the last active job finishes, refresh docs so Dirty/status update.
+  const prevActive = React.useRef(false);
+  React.useEffect(() => {
+    if (prevActive.current && !anyActive) void load();
+    prevActive.current = anyActive;
+  }, [anyActive, load]);
 
   async function openEditor(id: string) {
     setOpeningId(id);
     try { setEditing(await (await fetch(`/api/admin/documents/${id}`)).json()); }
     finally { setOpeningId(null); }
   }
-
-  const load = React.useCallback(async () => setDocs(await (await fetch("/api/admin/documents")).json()), []);
-  React.useEffect(() => { void (async () => { await load(); })(); }, [load]);
 
   async function save(d: { id?: string; title: string; body: string; category?: string }) {
     const url = d.id ? `/api/admin/documents/${d.id}` : "/api/admin/documents";
@@ -33,9 +61,11 @@ export function DocumentsClient() {
     finally { setBusyId(null); setConfirmId(null); }
   }
   async function ingest(id: string) {
-    setBusyId(id);
-    try { await fetch("/api/admin/jobs", { method: "POST", body: JSON.stringify({ documentId: id }) }); await load(); }
-    finally { setBusyId(null); }
+    setPendingId(id);
+    try {
+      await fetch("/api/admin/jobs", { method: "POST", body: JSON.stringify({ documentId: id }) });
+      await loadJobs(); // surface the queued job → starts polling, keeps button disabled
+    } finally { setPendingId(null); }
   }
 
   if (editing) return <Editor doc={editing} onSave={save} onCancel={() => setEditing(null)} />;
@@ -62,40 +92,51 @@ export function DocumentsClient() {
         />
       ) : (
         <Table>
-          <THead><TR><TH>Title</TH><TH>Status</TH><TH>Dirty</TH><TH></TH></TR></THead>
+          <THead><TR><TH>Title</TH><TH>Status</TH><TH>Dirty</TH><TH>Ingest</TH><TH></TH></TR></THead>
           <TBody>
-            {docs.map((d) => (
-              <TR key={d.id}>
-                <TD>
-                  <button
-                    className="inline-flex items-center gap-2 rounded-sm text-left text-foreground transition-colors hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50 disabled:pointer-events-none active:text-primary"
-                    aria-busy={openingId === d.id || undefined}
-                    disabled={openingId === d.id}
-                    onClick={() => openEditor(d.id)}
-                  >
-                    {openingId === d.id ? <Spinner className="h-3.5 w-3.5 border-current border-t-transparent" /> : null}
-                    {d.title}
-                  </button>
-                </TD>
-                <TD><StatusPill status={d.status} /></TD>
-                <TD>{isDirty(d) ? <span className="text-accent" title="needs ingest">●</span> : <span className="text-muted-foreground">—</span>}</TD>
-                <TD>
-                  <div className="flex items-center justify-end gap-1">
-                    <Button size="sm" variant="outline" loading={busyId === d.id} onClick={() => ingest(d.id)}>Ingest</Button>
-                    {confirmId === d.id ? (
-                      <>
-                        <Button size="sm" variant="destructive" loading={busyId === d.id} onClick={() => remove(d.id)}>Confirm delete</Button>
-                        <Button size="sm" variant="ghost" onClick={() => setConfirmId(null)}>Cancel</Button>
-                      </>
-                    ) : (
-                      <Button size="icon" variant="ghost-danger" aria-label={`Delete ${d.title}`} onClick={() => setConfirmId(d.id)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                </TD>
-              </TR>
-            ))}
+            {docs.map((d) => {
+              const job = jobByDoc.get(d.id);
+              const ingesting = pendingId === d.id || isActive(job);
+              return (
+                <TR key={d.id}>
+                  <TD>
+                    <button
+                      className="inline-flex cursor-pointer items-center gap-2 rounded-sm text-left text-foreground transition-colors hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50 disabled:pointer-events-none active:text-primary"
+                      aria-busy={openingId === d.id || undefined}
+                      disabled={openingId === d.id}
+                      onClick={() => openEditor(d.id)}
+                    >
+                      {openingId === d.id ? <Spinner className="h-3.5 w-3.5 border-current border-t-transparent" /> : null}
+                      {d.title}
+                    </button>
+                  </TD>
+                  <TD><StatusPill status={d.status} /></TD>
+                  <TD>{isDirty(d) ? <span className="text-accent" title="needs ingest">●</span> : <span className="text-muted-foreground">—</span>}</TD>
+                  <TD>
+                    {job ? (
+                      job.status === "failed" && job.error
+                        ? <span title={job.error}><StatusPill status={job.status} /></span>
+                        : <StatusPill status={job.status} />
+                    ) : <span className="text-muted-foreground">—</span>}
+                  </TD>
+                  <TD>
+                    <div className="flex items-center justify-end gap-1">
+                      <Button size="sm" variant="outline" loading={ingesting} onClick={() => ingest(d.id)}>Ingest</Button>
+                      {confirmId === d.id ? (
+                        <>
+                          <Button size="sm" variant="destructive" loading={busyId === d.id} onClick={() => remove(d.id)}>Confirm delete</Button>
+                          <Button size="sm" variant="ghost" onClick={() => setConfirmId(null)}>Cancel</Button>
+                        </>
+                      ) : (
+                        <Button size="icon" variant="ghost-danger" aria-label={`Delete ${d.title}`} onClick={() => setConfirmId(d.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </TD>
+                </TR>
+              );
+            })}
           </TBody>
         </Table>
       )}

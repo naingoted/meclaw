@@ -17,6 +17,11 @@ describe("ui primitives", () => {
     expect(screen.getByText("ready")).toBeTruthy();
   });
 
+  it("button signals clickability with a pointer cursor", () => {
+    render(<Button>Go2</Button>);
+    expect(screen.getByRole("button", { name: "Go2" }).className).toContain("cursor-pointer");
+  });
+
   it("renders a spinner with an accessible label", () => {
     render(<Spinner />);
     expect(screen.getByRole("status", { name: /loading/i })).toBeTruthy();

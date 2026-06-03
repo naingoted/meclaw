@@ -39,7 +39,7 @@ export function AdminSidebar() {
                   href={href}
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "flex items-center gap-2 rounded-sm border-l-2 border-transparent px-2 py-1.5 text-muted-foreground transition-colors hover:text-foreground",
+                    "flex items-center gap-2 rounded-sm border-l-2 border-transparent px-2 py-1.5 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                     active && "border-primary bg-primary/10 text-foreground",
                   )}
                 >
@@ -53,10 +53,10 @@ export function AdminSidebar() {
       </div>
 
       <div className="mt-auto space-y-3 border-t border-border pt-3">
-        <Link href="/" className="block text-muted-foreground hover:text-foreground">Back to chat</Link>
+        <Link href="/" className="block rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Back to chat</Link>
         <div className="flex items-center justify-between">
           <form action={signOutAction}>
-            <Button type="submit" variant="ghost" size="sm" className="gap-2 px-2 text-muted-foreground hover:text-accent">
+            <Button type="submit" variant="ghost-danger" size="sm" className="gap-2 px-2">
               <LogOut className="h-3.5 w-3.5" /> Sign out
             </Button>
           </form>

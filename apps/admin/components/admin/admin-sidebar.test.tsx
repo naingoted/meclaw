@@ -18,4 +18,11 @@ describe("AdminSidebar", () => {
     // active link carries aria-current
     expect(screen.getByRole("link", { name: "Documents" }).getAttribute("aria-current")).toBe("page");
   });
+
+  it("sign-out uses a contrast-safe danger hover, not a vanishing one", () => {
+    render(<AdminSidebar />);
+    const btn = screen.getByRole("button", { name: /sign out/i });
+    expect(btn.className).toContain("hover:text-destructive");
+    expect(btn.className).not.toContain("hover:text-accent");
+  });
 });
