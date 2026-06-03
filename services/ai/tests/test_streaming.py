@@ -562,3 +562,142 @@ def test_clustering_failure_emits_null_miss_and_still_streams():
     )
     assert '"miss":null' in body          # clustering failed → no miss recorded
     assert body.rstrip().endswith("[DONE]")
+
+
+def test_score_threshold_drops_subthreshold_chunks_before_gate():
+    captured = {}
+
+    def retrieve(_query):
+        return RetrievalResult(
+            chunks=[
+                RetrievedChunk(id="d#0", source="a.md", title="A", text="STRONG", ordinal=0, score=0.9),
+                RetrievedChunk(id="d#1", source="b.md", title="B", text="WEAK", ordinal=1, score=0.4),
+            ],
+            sources=[
+                {"source": "a.md", "title": "A", "score": 0.9},
+                {"source": "b.md", "title": "B", "score": 0.4},
+            ],
+        )
+
+    def draft_stream(system, messages, context):
+        captured["context"] = context
+        yield "ok"
+
+    body = _collect(
+        run_stream(
+            [{"role": "user", "content": "stack?"}],
+            triage_fn=_triage("tech", 0.9),
+            retriever_retrieve=retrieve,
+            draft_stream_fn=draft_stream,
+            schedule_fn=lambda: {},
+            contact_fn=lambda: {},
+            score_floor=0.35,
+            score_threshold=0.5,  # drops the 0.4 chunk
+        )
+    )
+
+    assert "STRONG" in captured["context"]
+    assert "WEAK" not in captured["context"]      # filtered before context build
+    assert '"source":"a.md"' in body
+    assert '"source":"b.md"' not in body          # dropped chunk's source removed
+
+
+def test_score_threshold_filtering_can_trigger_fallback():
+    drafted = {"called": False}
+
+    def retrieve(_query):
+        return RetrievalResult(
+            chunks=[RetrievedChunk(id="d#0", source="a.md", title="A", text="weak", ordinal=0, score=0.4)],
+            sources=[{"source": "a.md", "title": "A", "score": 0.4}],
+        )
+
+    def draft_stream(system, messages, context):
+        drafted["called"] = True
+        yield "nope"
+
+    body = _collect(
+        run_stream(
+            [{"role": "user", "content": "stack?"}],
+            triage_fn=_triage("tech", 0.9),
+            retriever_retrieve=retrieve,
+            draft_stream_fn=draft_stream,
+            schedule_fn=lambda: {},
+            contact_fn=lambda: {},
+            score_floor=0.35,
+            score_threshold=0.5,  # removes the only chunk → no usable context
+        )
+    )
+    assert drafted["called"] is False  # no draft when filtered chunks fail groundedness
+    assert SOFT_OFFER in body  # fallback offer emitted
+
+
+def test_tiny_corpus_stuffs_full_corpus_and_skips_retrieval():
+    captured = {"retrieved": False}
+
+    def retrieve(_query):
+        captured["retrieved"] = True
+        return RetrievalResult(chunks=[], sources=[])
+
+    def draft_stream(system, messages, context):
+        captured["context"] = context
+        yield "ok"
+
+    body = _collect(
+        run_stream(
+            [{"role": "user", "content": "stack?"}],
+            triage_fn=_triage("tech", 0.9),
+            retriever_retrieve=retrieve,
+            draft_stream_fn=draft_stream,
+            schedule_fn=lambda: {},
+            contact_fn=lambda: {},
+            tiny_corpus_threshold=10000,
+            corpus_text_fn=lambda: ("THE WHOLE CORPUS", 5),  # 5 < 10000
+        )
+    )
+
+    assert captured["retrieved"] is False           # retrieval skipped
+    assert captured["context"] == "THE WHOLE CORPUS"
+    assert '"stage":"retrieval"' in body
+    assert body.rstrip().endswith("[DONE]")
+
+
+def test_tiny_corpus_disabled_when_corpus_exceeds_threshold():
+    captured = {"retrieved": False}
+
+    def retrieve(_query):
+        captured["retrieved"] = True
+        return RetrievalResult(
+            chunks=[RetrievedChunk(id="d#0", source="a.md", title="A", text="hit", ordinal=0, score=0.9)],
+            sources=[{"source": "a.md", "title": "A", "score": 0.9}],
+        )
+
+    _collect(
+        run_stream(
+            [{"role": "user", "content": "stack?"}],
+            triage_fn=_triage("tech", 0.9),
+            retriever_retrieve=retrieve,
+            draft_stream_fn=lambda s, m, c: iter(["ok"]),
+            schedule_fn=lambda: {},
+            contact_fn=lambda: {},
+            tiny_corpus_threshold=3,
+            corpus_text_fn=lambda: ("big corpus text", 100),  # 100 > 3
+        )
+    )
+    assert captured["retrieved"] is True
+
+
+def test_triage_confidence_param_gates_clarify():
+    # confidence 0.6 passes the default 0.5 gate but fails a stricter 0.8 gate.
+    body = _collect(
+        run_stream(
+            [{"role": "user", "content": "that one"}],
+            triage_fn=_triage("project", 0.6, question="Which project?"),
+            retriever_retrieve=lambda q: RetrievalResult([], []),
+            draft_stream_fn=lambda s, m, c: iter(["x"]),
+            schedule_fn=lambda: {},
+            contact_fn=lambda: {},
+            triage_confidence=0.8,
+        )
+    )
+    assert "Which project?" in body
+    assert '"route":"respond"' in body

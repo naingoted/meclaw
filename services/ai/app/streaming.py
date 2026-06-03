@@ -78,6 +78,10 @@ def run_stream(
     contact_system: str | None = None,
     persona_prefix: str = "",
     score_floor: float = 0.0,
+    score_threshold: float = 0.0,
+    tiny_corpus_threshold: int = 0,
+    triage_confidence: float = TRIAGE_CONFIDENCE_THRESHOLD,
+    corpus_text_fn: Callable[[], tuple[str, int]] | None = None,
     embed_fn: Callable[[str], list[float]] | None = None,
     assign_cluster_fn: Callable[[list[float], str], str] | None = None,
 ) -> Iterator[str]:
@@ -145,7 +149,7 @@ def run_stream(
 
     # Low confidence: ask the SPECIFIC clarifying question if the router gave one
     # (good UX); otherwise the generic dead-end becomes a capture offer.
-    if triage.confidence < TRIAGE_CONFIDENCE_THRESHOLD:
+    if triage.confidence < triage_confidence:
         text = triage.clarifying_question or fallback_text()
         yield from _emit_static(
             text,
@@ -172,32 +176,52 @@ def run_stream(
         sources = []
     else:
         # tech | project | general all retrieve from the knowledge base.
-        yield status("Searching knowledge base…", "retrieval")
-        try:
-            retrieval = retriever_retrieve(query)
-        except Exception:
-            logger.warning("Retrieval failed; falling back", exc_info=True)
-            retrieval = RetrievalResult(chunks=[], sources=[])
-        top_score = max((c.score for c in retrieval.chunks), default=0.0)
-        grounded = bool(retrieval.chunks) and top_score >= score_floor
-        if not grounded:
-            # Groundedness gate — no chunks, or top hit below the relevance floor.
-            reason = "fallback" if not retrieval.chunks else "floor"
-            yield from _emit_static(
-                fallback_text(),
-                {
-                    "sources": [],
-                    "route": intent,
-                    "intent": intent,
-                    "steps": list(steps),
-                    "corpus_version": corpus_version,
-                    "miss": detect_miss(reason, None if not retrieval.chunks else top_score),
-                },
-            )
-            return
-        context = "\n\n".join(chunk.text for chunk in retrieval.chunks)
-        system = knowledge_system or PERSONAS.get(intent, PERSONAS["general"])
-        sources = retrieval.sources
+        # Tiny-corpus shortcut: if the whole corpus is smaller than the
+        # threshold, skip retrieval and stuff it all into context. Guard on
+        # token_count > 0 so an empty/unavailable corpus falls through to normal
+        # retrieval instead of stuffing an empty context.
+        stuffed = False
+        if corpus_text_fn is not None and tiny_corpus_threshold > 0:
+            full_text, token_count = corpus_text_fn()
+            if 0 < token_count < tiny_corpus_threshold:
+                yield status("Using full corpus…", "retrieval")
+                context = full_text
+                system = knowledge_system or PERSONAS.get(intent, PERSONAS["general"])
+                sources = []
+                stuffed = True
+
+        if not stuffed:
+            yield status("Searching knowledge base…", "retrieval")
+            try:
+                retrieval = retriever_retrieve(query)
+            except Exception:
+                logger.warning("Retrieval failed; falling back", exc_info=True)
+                retrieval = RetrievalResult(chunks=[], sources=[])
+            # Per-chunk include filter: drop sub-threshold chunks BEFORE the gate.
+            # Distinct from score_floor, which gates grounded-vs-miss on the
+            # surviving top score.
+            kept = [c for c in retrieval.chunks if c.score >= score_threshold]
+            top_score = max((c.score for c in kept), default=0.0)
+            grounded = bool(kept) and top_score >= score_floor
+            if not grounded:
+                # Groundedness gate — no usable chunks, or top hit below the floor.
+                reason = "fallback" if not kept else "floor"
+                yield from _emit_static(
+                    fallback_text(),
+                    {
+                        "sources": [],
+                        "route": intent,
+                        "intent": intent,
+                        "steps": list(steps),
+                        "corpus_version": corpus_version,
+                        "miss": detect_miss(reason, None if not kept else top_score),
+                    },
+                )
+                return
+            context = "\n\n".join(chunk.text for chunk in kept)
+            system = knowledge_system or PERSONAS.get(intent, PERSONAS["general"])
+            kept_sources = {c.source for c in kept}
+            sources = [s for s in retrieval.sources if s.get("source") in kept_sources]
 
     # Apply persona prefix if configured
     if persona_prefix:
