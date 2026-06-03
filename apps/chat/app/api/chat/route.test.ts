@@ -36,22 +36,6 @@ describe("POST /api/chat — Guard Tests", () => {
     expect(routeModule.POST).toBeDefined();
   });
 
-  it("tools module exports all required tools", async () => {
-    const toolsModule = await import("@/lib/ai/tools");
-    expect(toolsModule.getContactInfo).toBeDefined();
-    expect(toolsModule.scheduleCall).toBeDefined();
-    expect(toolsModule.showResume).toBeDefined();
-    expect(toolsModule.howThisWorks).toBeDefined();
-    expect(toolsModule.tools).toBeDefined();
-
-    const { tools } = toolsModule;
-    expect(Object.keys(tools)).toEqual([
-      "getContactInfo",
-      "scheduleCall",
-      "showResume",
-      "howThisWorks",
-    ]);
-  });
 
   describe("Guard 1: Rate Limit", () => {
     it("returns 429 + Retry-After when rate limit exceeded", async () => {

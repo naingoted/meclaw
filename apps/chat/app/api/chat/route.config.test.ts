@@ -7,6 +7,7 @@ const snapshot = {
   },
   shared: { persona: "" },
   rag: { topK: 4 },
+  public: { greeting: "Hi", suggestions: ["a"], calUrl: "https://cal.com/x", githubUrl: "", contactEmail: "owner@example.com" },
 };
 
 vi.mock("@meclaw/core/settings", () => ({
@@ -48,5 +49,7 @@ describe("chat route forwards config", () => {
 
     const sent = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
     expect(sent.config.agents.knowledge.model).toBe("qwen3.6-plus");
+    expect(sent.config.public.contactEmail).toBe("owner@example.com");
+    expect(sent.config.public.calUrl).toBe("https://cal.com/x");
   });
 });
