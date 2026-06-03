@@ -193,7 +193,7 @@ export const chatMisses = pgTable(
     /** references gap_clusters.id */
     clusterId: uuid("clusterId").notNull(),
     query: text("query").notNull(),
-    reason: text("reason", { enum: ["floor", "fallback", "clarify"] }).notNull(),
+    reason: text("reason", { enum: ["floor", "fallback", "clarify", "answer_gap"] }).notNull(),
     /** null when fallback (0 chunks) or clarify */
     topScore: doublePrecision("topScore"),
     createdAt: timestamp("createdAt", { withTimezone: true }).notNull(),

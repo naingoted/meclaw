@@ -244,4 +244,37 @@ describe("saveMiss + assistant messageId", () => {
     expect(rows[0].clusterId).toBe(clusterId);
     expect(rows[0].reason).toBe("floor");
   });
+
+  it("saveMiss persists reason 'answer_gap'", async () => {
+    const { db } = await makeTestDb();
+
+    const now = new Date();
+    const clusterId = "66666666-6666-4666-8666-666666666666";
+    await db
+      .insert(gapClusters)
+      .values({
+        id: clusterId,
+        centroid: Array(768).fill(0),
+        count: 1,
+        status: "new",
+        exemplarQuery: "q",
+        createdAt: now,
+        updatedAt: now,
+      })
+      .execute();
+
+    await saveMiss(db as never, {
+      messageId: "m-ag",
+      conversationId: "c-ag",
+      clusterId,
+      query: "fav language?",
+      reason: "answer_gap",
+      topScore: 0.42,
+    });
+    const rows = await db
+      .select()
+      .from(chatMisses)
+      .where(eq(chatMisses.messageId, "m-ag"));
+    expect(rows[0].reason).toBe("answer_gap");
+  });
 });

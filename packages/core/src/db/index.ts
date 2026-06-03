@@ -142,7 +142,7 @@ export type MissInput = {
   conversationId: string;
   clusterId: string;
   query: string;
-  reason: "floor" | "fallback" | "clarify";
+  reason: "floor" | "fallback" | "clarify" | "answer_gap";
   topScore: number | null;
 };
 

@@ -76,7 +76,7 @@ function teeForPersistence(
         delta?: string;
         messageMetadata?: {
           lead?: Omit<LeadInput, "conversationId">;
-          miss?: { reason: "floor" | "fallback" | "clarify"; topScore: number | null; clusterId: string };
+          miss?: { reason: "floor" | "fallback" | "clarify" | "answer_gap"; topScore: number | null; clusterId: string };
         };
       };
       if (part.type === "text-delta" && typeof part.delta === "string") {
