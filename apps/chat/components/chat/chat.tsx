@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { Bot } from "lucide-react";
 import { Button, cn } from "@meclaw/ui";
+import { ConfigRefreshPoller } from "./config-refresh-poller";
 
 type SourceMetadata = {
   title?: unknown;
@@ -290,9 +291,11 @@ function ThinkingTrace({ steps }: { steps: string[] }) {
 export function Chat({
   greeting,
   suggestions,
+  initialConfigVersion,
 }: {
   greeting: string;
   suggestions: string[];
+  initialConfigVersion: string;
 }) {
   // `liveSteps` accumulates the backend's transient `data-status` labels into an
   // ordered checklist ("Routing…" → "Searching…" → "Writing…") shown live during
@@ -334,6 +337,7 @@ export function Chat({
 
   return (
     <div className="mx-auto flex h-full w-full max-w-2xl flex-col">
+      <ConfigRefreshPoller initialConfigVersion={initialConfigVersion} status={status} />
       <div className="flex-1 space-y-4 overflow-y-auto p-4">
         {messages.length === 0 && (
           <div className="mt-10 space-y-6">

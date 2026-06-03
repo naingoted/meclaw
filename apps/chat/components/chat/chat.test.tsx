@@ -16,6 +16,12 @@ vi.mock("@ai-sdk/react", () => ({
   useChat: () => mockState,
 }));
 
+const configRefreshPoller = vi.hoisted(() => vi.fn(() => null));
+
+vi.mock("@/components/chat/config-refresh-poller", () => ({
+  ConfigRefreshPoller: configRefreshPoller,
+}));
+
 import {
   Chat,
   shouldShowThinking,
@@ -34,6 +40,7 @@ const CHAT_PROPS = {
     "Walk me through a recent project",
     "How do I get in touch?",
   ],
+  initialConfigVersion: "2026-06-03T00:00:00.000Z",
 };
 
 describe("shouldShowThinking", () => {
@@ -167,13 +174,39 @@ describe("Chat component — M4 behavioral tests", () => {
     ).toBeInTheDocument();
   });
 
+  it("renders the config refresh poller with the initial version and chat status", () => {
+    mockState.status = "streaming";
+
+    render(<Chat {...CHAT_PROPS} />);
+
+    expect(configRefreshPoller).toHaveBeenCalledWith(
+      {
+        initialConfigVersion: "2026-06-03T00:00:00.000Z",
+        status: "streaming",
+      },
+      undefined,
+    );
+  });
+
   it("renders the greeting from props (not a hardcoded literal)", () => {
-    render(<Chat greeting="Custom greeting line" suggestions={["only chip"]} />);
+    render(
+      <Chat
+        greeting="Custom greeting line"
+        suggestions={["only chip"]}
+        initialConfigVersion="2026-06-03T00:00:00.000Z"
+      />,
+    );
     expect(screen.getByText("Custom greeting line")).toBeInTheDocument();
   });
 
   it("renders suggestion chips from props", () => {
-    render(<Chat greeting="g" suggestions={["chip one", "chip two"]} />);
+    render(
+      <Chat
+        greeting="g"
+        suggestions={["chip one", "chip two"]}
+        initialConfigVersion="2026-06-03T00:00:00.000Z"
+      />,
+    );
     expect(screen.getByRole("button", { name: "chip one" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "chip two" })).toBeInTheDocument();
   });

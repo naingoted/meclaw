@@ -85,7 +85,7 @@ export function ConfigClient() {
       };
       const res = await fetch("/api/admin/settings", { method: "PUT", body: JSON.stringify(payload) });
       if (res.ok) {
-        setMsg("Saved. Live within ~30 min.");
+        setMsg("Saved. Chat updates within seconds.");
         return;
       }
       // Map each server validation issue back onto its field, then jump to the

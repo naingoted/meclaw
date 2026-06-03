@@ -1,5 +1,13 @@
-import { describe, it, expect } from "vitest";
-import { defaultSettings, SettingsSchema } from "./settings";
+import { eq } from "drizzle-orm";
+import { afterEach, describe, it, expect, vi } from "vitest";
+import { makeTestDb } from "../db/test-db";
+import { settings } from "../db/schema";
+import { configCache } from "./config-cache";
+import { defaultSettings, getSettings, getSettingsVersion, SettingsSchema, updateSettings } from "./settings";
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe("settings rag tunables", () => {
   it("defaultSettings seeds scoreFloor + clusterRadius", () => {
@@ -50,5 +58,109 @@ describe("settings new wired fields", () => {
     const s = defaultSettings();
     expect(s.agents.knowledge.confidence).toBeUndefined();
     expect(() => SettingsSchema.parse(s)).not.toThrow();
+  });
+});
+
+describe("version-aware settings cache", () => {
+  it("returns the cached value when DB updatedAt matches the cached version", async () => {
+    const { db } = await makeTestDb();
+    configCache.clear();
+
+    const first = await getSettings(db);
+    first.public.greeting = "mutated local object";
+
+    const second = await getSettings(db);
+    expect(second.public.greeting).toBe("mutated local object");
+  });
+
+  it("invalidates the cached value when DB updatedAt changes", async () => {
+    const { db } = await makeTestDb();
+    configCache.clear();
+
+    const first = await getSettings(db);
+    expect(first.public.greeting).toBe("Hi! I'm meclaw, Thet's personal bot.");
+
+    const fresh = structuredClone(first);
+    fresh.public.greeting = "Fresh from another process";
+    await db
+      .update(settings)
+      .set({
+        public: fresh.public,
+        updatedAt: new Date("2026-06-03T01:02:03.000Z"),
+      })
+      .where(eq(settings.id, 1))
+      .execute();
+
+    const second = await getSettings(db);
+    expect(second.public.greeting).toBe("Fresh from another process");
+  });
+
+  it("getSettingsVersion returns the singleton updatedAt timestamp as an ISO string", async () => {
+    const { db } = await makeTestDb();
+    configCache.clear();
+
+    await getSettings(db);
+    await db
+      .update(settings)
+      .set({ updatedAt: new Date("2026-06-03T04:05:06.000Z") })
+      .where(eq(settings.id, 1))
+      .execute();
+
+    await expect(getSettingsVersion(db)).resolves.toBe("2026-06-03T04:05:06.000Z");
+  });
+
+  it("updateSettings clears the local cache after write", async () => {
+    const { db } = await makeTestDb();
+    configCache.clear();
+
+    const current = await getSettings(db);
+    const next = structuredClone(current);
+    next.public.greeting = "Saved through admin";
+
+    await updateSettings(db, next, "127.0.0.1");
+
+    const cached = configCache.getEntry();
+    expect(cached).toBeNull();
+  });
+
+  it("updateSettings advances the version when writes share the same clock millisecond", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-03T07:08:09.000Z"));
+    const { db } = await makeTestDb();
+    configCache.clear();
+
+    const current = await getSettings(db);
+    const first = structuredClone(current);
+    first.public.greeting = "First save";
+
+    await updateSettings(db, first, "127.0.0.1");
+    const firstVersion = await getSettingsVersion(db);
+
+    const second = structuredClone(first);
+    second.public.greeting = "Second save";
+    await updateSettings(db, second, "127.0.0.1");
+
+    await expect(getSettingsVersion(db)).resolves.toBe("2026-06-03T07:08:09.002Z");
+    expect(firstVersion).toBe("2026-06-03T07:08:09.001Z");
+  });
+
+  it("updateSettings advances the version for overlapping same-clock writes", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-03T08:09:10.000Z"));
+    const { db } = await makeTestDb();
+    configCache.clear();
+
+    const current = await getSettings(db);
+    const first = structuredClone(current);
+    first.public.greeting = "Concurrent save one";
+    const second = structuredClone(current);
+    second.public.greeting = "Concurrent save two";
+
+    await Promise.all([
+      updateSettings(db, first, "127.0.0.1"),
+      updateSettings(db, second, "127.0.0.1"),
+    ]);
+
+    await expect(getSettingsVersion(db)).resolves.toBe("2026-06-03T08:09:10.002Z");
   });
 });
