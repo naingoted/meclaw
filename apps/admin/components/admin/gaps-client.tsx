@@ -102,7 +102,7 @@ function GapDetail({ id, onBack }: { id: string; onBack: () => void }) {
     setBusy(true);
     try {
       const doc = await (await fetch("/api/admin/documents", {
-        method: "POST", body: JSON.stringify({ title, body }),
+        method: "POST", body: JSON.stringify({ title, body, origin: "gap" }),
       })).json();
       if (!doc?.id) throw new Error("Document creation failed");
       await fetch("/api/admin/jobs", { method: "POST", body: JSON.stringify({ documentId: doc.id }) });

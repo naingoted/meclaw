@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { makeTestDb } from "@meclaw/core/db/test-db";
-import { createDocument, updateDocument, deleteDocument, getDocument, isDirty } from "./documents";
+import { createDocument, updateDocument, deleteDocument, getDocument, isDirty, listDocuments } from "./documents";
 import { recentAudit } from "@meclaw/core/settings";
 
 describe("document service", () => {
@@ -32,5 +32,23 @@ describe("document service", () => {
     const doc = await createDocument(db, { title: "A", body: "x" }, "ip");
     await deleteDocument(db, doc.id, "ip");
     expect(await getDocument(db, doc.id)).toBeUndefined();
+  });
+
+  it("defaults origin to 'manual' and persists 'gap' when supplied", async () => {
+    const { db } = await makeTestDb();
+    const manual = await createDocument(db, { title: "M", body: "m" }, "ip");
+    const gap = await createDocument(db, { title: "G", body: "g", origin: "gap" }, "ip");
+    expect(manual.origin).toBe("manual");
+    expect(gap.origin).toBe("gap");
+  });
+
+  it("listDocuments filters by origin", async () => {
+    const { db } = await makeTestDb();
+    await createDocument(db, { title: "M", body: "m" }, "ip");
+    await createDocument(db, { title: "G", body: "g", origin: "gap" }, "ip");
+    const gapOnly = await listDocuments(db, "gap");
+    expect(gapOnly.map((d) => d.title)).toEqual(["G"]);
+    const all = await listDocuments(db);
+    expect(all.length).toBe(2);
   });
 });

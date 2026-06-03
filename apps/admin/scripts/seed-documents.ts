@@ -13,7 +13,7 @@ export async function seedDocuments(db: Db, opts: SeedOptions = {}): Promise<{ i
   for (const doc of docs) {
     if (existing.has(contentHash(doc.body))) continue;
     const category = doc.slug.includes("/") ? doc.slug.split("/")[0] : null;
-    await createDocument(db, { title: doc.title, body: doc.body, category: category ?? undefined }, "seed");
+    await createDocument(db, { title: doc.title, body: doc.body, category: category ?? undefined, origin: "seed" }, "seed");
     imported++;
   }
   return { imported };

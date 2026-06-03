@@ -41,6 +41,7 @@ export async function makeTestDb() {
       body text NOT NULL,
       kind text NOT NULL DEFAULT 'markdown',
       category text,
+      origin text NOT NULL DEFAULT 'manual',
       status text NOT NULL DEFAULT 'draft',
       "contentHash" text NOT NULL,
       "createdAt" timestamptz NOT NULL,
