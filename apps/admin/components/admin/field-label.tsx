@@ -26,22 +26,32 @@ export function FieldLabel({ label, help, htmlFor }: { label: string; help: stri
 }
 
 /** A single form field: label row + control, with standardized internal spacing.
- *  Stack multiple <Field>s inside a `space-y-5` container for consistent gaps. */
+ *  Pass `error` to flag the control invalid (red ring via aria-invalid) and show
+ *  the message below it. Stack multiple <Field>s inside `space-y-5`. */
 export function Field({
   label,
   help,
   htmlFor,
+  error,
   children,
 }: {
   label: string;
   help: string;
   htmlFor?: string;
+  error?: string;
   children: React.ReactNode;
 }) {
+  // Mark the single control invalid so the shared Input/Textarea turn red.
+  const control = React.isValidElement(children)
+    ? React.cloneElement(children as React.ReactElement<{ "aria-invalid"?: boolean }>, {
+        "aria-invalid": error ? true : undefined,
+      })
+    : children;
   return (
     <div className="space-y-1.5">
       <FieldLabel label={label} help={help} htmlFor={htmlFor} />
-      {children}
+      {control}
+      {error ? <p className="text-xs text-destructive">{error}</p> : null}
     </div>
   );
 }
