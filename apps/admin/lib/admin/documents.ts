@@ -6,7 +6,8 @@ import { contentHash } from "./hash";
 import { logAudit } from "@meclaw/core/settings";
 
 export type DocumentRow = typeof documents.$inferSelect;
-export type DocumentInput = { title: string; body: string; category?: string };
+export type DocumentOrigin = DocumentRow["origin"]; // "manual" | "seed" | "gap"
+export type DocumentInput = { title: string; body: string; category?: string; origin?: DocumentOrigin };
 
 /** Derived, not stored: never-ingested, or edited since the last successful ingest. */
 export function isDirty(doc: Pick<DocumentRow, "updatedAt" | "lastIngestedAt">): boolean {
@@ -14,8 +15,12 @@ export function isDirty(doc: Pick<DocumentRow, "updatedAt" | "lastIngestedAt">):
   return doc.updatedAt.getTime() > doc.lastIngestedAt.getTime();
 }
 
-export async function listDocuments(db: Db): Promise<DocumentRow[]> {
-  return db.select().from(documents).orderBy(desc(documents.updatedAt));
+export async function listDocuments(db: Db, origin?: DocumentOrigin): Promise<DocumentRow[]> {
+  const q = db.select().from(documents);
+  const rows = origin
+    ? await q.where(eq(documents.origin, origin)).orderBy(desc(documents.updatedAt))
+    : await q.orderBy(desc(documents.updatedAt));
+  return rows;
 }
 
 export async function getDocument(db: Db, id: string): Promise<DocumentRow | undefined> {
@@ -27,7 +32,8 @@ export async function createDocument(db: Db, input: DocumentInput, actorIp: stri
   const now = new Date();
   const row = {
     id: randomUUID(), title: input.title, body: input.body,
-    kind: "markdown" as const, category: input.category ?? null, status: "draft" as const,
+    kind: "markdown" as const, category: input.category ?? null,
+    origin: input.origin ?? ("manual" as const), status: "draft" as const,
     contentHash: contentHash(input.body), createdAt: now, updatedAt: now, lastIngestedAt: null,
   };
   await db.insert(documents).values(row).execute();
