@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, timestamp, jsonb, integer, index, check, vector, uuid } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, jsonb, integer, index, check, vector, uuid, doublePrecision, uniqueIndex } from "drizzle-orm/pg-core";
 
 /**
  * Database schema for meclaw persistence (Postgres).
@@ -144,3 +144,61 @@ export const auditLog = pgTable("audit_log", {
   meta: jsonb("meta"),
   actorIp: text("actorIp"),
 });
+
+/**
+ * RAG gap clusters — observability, NOT corpus. The Python router writes the
+ * capture columns (centroid/count/exemplarQuery) on miss detection; the Next
+ * admin writes the resolution columns (status/resolvedDocumentId/resolvedAt).
+ * Disjoint columns → safe at single-user concurrency. No hard FKs (schema style).
+ */
+export const gapClusters = pgTable(
+  "gap_clusters",
+  {
+    id: uuid("id").primaryKey(),
+    /** phase-2 LLM topic label; null = unlabeled */
+    label: text("label"),
+    /** running centroid of member miss embeddings */
+    centroid: vector("centroid", { dimensions: 768 }).notNull(),
+    count: integer("count").notNull().default(0),
+    status: text("status", { enum: ["new", "resolved", "ignored"] }).notNull().default("new"),
+    /** representative query (first miss) */
+    exemplarQuery: text("exemplarQuery"),
+    /** link to documents.id (no hard FK, matches schema style) */
+    resolvedDocumentId: uuid("resolvedDocumentId"),
+    resolvedAt: timestamp("resolvedAt", { withTimezone: true }),
+    createdAt: timestamp("createdAt", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updatedAt", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    index("idx_gap_clusters_centroid").using("hnsw", t.centroid.op("vector_cosine_ops")),
+    index("idx_gap_clusters_status").on(t.status),
+    index("idx_gap_clusters_count").on(t.count),
+  ],
+);
+
+/**
+ * One row per missed message. Written by the Next /api/chat flush (it owns the
+ * assistant messageId). Keyed uniquely by messageId so a flush retry is idempotent.
+ */
+export const chatMisses = pgTable(
+  "chat_misses",
+  {
+    id: uuid("id").primaryKey(),
+    /** references messages.id (no hard FK); unique per miss */
+    messageId: text("messageId").notNull(),
+    conversationId: text("conversationId").notNull(),
+    /** references gap_clusters.id */
+    clusterId: uuid("clusterId").notNull(),
+    query: text("query").notNull(),
+    reason: text("reason", { enum: ["floor", "fallback", "clarify"] }).notNull(),
+    /** null when fallback (0 chunks) or clarify */
+    topScore: doublePrecision("topScore"),
+    createdAt: timestamp("createdAt", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    uniqueIndex("uq_chat_misses_messageId").on(t.messageId),
+    index("idx_chat_misses_clusterId").on(t.clusterId),
+    index("idx_chat_misses_conversationId").on(t.conversationId),
+    index("idx_chat_misses_createdAt").on(t.createdAt),
+  ],
+);

@@ -111,5 +111,33 @@ export async function makeTestDb() {
   await db.execute(sql`
     CREATE INDEX "idx_leads_conversationId" ON leads ("conversationId");
   `);
+  await db.execute(sql`
+    CREATE TABLE gap_clusters (
+      id uuid PRIMARY KEY,
+      label text,
+      centroid vector(768) NOT NULL,
+      count integer NOT NULL DEFAULT 0,
+      status text NOT NULL DEFAULT 'new',
+      "exemplarQuery" text,
+      "resolvedDocumentId" uuid,
+      "resolvedAt" timestamptz,
+      "createdAt" timestamptz NOT NULL,
+      "updatedAt" timestamptz NOT NULL
+    );
+  `);
+  await db.execute(sql`
+    CREATE TABLE chat_misses (
+      id uuid PRIMARY KEY,
+      "messageId" text NOT NULL,
+      "conversationId" text NOT NULL,
+      "clusterId" uuid NOT NULL,
+      query text NOT NULL,
+      reason text NOT NULL,
+      "topScore" double precision,
+      "createdAt" timestamptz NOT NULL
+    );
+  `);
+  await db.execute(sql`CREATE UNIQUE INDEX uq_chat_misses_messageId ON chat_misses ("messageId");`);
+  await db.execute(sql`CREATE INDEX idx_chat_misses_clusterId ON chat_misses ("clusterId");`);
   return { db, client };
 }
