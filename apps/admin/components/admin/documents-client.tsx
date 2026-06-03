@@ -2,6 +2,7 @@
 import { Button, Input, Textarea, StatusPill, PageHeader, Skeleton, EmptyState, Spinner, Table, THead, TBody, TR, TH, TD } from "@meclaw/ui";
 import { Trash2 } from "lucide-react";
 import * as React from "react";
+import { useUrlState } from "@/lib/use-url-state";
 
 type Doc = { id: string; title: string; body?: string; category?: string | null; origin?: string; status: string; updatedAt: string; lastIngestedAt: string | null };
 type Job = { id: string; status: string; error: string | null; documentId: string | null; createdAt?: string | null };
@@ -19,7 +20,7 @@ function GapOriginPill({ origin }: { origin?: string }) {
 
 export function DocumentsClient() {
   const [docs, setDocs] = React.useState<Doc[] | null>(null);
-  const [filter, setFilter] = React.useState<"all" | "manual" | "gap">("all");
+  const [filter, setFilter] = useUrlState("filter", "all", ["all", "manual", "gap"]);
   const [jobs, setJobs] = React.useState<Job[]>([]);
   const [editing, setEditing] = React.useState<Doc | null>(null);
   const [busyId, setBusyId] = React.useState<string | null>(null);
@@ -106,7 +107,7 @@ export function DocumentsClient() {
 
       <div className="mb-4 flex gap-2">
         {(["all", "manual", "gap"] as const).map((f) => (
-          <Button key={f} size="sm" variant={f === filter ? "default" : "ghost"} onClick={() => setFilter(f)}>
+          <Button key={f} size="sm" variant={f === filter ? "default" : "ghost"} aria-pressed={f === filter} onClick={() => setFilter(f)}>
             {f}
           </Button>
         ))}
