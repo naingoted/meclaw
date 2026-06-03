@@ -10,6 +10,7 @@ const Body = z.object({
   title: z.string().min(1),
   body: z.string().min(1),
   category: z.string().optional(),
+  origin: z.enum(["manual", "seed", "gap"]).optional(),
 });
 
 type Ctx = { params: Promise<{ id: string }> };

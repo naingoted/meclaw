@@ -2,19 +2,32 @@ import { z } from "zod";
 import { clientIp, db } from "@/lib/admin/request";
 import { listDocuments, createDocument } from "@/lib/admin/documents";
 
+const ORIGINS = ["manual", "seed", "gap"] as const;
+
 const Body = z.object({
   title: z.string().min(1),
   body: z.string().min(1),
   category: z.string().optional(),
+  origin: z.enum(ORIGINS).optional(),
 });
 
-export async function GET() {
-// access enforced by middleware.ts (Auth.js)
-  return Response.json(await listDocuments(await db()));
+const OriginFilter = z.enum(ORIGINS);
+
+export async function GET(req: Request) {
+  // access enforced by middleware.ts (Auth.js)
+  const raw = new URL(req.url).searchParams.get("origin");
+  let origin: (typeof ORIGINS)[number] | undefined;
+  if (raw !== null) {
+    const parsed = OriginFilter.safeParse(raw);
+    if (!parsed.success)
+      return Response.json({ error: parsed.error?.flatten() }, { status: 400 });
+    origin = parsed.data;
+  }
+  return Response.json(await listDocuments(await db(), origin));
 }
 
 export async function POST(req: Request) {
-// access enforced by middleware.ts (Auth.js)
+  // access enforced by middleware.ts (Auth.js)
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success)
     return Response.json({ error: parsed.error?.flatten() }, { status: 400 });
