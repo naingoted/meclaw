@@ -3,13 +3,23 @@ import { Button, Input, Textarea, StatusPill, PageHeader, Skeleton, EmptyState, 
 import { Trash2 } from "lucide-react";
 import * as React from "react";
 
-type Doc = { id: string; title: string; body?: string; category?: string | null; status: string; updatedAt: string; lastIngestedAt: string | null };
+type Doc = { id: string; title: string; body?: string; category?: string | null; origin?: string; status: string; updatedAt: string; lastIngestedAt: string | null };
 type Job = { id: string; status: string; error: string | null; documentId: string | null; createdAt?: string | null };
 const isDirty = (d: Doc) => !d.lastIngestedAt || new Date(d.updatedAt) > new Date(d.lastIngestedAt);
 const isActive = (j?: Job) => j?.status === "queued" || j?.status === "running";
 
+function GapOriginPill({ origin }: { origin?: string }) {
+  if (origin !== "gap") return null;
+  return (
+    <span className="ml-2 rounded-sm bg-muted px-1.5 py-0.5 align-middle font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
+      gap
+    </span>
+  );
+}
+
 export function DocumentsClient() {
   const [docs, setDocs] = React.useState<Doc[] | null>(null);
+  const [filter, setFilter] = React.useState<"all" | "manual" | "gap">("all");
   const [jobs, setJobs] = React.useState<Job[]>([]);
   const [editing, setEditing] = React.useState<Doc | null>(null);
   const [busyId, setBusyId] = React.useState<string | null>(null);
@@ -17,7 +27,10 @@ export function DocumentsClient() {
   const [openingId, setOpeningId] = React.useState<string | null>(null);
   const [pendingId, setPendingId] = React.useState<string | null>(null);
 
-  const load = React.useCallback(async () => setDocs(await (await fetch("/api/admin/documents")).json()), []);
+  const load = React.useCallback(async () => {
+    const qs = filter === "all" ? "" : `?origin=${filter}`;
+    setDocs(await (await fetch(`/api/admin/documents${qs}`)).json());
+  }, [filter]);
   const loadJobs = React.useCallback(async () => setJobs(await (await fetch("/api/admin/jobs")).json()), []);
   React.useEffect(() => { void (async () => { await load(); await loadJobs(); })(); }, [load, loadJobs]);
 
@@ -70,25 +83,42 @@ export function DocumentsClient() {
 
   if (editing) return <Editor doc={editing} onSave={save} onCancel={() => setEditing(null)} />;
 
+  // Empty state copy varies by filter
+  const emptyTitle =
+    filter === "gap"
+      ? "No gap-created documents."
+      : filter === "manual"
+        ? "No manual documents."
+        : "No documents yet";
+  const emptyHint =
+    filter === "all"
+      ? "Add your first knowledge document — it feeds the bot's answers after ingest."
+      : "Try a different filter, or add a document.";
+  const newDocAction: Doc = { id: "", title: "", body: "", status: "draft", updatedAt: "", lastIngestedAt: null };
+
   return (
     <div>
       <PageHeader
         title="Documents"
         subtitle={docs ? `${docs.length} total` : undefined}
-        action={
-          <Button onClick={() => setEditing({ id: "", title: "", body: "", status: "draft", updatedAt: "", lastIngestedAt: null })}>
-            New document
-          </Button>
-        }
+        action={<Button onClick={() => setEditing(newDocAction)}>New document</Button>}
       />
+
+      <div className="mb-4 flex gap-2">
+        {(["all", "manual", "gap"] as const).map((f) => (
+          <Button key={f} size="sm" variant={f === filter ? "default" : "ghost"} onClick={() => setFilter(f)}>
+            {f}
+          </Button>
+        ))}
+      </div>
 
       {docs === null ? (
         <div className="space-y-2"><Skeleton className="h-9" /><Skeleton className="h-9" /><Skeleton className="h-9" /></div>
       ) : docs.length === 0 ? (
         <EmptyState
-          title="No documents yet"
-          hint="Add your first knowledge document — it feeds the bot's answers after ingest."
-          action={<Button onClick={() => setEditing({ id: "", title: "", body: "", status: "draft", updatedAt: "", lastIngestedAt: null })}>New document</Button>}
+          title={emptyTitle}
+          hint={emptyHint}
+          action={<Button onClick={() => setEditing(newDocAction)}>New document</Button>}
         />
       ) : (
         <Table>
@@ -109,6 +139,7 @@ export function DocumentsClient() {
                       {openingId === d.id ? <Spinner className="h-3.5 w-3.5 border-current border-t-transparent" /> : null}
                       {d.title}
                     </button>
+                    <GapOriginPill origin={d.origin} />
                   </TD>
                   <TD><StatusPill status={d.status} /></TD>
                   <TD>{isDirty(d) ? <span className="text-accent" title="needs ingest">●</span> : <span className="text-muted-foreground">—</span>}</TD>
