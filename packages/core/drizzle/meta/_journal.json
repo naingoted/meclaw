@@ -36,6 +36,13 @@
       "when": 1780467046047,
       "tag": "0004_massive_sandman",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1780482994393,
+      "tag": "0005_swift_moon_knight",
+      "breakpoints": true
     }
   ]
 }

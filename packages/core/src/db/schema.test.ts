@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { randomUUID } from "node:crypto";
 import { makeTestDb } from "./test-db";
 import { documents, settings, gapClusters, chatMisses } from "./schema";
 
@@ -60,5 +61,22 @@ describe("admin schema", () => {
         createdAt: now,
       }).execute(),
     ).rejects.toThrow();
+  });
+
+  it("documents.origin defaults to 'manual' and accepts 'gap'", async () => {
+    const { db } = await makeTestDb();
+    const now = new Date();
+    await db.insert(documents).values({
+      id: randomUUID(), title: "D", body: "b", kind: "markdown", category: null,
+      status: "draft", contentHash: "x", createdAt: now, updatedAt: now, lastIngestedAt: null,
+    }).execute();
+    await db.insert(documents).values({
+      id: randomUUID(), title: "G", body: "b", kind: "markdown", category: null,
+      status: "draft", contentHash: "y", origin: "gap", createdAt: now, updatedAt: now, lastIngestedAt: null,
+    }).execute();
+    const rows = await db.select().from(documents);
+    const byTitle = Object.fromEntries(rows.map((r) => [r.title, r.origin]));
+    expect(byTitle.D).toBe("manual");
+    expect(byTitle.G).toBe("gap");
   });
 });

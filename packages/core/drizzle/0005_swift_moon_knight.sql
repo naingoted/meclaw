@@ -1,0 +1,1 @@
+ALTER TABLE "documents" ADD COLUMN "origin" text DEFAULT 'manual' NOT NULL;

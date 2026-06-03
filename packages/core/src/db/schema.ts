@@ -106,6 +106,9 @@ export const documents = pgTable("documents", {
   // seam: future multimodal kinds (pdf/image/…) extend this; v1 only writes 'markdown'.
   kind: text("kind").notNull().default("markdown"),
   category: text("category"),
+  // Lifecycle origin: 'manual' (Documents page / legacy), 'seed' (content import),
+  // 'gap' (created by answering a gap cluster). Type-only enum → plain text + default in SQL.
+  origin: text("origin", { enum: ["manual", "seed", "gap"] }).notNull().default("manual"),
   status: text("status", { enum: ["draft", "ready", "error"] }).notNull().default("draft"),
   contentHash: text("contentHash").notNull(),
   createdAt: timestamp("createdAt", { withTimezone: true }).notNull(),
