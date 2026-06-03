@@ -1,9 +1,13 @@
 import { eq } from "drizzle-orm";
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { makeTestDb } from "../db/test-db";
 import { settings } from "../db/schema";
 import { configCache } from "./config-cache";
 import { defaultSettings, getSettings, getSettingsVersion, SettingsSchema, updateSettings } from "./settings";
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe("settings rag tunables", () => {
   it("defaultSettings seeds scoreFloor + clusterRadius", () => {
@@ -117,5 +121,26 @@ describe("version-aware settings cache", () => {
 
     const cached = configCache.getEntry();
     expect(cached).toBeNull();
+  });
+
+  it("updateSettings advances the version when writes share the same clock millisecond", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-03T07:08:09.000Z"));
+    const { db } = await makeTestDb();
+    configCache.clear();
+
+    const current = await getSettings(db);
+    const first = structuredClone(current);
+    first.public.greeting = "First save";
+
+    await updateSettings(db, first, "127.0.0.1");
+    const firstVersion = await getSettingsVersion(db);
+
+    const second = structuredClone(first);
+    second.public.greeting = "Second save";
+    await updateSettings(db, second, "127.0.0.1");
+
+    await expect(getSettingsVersion(db)).resolves.toBe("2026-06-03T07:08:09.002Z");
+    expect(firstVersion).toBe("2026-06-03T07:08:09.001Z");
   });
 });

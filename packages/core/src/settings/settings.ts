@@ -71,6 +71,15 @@ function toSettingsVersion(updatedAt: Date | string): string {
     : new Date(updatedAt).toISOString();
 }
 
+function nextSettingsUpdatedAt(previousVersion: string | null, now = new Date()): Date {
+  if (!previousVersion) return now;
+
+  const previousMs = new Date(previousVersion).getTime();
+  if (!Number.isFinite(previousMs) || now.getTime() > previousMs) return now;
+
+  return new Date(previousMs + 1);
+}
+
 async function readSettingsRows(db: Db) {
   return db.select().from(settings).where(eq(settings.id, 1));
 }
@@ -114,9 +123,10 @@ export async function getSettings(db: Db): Promise<SettingsValue> {
 export async function updateSettings(db: Db, next: SettingsValue, actorIp: string): Promise<SettingsValue> {
   const parsed = SettingsSchema.parse(next);
   const before = await getSettings(db);
+  const updatedAt = nextSettingsUpdatedAt(configCache.getEntry()?.version ?? null);
   await db.insert(settings)
-    .values({ id: 1, ...parsed, updatedAt: new Date() })
-    .onConflictDoUpdate({ target: settings.id, set: { ...parsed, updatedAt: new Date() } })
+    .values({ id: 1, ...parsed, updatedAt })
+    .onConflictDoUpdate({ target: settings.id, set: { ...parsed, updatedAt } })
     .execute();
   await logAudit(db, { action: "config.update", entityType: "settings", entityId: "1", summary: "updated config", meta: { before, after: parsed }, actorIp });
   configCache.clear();
