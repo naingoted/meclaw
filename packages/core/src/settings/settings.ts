@@ -9,6 +9,8 @@ export const AgentConfigSchema = z.object({
   model: z.string().min(1),
   thinking: z.boolean(),
   prompt: z.string(),
+  /** Triage only: route-to-answer confidence gate (0–1). Other agents omit it. */
+  confidence: z.number().min(0).max(1).optional(),
   framework: z.string().optional(),       // reserved seam: CrewAI/AutoGen/BeeAI
   tools: z.array(z.string()).optional(),  // reserved seam: tools / MCP refs
 });
@@ -33,6 +35,8 @@ export const SettingsSchema = z.object({
     suggestions: z.array(z.string()),
     calUrl: z.string(),
     githubUrl: z.string(),
+    /** Default backfills legacy rows; seeds from the former hardcoded OWNER_EMAIL. */
+    contactEmail: z.string().default("naingoted@gmail.com"),
   }),
 });
 export type AgentConfig = z.infer<typeof AgentConfigSchema>;
@@ -44,7 +48,7 @@ export function defaultSettings(): SettingsValue {
   const draft = process.env.DRAFT_MODEL ?? "qwen3.6-plus";
   return {
     agents: {
-      triage:    { model: triage, thinking: false, prompt: "You are a triage router for a chatbot answering questions about Thet." },
+      triage:    { model: triage, thinking: false, confidence: 0.5, prompt: "You are a triage router for a chatbot answering questions about Thet." },
       knowledge: { model: draft,  thinking: false, prompt: "You answer in a warm third-person voice about Thet, grounded in the provided context." },
       scheduler: { model: draft,  thinking: false, prompt: "The visitor wants to schedule a call with Thet. Use the booking link in the context." },
       contact:   { model: draft,  thinking: false, prompt: "The visitor wants Thet's contact details. Use the contact info in the context." },
@@ -56,6 +60,7 @@ export function defaultSettings(): SettingsValue {
       suggestions: ["What's Thet's tech stack?", "Walk me through a recent project", "How do I get in touch?"],
       calUrl: process.env.NEXT_PUBLIC_CAL_URL ?? "",
       githubUrl: process.env.NEXT_PUBLIC_GITHUB_URL ?? "",
+      contactEmail: "naingoted@gmail.com",
     },
   };
 }
