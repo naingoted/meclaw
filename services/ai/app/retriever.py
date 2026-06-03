@@ -110,6 +110,11 @@ class Retriever:
 
         return RetrievalResult(chunks=chunks, sources=_build_sources(chunks))
 
+    def embed(self, query: str) -> list[float]:
+        """Public embed seam: reused by the streaming layer to cluster misses
+        without re-instantiating the embedder."""
+        return self._embed(query)
+
 
 def _build_sources(chunks: list[RetrievedChunk]) -> list[dict]:
     by_source: dict[str, dict] = {}

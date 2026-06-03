@@ -89,3 +89,17 @@ def test_default_search_builds_cosine_query(monkeypatch):
     assert hits[0]["payload"]["source"] == "about.md"
     assert hits[0]["payload"]["id"] == "about:0"
     assert hits[0]["score"] == 0.93
+
+
+def test_embed_is_public_and_delegates_to_embed_fn():
+    from app.retriever import Retriever
+
+    calls = {}
+
+    def fake_embed(text):
+        calls["text"] = text
+        return [0.1, 0.2, 0.3]
+
+    retriever = Retriever(embed_fn=fake_embed, search_fn=lambda v, k: [])
+    assert retriever.embed("hello") == [0.1, 0.2, 0.3]
+    assert calls["text"] == "hello"
