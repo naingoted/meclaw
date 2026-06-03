@@ -9,6 +9,7 @@ import { StatTile } from "./stat-tile";
 import { PageHeader } from "./page-header";
 import { EmptyState } from "./empty-state";
 import { ThemeProvider, ThemeToggle } from "./theme";
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "./tooltip";
 
 describe("ui primitives", () => {
   it("renders a button and a badge", () => {
@@ -74,5 +75,17 @@ describe("ui primitives", () => {
       </ThemeProvider>,
     );
     expect(screen.getByRole("button", { name: /toggle theme/i })).toBeTruthy();
+  });
+
+  it("renders its trigger; content is mounted lazily by Radix", () => {
+    render(
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger>info</TooltipTrigger>
+          <TooltipContent>helpful text</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>,
+    );
+    expect(screen.getByText("info")).toBeTruthy();
   });
 });
