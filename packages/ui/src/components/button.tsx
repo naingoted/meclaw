@@ -39,4 +39,3 @@ export function Button({ className, variant, size, loading, disabled, children, 
     </button>
   );
 }
-export { buttonVariants };

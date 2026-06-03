@@ -38,3 +38,4 @@ output/
 
 # brainstorm visual companion (local-only)
 .superpowers/
+.fallow/

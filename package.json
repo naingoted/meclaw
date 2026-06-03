@@ -15,7 +15,12 @@
     "ingest": "pnpm --filter @meclaw/rag ingest",
     "dev:full": "docker compose -f infra/docker-compose.yml up --build",
     "services": "docker compose -f infra/docker-compose.yml up -d ollama postgres",
-    "dev:ai": "cd services/ai && uv run --env-file .env uvicorn app.main:app --port 8000 --reload"
+    "dev:ai": "cd services/ai && uv run --env-file .env uvicorn app.main:app --port 8000 --reload",
+    "fallow": "fallow",
+    "fallow:audit": "fallow audit",
+    "coverage": "turbo run test --force -- --coverage && node scripts/merge-coverage.mjs",
+    "fallow:cov": "pnpm coverage && fallow health --coverage coverage/coverage-final.json",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -25,8 +30,11 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^6.0.2",
+    "@vitest/coverage-istanbul": "^4.1.7",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
+    "fallow": "^2.87.0",
+    "husky": "^9.1.7",
     "jsdom": "^29.1.1",
     "react": "19.2.4",
     "react-dom": "19.2.4",

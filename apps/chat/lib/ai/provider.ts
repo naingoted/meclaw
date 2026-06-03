@@ -1,14 +1,8 @@
-import { createAnthropic } from "@ai-sdk/anthropic";
 import { z } from "zod";
 
 /**
- * Provider-agnostic LLM wiring. Swapping models (qwen → OpenAI/Ollama)
- * should only require editing this file.
- *
- * Uses the Vercel AI SDK Anthropic provider pointed at an Anthropic-compatible
- * gateway via a custom `baseURL`. The provider appends `/v1/messages` to the
- * base URL, so `ANTHROPIC_BASE_URL` must be the gateway root (e.g.
- * `https://.../apps/anthropic`).
+ * Provider-agnostic LLM env seam. Chat generation runs in the Python sidecar;
+ * this module keeps env parsing aligned with `services/ai/app/provider.py`.
  */
 const envSchema = z.object({
   ANTHROPIC_API_KEY: z.string().min(1, "ANTHROPIC_API_KEY is required"),
@@ -25,17 +19,4 @@ export function parseAiEnv(env: Record<string, string | undefined> = process.env
     ANTHROPIC_BASE_URL: env.ANTHROPIC_BASE_URL,
     ANTHROPIC_MODEL: env.ANTHROPIC_MODEL,
   });
-}
-
-/**
- * Build the language model from the current environment. Lazy (not module-load)
- * so importing this file during build/test never requires live credentials.
- */
-export function getModel() {
-  const cfg = parseAiEnv();
-  const anthropic = createAnthropic({
-    apiKey: cfg.ANTHROPIC_API_KEY,
-    baseURL: cfg.ANTHROPIC_BASE_URL,
-  });
-  return anthropic(cfg.ANTHROPIC_MODEL);
 }

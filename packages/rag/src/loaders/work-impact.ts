@@ -24,7 +24,7 @@ const PACK_PREFIX = "work_impact_";
 const ENTRIES_FILE = "04_rag_entries.json";
 
 /** One structured impact entry, as stored in `04_rag_entries.json`. */
-export type WorkImpactEntry = {
+type WorkImpactEntry = {
   id?: string;
   category?: string;
   period?: string | number;
@@ -60,34 +60,40 @@ function impactLine(item: string | Record<string, string>): string {
     .join("; ");
 }
 
-/** Render one entry as a markdown section: H2 heading + blank-line-separated blocks. */
-function renderEntry(entry: WorkImpactEntry, index: number): string {
+function renderEntryHeading(entry: WorkImpactEntry, index: number): string {
   const heading = prettifyCategory(entry.category ?? entry.id ?? `Entry ${index + 1}`);
   const meta = [entry.period, entry.size].filter(Boolean).join(", ");
-  const blocks: string[] = [meta.length > 0 ? `## ${heading} (${meta})` : `## ${heading}`];
+  return meta.length > 0 ? `## ${heading} (${meta})` : `## ${heading}`;
+}
 
-  if (entry.summary) {
-    blocks.push(entry.summary);
+function renderMeasurableImpact(
+  impact: WorkImpactEntry["measurable_impact"],
+): string | undefined {
+  if (!impact?.length) {
+    return undefined;
   }
 
-  if (entry.context_for_non_internal_audience) {
-    blocks.push(`Context: ${entry.context_for_non_internal_audience}`);
-  }
+  const bullets = impact.map((item) => `- ${impactLine(item)}`).join("\n");
+  return `Measurable impact:\n${bullets}`;
+}
 
-  if (entry.measurable_impact && entry.measurable_impact.length > 0) {
-    const bullets = entry.measurable_impact.map((item) => `- ${impactLine(item)}`).join("\n");
-    blocks.push(`Measurable impact:\n${bullets}`);
-  }
+function entryDetailBlocks(entry: WorkImpactEntry): string[] {
+  return [
+    entry.summary,
+    entry.context_for_non_internal_audience
+      ? `Context: ${entry.context_for_non_internal_audience}`
+      : undefined,
+    renderMeasurableImpact(entry.measurable_impact),
+    entry.related_initiatives?.length
+      ? `Related initiatives: ${entry.related_initiatives.join(", ")}.`
+      : undefined,
+    entry.confidence ? `Confidence: ${entry.confidence}.` : undefined,
+  ].filter((block): block is string => Boolean(block));
+}
 
-  if (entry.related_initiatives && entry.related_initiatives.length > 0) {
-    blocks.push(`Related initiatives: ${entry.related_initiatives.join(", ")}.`);
-  }
-
-  if (entry.confidence) {
-    blocks.push(`Confidence: ${entry.confidence}.`);
-  }
-
-  return blocks.join("\n\n");
+/** Render one entry as a markdown section: H2 heading + blank-line-separated blocks. */
+function renderEntry(entry: WorkImpactEntry, index: number): string {
+  return [renderEntryHeading(entry, index), ...entryDetailBlocks(entry)].join("\n\n");
 }
 
 function renderPack(company: string, entries: WorkImpactEntry[]): KnowledgeDoc {

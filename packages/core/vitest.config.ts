@@ -10,5 +10,10 @@ export default defineConfig({
     fileParallelism: false,
     testTimeout: 30000,
     hookTimeout: 30000,
+    // Istanbul coverage for `fallow health --coverage`; inert without --coverage.
+    coverage: {
+      provider: "istanbul",
+      reporter: ["json"],
+    },
   },
 });

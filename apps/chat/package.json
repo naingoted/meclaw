@@ -13,7 +13,6 @@
   "dependencies": {
     "@meclaw/core": "workspace:*",
     "@meclaw/ui": "workspace:*",
-    "@ai-sdk/anthropic": "^3.0.81",
     "@ai-sdk/react": "^3.0.195",
     "ai": "^6.0.193",
     "lucide-react": "^1.17.0",

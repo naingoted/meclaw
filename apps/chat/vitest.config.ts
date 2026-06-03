@@ -21,5 +21,10 @@ export default defineConfig({
       "**/.next/**",
       "**/dist/**",
     ],
+    // Istanbul coverage for `fallow health --coverage`; inert without --coverage.
+    coverage: {
+      provider: "istanbul",
+      reporter: ["json"],
+    },
   },
 });

@@ -92,8 +92,42 @@ Keep both if switching between paths, or symlink one to the other.
 | `pnpm install` | Install all monorepo dependencies (pnpm workspaces). |
 | `pnpm verify` | Lint + typecheck + build (pre-merge gate). Runs turbo: `turbo run lint typecheck test build`. |
 | `pnpm test` | Vitest (all packages). |
+| `pnpm fallow` | Full static analysis (dead code, dupes, health). CRAP scores are **estimated** from export refs (fast, no tests). |
+| `pnpm fallow:audit` | Changed-files audit (same command the pre-commit hook runs). |
+| `pnpm coverage` | Run all package tests with Istanbul coverage, merge → `coverage/coverage-final.json`. |
+| `pnpm fallow:cov` | `pnpm coverage` then `fallow health --coverage` — **exact** per-function CRAP from real test coverage. |
 | `docker compose -f infra/docker-compose.yml config -q` | Validate dev compose. |
 | `docker compose -f infra/docker-compose.prod.yml config -q` | Validate prod compose. |
+
+## Git hooks (Fallow + Husky)
+
+After `pnpm install`, Husky wires `.husky/pre-commit`, which runs
+`fallow audit` on files changed since the merge-base with your upstream branch
+(or `main` if none). By default only **new** findings in the changeset block the
+commit (`gate=new-only`); inherited issues on touched files do not.
+
+```bash
+pnpm fallow              # full-repo scan (optional baseline)
+pnpm fallow:audit        # manual pre-commit check
+git commit --no-verify   # skip hook once
+```
+
+Config: `.fallowrc.json`. Reinstall hook after edits: `pnpm exec fallow hooks install --target git --force`.
+
+### Exact CRAP via coverage
+
+Plain `pnpm fallow` estimates CRAP from export references (assumes untested),
+which **overstates** risk on well-tested files. For accurate scores feed real
+coverage:
+
+```bash
+pnpm fallow:cov          # test --coverage (istanbul) → merge → fallow health --coverage
+```
+
+Each package emits Istanbul `coverage/coverage-final.json` (per-package
+`vitest.config.ts`, inert without `--coverage`); `scripts/merge-coverage.mjs`
+shallow-merges them (Istanbul keys on absolute paths, no collisions) into the
+root `coverage/coverage-final.json` that fallow reads.
 
 ## RAG one-time setup
 

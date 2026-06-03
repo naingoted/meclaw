@@ -18,5 +18,14 @@ export default defineConfig({
       "**/.next/**",
       "**/dist/**",
     ],
+    // Istanbul format (not v8) so `fallow health --coverage` gets exact CRAP
+    // scores instead of export-reference estimates. Inert unless `--coverage`
+    // is passed, so plain `pnpm test` is unaffected. Writes
+    // ./coverage/coverage-final.json; the root `coverage` script merges all
+    // packages' files for fallow.
+    coverage: {
+      provider: "istanbul",
+      reporter: ["json"],
+    },
   },
 });
