@@ -62,6 +62,23 @@ describe("ConfigRefreshPoller", () => {
     expect(refresh).toHaveBeenCalledOnce();
   });
 
+  it("retries polling when refresh does not produce a new version prop", async () => {
+    mockVersionFetch("v2");
+    render(<ConfigRefreshPoller initialConfigVersion="v1" status="ready" />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+    expect(refresh).toHaveBeenCalledOnce();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3001);
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+
+    expect(refresh).toHaveBeenCalledTimes(2);
+  });
+
   it("defers refresh while streaming and refreshes after status becomes ready", async () => {
     mockVersionFetch("v2");
     const { rerender } = render(

@@ -1,9 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 const POLL_MS = 3000;
+
+export type ConfigRefreshStatus = "ready" | "submitted" | "streaming" | "error";
 
 function readVersion(value: unknown): string | null {
   if (typeof value !== "object" || value === null) return null;
@@ -11,7 +13,7 @@ function readVersion(value: unknown): string | null {
   return typeof version === "string" && version.length > 0 ? version : null;
 }
 
-export function shouldDeferConfigRefresh(status: string): boolean {
+export function shouldDeferConfigRefresh(status: ConfigRefreshStatus): boolean {
   return status === "submitted" || status === "streaming";
 }
 
@@ -20,28 +22,44 @@ export function ConfigRefreshPoller({
   status,
 }: {
   initialConfigVersion: string;
-  status: string;
+  status: ConfigRefreshStatus;
 }) {
   const router = useRouter();
   const [deferred, setDeferred] = useState(false);
   const latestVersion = useRef(initialConfigVersion);
   const statusRef = useRef(status);
   const refreshingRef = useRef(false);
+  const refreshTimeoutRef = useRef<number | null>(null);
+
+  const refreshOnce = useCallback(() => {
+    refreshingRef.current = true;
+    if (refreshTimeoutRef.current !== null) {
+      window.clearTimeout(refreshTimeoutRef.current);
+    }
+    refreshTimeoutRef.current = window.setTimeout(() => {
+      refreshingRef.current = false;
+      refreshTimeoutRef.current = null;
+    }, POLL_MS);
+    router.refresh();
+  }, [router]);
 
   useEffect(() => {
     latestVersion.current = initialConfigVersion;
     setDeferred(false);
     refreshingRef.current = false;
+    if (refreshTimeoutRef.current !== null) {
+      window.clearTimeout(refreshTimeoutRef.current);
+      refreshTimeoutRef.current = null;
+    }
   }, [initialConfigVersion]);
 
   useEffect(() => {
     statusRef.current = status;
     if (deferred && !shouldDeferConfigRefresh(status)) {
-      refreshingRef.current = true;
       setDeferred(false);
-      router.refresh();
+      refreshOnce();
     }
-  }, [deferred, router, status]);
+  }, [deferred, refreshOnce, status]);
 
   useEffect(() => {
     let cancelled = false;
@@ -60,8 +78,7 @@ export function ConfigRefreshPoller({
           return;
         }
 
-        refreshingRef.current = true;
-        router.refresh();
+        refreshOnce();
       } catch {
         return;
       }
@@ -74,8 +91,12 @@ export function ConfigRefreshPoller({
     return () => {
       cancelled = true;
       window.clearInterval(id);
+      if (refreshTimeoutRef.current !== null) {
+        window.clearTimeout(refreshTimeoutRef.current);
+        refreshTimeoutRef.current = null;
+      }
     };
-  }, [router]);
+  }, [refreshOnce]);
 
   return null;
 }
