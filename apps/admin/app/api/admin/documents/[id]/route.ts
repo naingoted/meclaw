@@ -10,6 +10,10 @@ const Body = z.object({
   title: z.string().min(1),
   body: z.string().min(1),
   category: z.string().optional(),
+  // Parity with POST: a mistyped origin is rejected (400) rather than silently
+  // accepted. Origin is write-once — `updateDocument` never rewrites it, so a
+  // valid origin here is validated and then discarded by design (do not wire it
+  // into the update patch).
   origin: z.enum(["manual", "seed", "gap"]).optional(),
 });
 
