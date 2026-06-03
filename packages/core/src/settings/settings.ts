@@ -115,13 +115,14 @@ export async function updateSettings(db: Db, next: SettingsValue, actorIp: strin
   const parsed = SettingsSchema.parse(next);
   const before = await getSettings(db);
   const updatedAt = new Date();
+  const updatedAtIso = updatedAt.toISOString();
   await db.insert(settings)
     .values({ id: 1, ...parsed, updatedAt })
     .onConflictDoUpdate({
       target: settings.id,
       set: {
         ...parsed,
-        updatedAt: sql`greatest(${updatedAt}, ${settings.updatedAt} + interval '1 millisecond')`,
+        updatedAt: sql`greatest(${updatedAtIso}::timestamptz, ${settings.updatedAt} + interval '1 millisecond')`,
       },
     })
     .execute();
