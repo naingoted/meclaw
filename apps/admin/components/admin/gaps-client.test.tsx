@@ -1,8 +1,22 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+
+const nav = vi.hoisted(() => ({
+  replace: vi.fn(),
+  search: new URLSearchParams(),
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: nav.replace }),
+  usePathname: () => "/admin/gaps",
+  useSearchParams: () => nav.search,
+}));
+
 import { GapsClient } from "./gaps-client";
 
 beforeEach(() => {
+  nav.replace.mockClear();
+  nav.search = new URLSearchParams();
   vi.restoreAllMocks();
   vi.stubGlobal(
     "fetch",
@@ -21,6 +35,28 @@ describe("GapsClient", () => {
     render(<GapsClient />);
     await waitFor(() => expect(screen.getByText("what's his salary?")).toBeInTheDocument());
     expect(screen.getByText("5")).toBeInTheDocument();
+  });
+
+  it("reads ?status= from the URL and marks the active button pressed", async () => {
+    const urls: string[] = [];
+    nav.search = new URLSearchParams("status=resolved");
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      urls.push(url);
+      return new Response("[]");
+    }));
+    render(<GapsClient />);
+    await waitFor(() =>
+      expect(urls.some((u) => u.includes("/api/admin/gaps?status=resolved"))).toBe(true),
+    );
+    expect(screen.getByRole("button", { name: "resolved" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("button", { name: "new" }).getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("writes ?status= to the URL when a status button is clicked", async () => {
+    render(<GapsClient />);
+    await waitFor(() => expect(screen.getByText("what's his salary?")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "resolved" }));
+    expect(nav.replace).toHaveBeenCalledWith("/admin/gaps?status=resolved", { scroll: false });
   });
 
   it("close-loop POSTs a document with origin:'gap'", async () => {
