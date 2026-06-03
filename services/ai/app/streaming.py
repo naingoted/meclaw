@@ -77,6 +77,9 @@ def run_stream(
     scheduler_system: str | None = None,
     contact_system: str | None = None,
     persona_prefix: str = "",
+    score_floor: float = 0.0,
+    embed_fn: Callable[[str], list[float]] | None = None,
+    assign_cluster_fn: Callable[[list[float], str], str] | None = None,
 ) -> Iterator[str]:
     # Ordered record of the pipeline steps taken this turn. Each `status` emit
     # both streams a transient data-status part (drives the live checklist) and
@@ -88,6 +91,23 @@ def run_stream(
     def status(label: str, stage: str) -> str:
         steps.append(label)
         return sse.sse_data_status(label, stage)
+
+    query = _last_user_text(messages)
+
+    def detect_miss(reason: str, top_score: float | None) -> dict | None:
+        """Best-effort: embed the query + fold it into a gap cluster. Returns the
+        miss metadata dict, or None if clustering is unavailable — so the Next
+        flush skips chat_misses rather than write a row with no clusterId.
+        Misses are off the hot path (no LLM draft), so the extra embed is cheap."""
+        if embed_fn is None or assign_cluster_fn is None:
+            return None
+        try:
+            embedding = embed_fn(query)
+            cluster_id = assign_cluster_fn(embedding, query)
+        except Exception:
+            logger.warning("Gap clustering failed; miss not recorded", exc_info=True)
+            return None
+        return {"reason": reason, "topScore": top_score, "clusterId": cluster_id}
 
     # --- Capture path: visitor supplied contact info → record + confirm. -----
     contact = extract_contact(_last_user_text(messages))
@@ -135,6 +155,7 @@ def run_stream(
                 "intent": intent,
                 "steps": list(steps),
                 "corpus_version": corpus_version,
+                "miss": detect_miss("clarify", None),
             },
         )
         return
@@ -153,13 +174,15 @@ def run_stream(
         # tech | project | general all retrieve from the knowledge base.
         yield status("Searching knowledge base…", "retrieval")
         try:
-            retrieval = retriever_retrieve(_last_user_text(messages))
+            retrieval = retriever_retrieve(query)
         except Exception:
             logger.warning("Retrieval failed; falling back", exc_info=True)
             retrieval = RetrievalResult(chunks=[], sources=[])
-        if not retrieval.chunks:
-            # Groundedness gate — no supporting chunks. Instead of a blunt dead
-            # end, offer to capture contact (or stay neutral if already captured).
+        top_score = max((c.score for c in retrieval.chunks), default=0.0)
+        grounded = bool(retrieval.chunks) and top_score >= score_floor
+        if not grounded:
+            # Groundedness gate — no chunks, or top hit below the relevance floor.
+            reason = "fallback" if not retrieval.chunks else "floor"
             yield from _emit_static(
                 fallback_text(),
                 {
@@ -168,6 +191,7 @@ def run_stream(
                     "intent": intent,
                     "steps": list(steps),
                     "corpus_version": corpus_version,
+                    "miss": detect_miss(reason, None if not retrieval.chunks else top_score),
                 },
             )
             return
@@ -186,6 +210,7 @@ def run_stream(
         "intent": intent,
         "steps": list(steps),
         "corpus_version": corpus_version,
+        "miss": None,
     }
     yield sse.sse_start(metadata)
     yield sse.sse_text_start(_TEXT_ID)

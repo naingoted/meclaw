@@ -434,3 +434,131 @@ def test_metadata_includes_corpus_version():
         )
     )
     assert '"corpus_version":7' in body
+
+
+def _embed_stub(_query):
+    return [0.0, 0.0, 0.0]
+
+
+def _assign_stub(cluster_id="cluster-x"):
+    def _fn(_embedding, _query):
+        return cluster_id
+    return _fn
+
+
+def test_floor_below_threshold_records_floor_miss():
+    captured = {"assigned": None}
+
+    def assign(_embedding, query):
+        captured["assigned"] = query
+        return "cluster-floor"
+
+    def retrieve(_query):
+        # one weak chunk, score below the floor
+        return RetrievalResult(
+            chunks=[RetrievedChunk(id="d#0", source="a.md", title="A", text="weak", ordinal=0, score=0.2)],
+            sources=[{"source": "a.md", "title": "A", "score": 0.2}],
+        )
+
+    def draft_stream(system, messages, context):
+        raise AssertionError("must not draft an ungrounded answer")
+
+    body = _collect(
+        run_stream(
+            [{"role": "user", "content": "obscure?"}],
+            triage_fn=_triage("tech", 0.9),
+            retriever_retrieve=retrieve,
+            draft_stream_fn=draft_stream,
+            schedule_fn=lambda: {},
+            contact_fn=lambda: {},
+            score_floor=0.35,
+            embed_fn=_embed_stub,
+            assign_cluster_fn=assign,
+        )
+    )
+
+    assert '"miss":{' in body
+    assert '"reason":"floor"' in body
+    assert '"topScore":0.2' in body
+    assert '"clusterId":"cluster-floor"' in body
+    assert captured["assigned"] == "obscure?"
+    assert body.rstrip().endswith("[DONE]")
+
+
+def test_zero_chunks_records_fallback_miss_with_null_score():
+    body = _collect(
+        run_stream(
+            [{"role": "user", "content": "what's the stack?"}],
+            triage_fn=_triage("tech", 0.9),
+            retriever_retrieve=lambda q: RetrievalResult(chunks=[], sources=[]),
+            draft_stream_fn=lambda s, m, c: iter(["nope"]),
+            schedule_fn=lambda: {},
+            contact_fn=lambda: {},
+            score_floor=0.35,
+            embed_fn=_embed_stub,
+            assign_cluster_fn=_assign_stub("cluster-fb"),
+        )
+    )
+    assert '"reason":"fallback"' in body
+    assert '"topScore":null' in body
+    assert '"clusterId":"cluster-fb"' in body
+
+
+def test_low_confidence_records_clarify_miss():
+    body = _collect(
+        run_stream(
+            [{"role": "user", "content": "that one"}],
+            triage_fn=_triage("project", 0.2, question="Which project?"),
+            retriever_retrieve=lambda q: RetrievalResult([], []),
+            draft_stream_fn=lambda s, m, c: iter(["x"]),
+            schedule_fn=lambda: {},
+            contact_fn=lambda: {},
+            embed_fn=_embed_stub,
+            assign_cluster_fn=_assign_stub("cluster-clar"),
+        )
+    )
+    assert '"reason":"clarify"' in body
+    assert '"clusterId":"cluster-clar"' in body
+    assert "Which project?" in body
+
+
+def test_grounded_answer_carries_null_miss():
+    body = _collect(
+        run_stream(
+            [{"role": "user", "content": "stack?"}],
+            triage_fn=_triage("tech", 0.9),
+            retriever_retrieve=lambda q: RetrievalResult(
+                chunks=[RetrievedChunk(id="d#0", source="a.md", title="A", text="Python", ordinal=0, score=0.9)],
+                sources=[{"source": "a.md", "title": "A", "score": 0.9}],
+            ),
+            draft_stream_fn=lambda s, m, c: iter(["Python."]),
+            schedule_fn=lambda: {},
+            contact_fn=lambda: {},
+            score_floor=0.35,
+            embed_fn=_embed_stub,
+            assign_cluster_fn=_assign_stub("nope"),
+        )
+    )
+    assert '"miss":null' in body
+    assert '"delta":"Python."' in body
+
+
+def test_clustering_failure_emits_null_miss_and_still_streams():
+    def boom_embed(_q):
+        raise RuntimeError("ollama down")
+
+    body = _collect(
+        run_stream(
+            [{"role": "user", "content": "what's the stack?"}],
+            triage_fn=_triage("tech", 0.9),
+            retriever_retrieve=lambda q: RetrievalResult(chunks=[], sources=[]),
+            draft_stream_fn=lambda s, m, c: iter(["x"]),
+            schedule_fn=lambda: {},
+            contact_fn=lambda: {},
+            score_floor=0.35,
+            embed_fn=boom_embed,
+            assign_cluster_fn=_assign_stub("never"),
+        )
+    )
+    assert '"miss":null' in body          # clustering failed → no miss recorded
+    assert body.rstrip().endswith("[DONE]")
