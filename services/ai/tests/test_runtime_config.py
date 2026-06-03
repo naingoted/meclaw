@@ -62,3 +62,53 @@ def test_resolve_config_defaults_gap_tunables(monkeypatch):
     cfg = resolve_config({})
     assert cfg.score_floor == 0.35
     assert cfg.cluster_radius == 0.15
+
+
+def test_resolve_reads_score_threshold_tiny_corpus_and_confidence(monkeypatch):
+    monkeypatch.delenv("TRIAGE_CONFIDENCE_THRESHOLD", raising=False)
+    cfg = resolve_config(
+        {
+            "agents": {"triage": {"model": "t", "thinking": False, "prompt": "T", "confidence": 0.7}},
+            "rag": {"topK": 4, "scoreThreshold": 0.25, "tinyCorpusThreshold": 1200},
+        }
+    )
+    assert cfg.score_threshold == 0.25
+    assert cfg.tiny_corpus_threshold == 1200
+    assert cfg.triage_confidence == 0.7
+
+
+def test_resolve_reads_public_fields():
+    cfg = resolve_config(
+        {
+            "public": {
+                "calUrl": "https://cal.com/owner",
+                "githubUrl": "https://github.com/owner",
+                "contactEmail": "owner@example.com",
+            }
+        }
+    )
+    assert cfg.cal_url == "https://cal.com/owner"
+    assert cfg.github_url == "https://github.com/owner"
+    assert cfg.contact_email == "owner@example.com"
+
+
+def test_resolve_defaults_new_fields(monkeypatch):
+    monkeypatch.delenv("TRIAGE_CONFIDENCE_THRESHOLD", raising=False)
+    monkeypatch.delenv("NEXT_PUBLIC_CAL_URL", raising=False)
+    monkeypatch.delenv("NEXT_PUBLIC_GITHUB_URL", raising=False)
+    cfg = resolve_config({})
+    assert cfg.score_threshold == 0.0
+    assert cfg.tiny_corpus_threshold == 0
+    assert cfg.triage_confidence == 0.5
+    assert cfg.cal_url == "https://cal.com/tet-nai"
+    assert cfg.github_url == ""
+    assert cfg.contact_email == "naingoted@gmail.com"
+
+
+def test_resolve_ignores_blank_public_overrides(monkeypatch):
+    monkeypatch.delenv("NEXT_PUBLIC_CAL_URL", raising=False)
+    # empty strings must NOT clobber the working defaults
+    cfg = resolve_config({"public": {"calUrl": "", "githubUrl": "", "contactEmail": ""}})
+    assert cfg.cal_url == "https://cal.com/tet-nai"
+    assert cfg.github_url == ""
+    assert cfg.contact_email == "naingoted@gmail.com"

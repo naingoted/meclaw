@@ -23,6 +23,12 @@ class RuntimeConfig:
     prompts: dict = field(default_factory=dict)
     score_floor: float = 0.35
     cluster_radius: float = 0.15
+    score_threshold: float = 0.0
+    tiny_corpus_threshold: int = 0
+    triage_confidence: float = 0.5
+    cal_url: str = "https://cal.com/tet-nai"
+    github_url: str = ""
+    contact_email: str = "naingoted@gmail.com"
 
 
 def resolve_config(payload: dict | None) -> RuntimeConfig:
@@ -103,6 +109,37 @@ def resolve_config(payload: dict | None) -> RuntimeConfig:
                     if isinstance(prompt, str) and prompt:
                         prompts[agent_key] = prompt
 
+    # score_threshold: per-chunk include filter. Default 0.0 = include all.
+    score_threshold = float(os.getenv("RAG_SCORE_THRESHOLD", "0.0"))
+    if isinstance(rag, dict) and isinstance(rag.get("scoreThreshold"), (int, float)):
+        score_threshold = float(rag["scoreThreshold"])
+
+    # tiny_corpus_threshold: 0 disables full-corpus stuffing (current behavior).
+    tiny_corpus_threshold = int(os.getenv("RAG_TINY_CORPUS_THRESHOLD", "0"))
+    if isinstance(rag, dict) and isinstance(rag.get("tinyCorpusThreshold"), int):
+        tiny_corpus_threshold = rag["tinyCorpusThreshold"]
+
+    # triage_confidence: request (agents.triage.confidence) > env > 0.5.
+    triage_confidence = float(os.getenv("TRIAGE_CONFIDENCE_THRESHOLD", "0.5"))
+    if isinstance(agents, dict):
+        triage_cfg = agents.get("triage", {})
+        if isinstance(triage_cfg, dict) and isinstance(triage_cfg.get("confidence"), (int, float)):
+            triage_confidence = float(triage_cfg["confidence"])
+
+    # public.* — only non-empty strings override the working defaults, so a blank
+    # admin field can't break the cal/github/email tools.
+    cal_url = os.getenv("NEXT_PUBLIC_CAL_URL", "https://cal.com/tet-nai")
+    github_url = os.getenv("NEXT_PUBLIC_GITHUB_URL", "")
+    contact_email = "naingoted@gmail.com"
+    public = payload.get("public", {})
+    if isinstance(public, dict):
+        if isinstance(public.get("calUrl"), str) and public["calUrl"]:
+            cal_url = public["calUrl"]
+        if isinstance(public.get("githubUrl"), str) and public["githubUrl"]:
+            github_url = public["githubUrl"]
+        if isinstance(public.get("contactEmail"), str) and public["contactEmail"]:
+            contact_email = public["contactEmail"]
+
     return RuntimeConfig(
         triage_model=triage_model,
         draft_model=draft_model,
@@ -111,4 +148,10 @@ def resolve_config(payload: dict | None) -> RuntimeConfig:
         prompts=prompts,
         score_floor=score_floor,
         cluster_radius=cluster_radius,
+        score_threshold=score_threshold,
+        tiny_corpus_threshold=tiny_corpus_threshold,
+        triage_confidence=triage_confidence,
+        cal_url=cal_url,
+        github_url=github_url,
+        contact_email=contact_email,
     )
