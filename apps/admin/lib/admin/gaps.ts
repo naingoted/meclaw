@@ -21,7 +21,7 @@ export async function listClusters(db: Db, status = "new"): Promise<GapClusterSu
   const clusters = await db
     .select()
     .from(gapClusters)
-    .where(eq(gapClusters.status, status))
+    .where(eq(gapClusters.status, status as GapClusterRow["status"]))
     .orderBy(desc(gapClusters.count));
   if (clusters.length === 0) return [];
 
