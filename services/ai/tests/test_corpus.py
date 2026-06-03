@@ -42,3 +42,24 @@ def test_corpus_version_returns_none_on_error():
         raise RuntimeError("db down")
 
     assert corpus_version(fetch_one=boom) is None
+
+
+from app.corpus import corpus_fulltext, _FULLTEXT_SQL
+
+
+def test_corpus_fulltext_concats_and_estimates_tokens():
+    def fetch_all(sql, params=None):
+        assert sql == _FULLTEXT_SQL
+        return [("alpha beta",), ("gamma",)]
+
+    text, tokens = corpus_fulltext(fetch_all=fetch_all)
+    assert text == "alpha beta\n\ngamma"
+    # token estimate ~ chars/4 → len("alpha beta\n\ngamma") // 4
+    assert tokens == len("alpha beta\n\ngamma") // 4
+
+
+def test_corpus_fulltext_degrades_to_empty_on_error():
+    def boom(sql, params=None):
+        raise RuntimeError("db down")
+
+    assert corpus_fulltext(fetch_all=boom) == ("", 0)
