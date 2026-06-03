@@ -70,13 +70,17 @@ export async function getSettings(db: Db): Promise<SettingsValue> {
   if (cached) return cached;
   const rows = await db.select().from(settings).where(eq(settings.id, 1));
   let value: SettingsValue;
+  let version: string;
   if (rows[0]) {
     value = SettingsSchema.parse({ agents: rows[0].agents, shared: rows[0].shared, rag: rows[0].rag, public: rows[0].public });
+    version = rows[0].updatedAt.toISOString();
   } else {
     value = defaultSettings();
-    await db.insert(settings).values({ id: 1, ...value, updatedAt: new Date() }).execute();
+    const now = new Date();
+    await db.insert(settings).values({ id: 1, ...value, updatedAt: now }).execute();
+    version = now.toISOString();
   }
-  configCache.set(value);
+  configCache.set(value, version);
   return value;
 }
 

@@ -10,7 +10,7 @@ afterEach(() => configCache.clear());
 describe("configSnapshot", () => {
   it("forwards public alongside agents/shared/rag", async () => {
     const value: SettingsValue = defaultSettings();
-    configCache.set(value);
+    configCache.set(value, new Date().toISOString());
     const snap = await configSnapshot({} as never);
     expect(snap.public).toBeDefined();
     expect(snap.public.greeting).toBe(value.public.greeting);
