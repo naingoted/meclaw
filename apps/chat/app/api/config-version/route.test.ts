@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const initDb = vi.fn(async () => ({}));
-const getSettingsVersion = vi.fn(async () => "2026-06-03T01:02:03.000Z");
+const getSettingsVersion = vi.fn<() => Promise<string | null>>(
+  async () => "2026-06-03T01:02:03.000Z",
+);
 const getSettings = vi.fn(async () => ({}));
 
 vi.mock("@meclaw/core/db", () => ({
