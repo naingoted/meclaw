@@ -1,8 +1,9 @@
 "use client";
-import { Button, Input, Textarea, Skeleton, Tabs, TabsList, TabsTrigger, TabsContent, TooltipProvider } from "@meclaw/ui";
+import { Button, Input, Textarea, Skeleton, Tabs, TabsList, TabsTrigger, TabsContent } from "@meclaw/ui";
 import * as React from "react";
+import { useForm, Controller, type Path } from "react-hook-form";
 import type { SettingsValue } from "@meclaw/core/settings";
-import { FieldLabel } from "./field-label";
+import { Field } from "./field-label";
 
 // Only two real models exist; scheduler/contact reuse the draft model, so only
 // these two agents expose an editable model field.
@@ -25,107 +26,141 @@ const HELP = {
   contactEmail: "Owner email returned by the contact tool.",
 };
 
+// Stack of fields with a consistent label→input and field→field rhythm.
+const STACK = "space-y-5";
+
 export function ConfigClient() {
-  const [cfg, setCfg] = React.useState<SettingsValue | null>(null);
+  const [agentKeys, setAgentKeys] = React.useState<(keyof SettingsValue["agents"])[]>([]);
+  const [loaded, setLoaded] = React.useState(false);
   const [msg, setMsg] = React.useState("");
-  const [saving, setSaving] = React.useState(false);
+  const { register, handleSubmit, control, reset, formState: { isSubmitting } } = useForm<SettingsValue>();
+
   React.useEffect(() => {
-    void (async () => { setCfg(await (await fetch("/api/admin/settings")).json()); })();
-  }, []);
-  if (!cfg) return (
+    void (async () => {
+      const data = (await (await fetch("/api/admin/settings")).json()) as SettingsValue;
+      setAgentKeys(Object.keys(data.agents) as (keyof SettingsValue["agents"])[]);
+      reset(data);
+      setLoaded(true);
+    })();
+  }, [reset]);
+
+  // Typed-path helpers: nested dynamic paths need a cast to satisfy RHF's Path type.
+  const p = (path: string) => path as Path<SettingsValue>;
+
+  async function onSubmit(values: SettingsValue) {
+    try {
+      // Strip blank suggestion lines before persisting.
+      const payload = {
+        ...values,
+        public: { ...values.public, suggestions: values.public.suggestions.map((s) => s.trim()).filter(Boolean) },
+      };
+      const res = await fetch("/api/admin/settings", { method: "PUT", body: JSON.stringify(payload) });
+      setMsg(res.ok ? "Saved. Live within ~30 min." : "Invalid — fix the highlighted fields.");
+    } catch {
+      setMsg("Save failed — check your connection and retry.");
+    }
+  }
+
+  if (!loaded) return (
     <div className="max-w-2xl space-y-3">
       <Skeleton className="h-7 w-32" />
       <Skeleton className="h-9" />
       <Skeleton className="h-40" />
     </div>
   );
-  const set = (path: string[], v: unknown): void =>
-    setCfg((c) => {
-      if (!c) return c;
-      const n = structuredClone(c);
-      let o: Record<string, unknown> = n as unknown as Record<string, unknown>;
-      for (let i = 0; i < path.length - 1; i++) o = o[path[i]] as Record<string, unknown>;
-      o[path[path.length - 1]] = v;
-      return n;
-    });
-  async function save() {
-    setSaving(true);
-    try {
-      // Strip blank suggestion lines before persisting.
-      const payload = cfg
-        ? { ...cfg, public: { ...cfg.public, suggestions: cfg.public.suggestions.map((s) => s.trim()).filter(Boolean) } }
-        : cfg;
-      const res = await fetch("/api/admin/settings", { method: "PUT", body: JSON.stringify(payload) });
-      setMsg(res.ok ? "Saved. Live within ~30 min." : "Invalid — fix the highlighted fields.");
-    } catch {
-      setMsg("Save failed — check your connection and retry.");
-    } finally {
-      setSaving(false);
-    }
-  }
+
   return (
-    <TooltipProvider>
-      <div className="max-w-2xl">
-        <h1 className="mb-4 text-lg font-bold tracking-tight text-foreground">Config</h1>
-        <Tabs defaultValue="agents">
-          <TabsList>
-            <TabsTrigger value="agents">Agents &amp; Prompts</TabsTrigger>
-            <TabsTrigger value="rag">RAG params</TabsTrigger>
-            <TabsTrigger value="public">Public page</TabsTrigger>
-          </TabsList>
-          <TabsContent value="agents">
-            <FieldLabel label="Shared persona" help={HELP.persona} />
-            <Textarea value={cfg.shared.persona} onChange={(e) => set(["shared","persona"], e.target.value)} />
-            {(Object.keys(cfg.agents) as (keyof typeof cfg.agents)[]).map((key) => (
-              <div key={key} className="mt-4 border-t pt-3">
+    <form onSubmit={handleSubmit(onSubmit)} className="max-w-2xl">
+      <h1 className="mb-4 text-lg font-bold tracking-tight text-foreground">Config</h1>
+      <Tabs defaultValue="agents">
+        <TabsList>
+          <TabsTrigger value="agents">Agents &amp; Prompts</TabsTrigger>
+          <TabsTrigger value="rag">RAG params</TabsTrigger>
+          <TabsTrigger value="public">Public page</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="agents">
+          <div className={STACK}>
+            <Field label="Shared persona" help={HELP.persona} htmlFor="shared.persona">
+              <Textarea id="shared.persona" {...register("shared.persona")} />
+            </Field>
+            {agentKeys.map((key) => (
+              <div key={key} className={`${STACK} border-t pt-5`}>
                 <div className="font-medium capitalize">{key}</div>
                 {MODEL_LABELS[key] ? (
-                  <>
-                    <FieldLabel label={MODEL_LABELS[key]} help={HELP.model} />
-                    <Input value={cfg.agents[key].model} onChange={(e) => set(["agents", key, "model"], e.target.value)} />
-                  </>
+                  <Field label={MODEL_LABELS[key]} help={HELP.model} htmlFor={`agents.${key}.model`}>
+                    <Input id={`agents.${key}.model`} {...register(p(`agents.${key}.model`))} />
+                  </Field>
                 ) : null}
-                <FieldLabel label="Prompt" help={HELP.prompt} />
-                <Textarea value={cfg.agents[key].prompt} onChange={(e) => set(["agents", key, "prompt"], e.target.value)} />
+                <Field label="Prompt" help={HELP.prompt} htmlFor={`agents.${key}.prompt`}>
+                  <Textarea id={`agents.${key}.prompt`} {...register(p(`agents.${key}.prompt`))} />
+                </Field>
                 {key === "triage" ? (
-                  <>
-                    <FieldLabel label="Routing confidence" help={HELP.confidence} />
-                    <Input type="number" step="0.05" min="0" max="1" value={cfg.agents.triage.confidence ?? 0.5} onChange={(e) => set(["agents","triage","confidence"], Number(e.target.value))} />
-                  </>
+                  <Field label="Routing confidence" help={HELP.confidence} htmlFor="agents.triage.confidence">
+                    <Input id="agents.triage.confidence" type="number" step="0.05" min="0" max="1" {...register("agents.triage.confidence", { valueAsNumber: true })} />
+                  </Field>
                 ) : null}
               </div>
             ))}
-          </TabsContent>
-          <TabsContent value="rag">
-            <FieldLabel label="Top-K" help={HELP.topK} />
-            <Input type="number" value={cfg.rag.topK} onChange={(e) => set(["rag","topK"], Number(e.target.value))} />
-            <FieldLabel label="Score floor" help={HELP.scoreFloor} />
-            <Input type="number" step="0.01" value={cfg.rag.scoreFloor} onChange={(e) => set(["rag","scoreFloor"], Number(e.target.value))} />
-            <FieldLabel label="Score threshold" help={HELP.scoreThreshold} />
-            <Input type="number" step="0.01" value={cfg.rag.scoreThreshold} onChange={(e) => set(["rag","scoreThreshold"], Number(e.target.value))} />
-            <FieldLabel label="Cluster radius" help={HELP.clusterRadius} />
-            <Input type="number" step="0.01" value={cfg.rag.clusterRadius} onChange={(e) => set(["rag","clusterRadius"], Number(e.target.value))} />
-            <FieldLabel label="Tiny-corpus threshold" help={HELP.tinyCorpusThreshold} />
-            <Input type="number" value={cfg.rag.tinyCorpusThreshold} onChange={(e) => set(["rag","tinyCorpusThreshold"], Number(e.target.value))} />
-          </TabsContent>
-          <TabsContent value="public">
-            <FieldLabel label="Greeting" help={HELP.greeting} />
-            <Input value={cfg.public.greeting} onChange={(e) => set(["public","greeting"], e.target.value)} />
-            <FieldLabel label="Suggestions" help={HELP.suggestions} />
-            <Textarea value={cfg.public.suggestions.join("\n")} onChange={(e) => set(["public","suggestions"], e.target.value.split("\n"))} />
-            <FieldLabel label="Cal.com URL" help={HELP.calUrl} />
-            <Input value={cfg.public.calUrl} onChange={(e) => set(["public","calUrl"], e.target.value)} />
-            <FieldLabel label="GitHub URL" help={HELP.githubUrl} />
-            <Input value={cfg.public.githubUrl} onChange={(e) => set(["public","githubUrl"], e.target.value)} />
-            <FieldLabel label="Contact email" help={HELP.contactEmail} />
-            <Input value={cfg.public.contactEmail} onChange={(e) => set(["public","contactEmail"], e.target.value)} />
-          </TabsContent>
-        </Tabs>
-        <div className="mt-4 flex items-center gap-3">
-          <Button onClick={save} loading={saving}>Save</Button>
-          <span className={`text-sm ${msg.startsWith("Saved") ? "text-success" : msg ? "text-destructive" : "text-muted-foreground"}`}>{msg}</span>
-        </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="rag">
+          <div className={STACK}>
+            <Field label="Top-K" help={HELP.topK} htmlFor="rag.topK">
+              <Input id="rag.topK" type="number" {...register("rag.topK", { valueAsNumber: true })} />
+            </Field>
+            <Field label="Score floor" help={HELP.scoreFloor} htmlFor="rag.scoreFloor">
+              <Input id="rag.scoreFloor" type="number" step="0.01" {...register("rag.scoreFloor", { valueAsNumber: true })} />
+            </Field>
+            <Field label="Score threshold" help={HELP.scoreThreshold} htmlFor="rag.scoreThreshold">
+              <Input id="rag.scoreThreshold" type="number" step="0.01" {...register("rag.scoreThreshold", { valueAsNumber: true })} />
+            </Field>
+            <Field label="Cluster radius" help={HELP.clusterRadius} htmlFor="rag.clusterRadius">
+              <Input id="rag.clusterRadius" type="number" step="0.01" {...register("rag.clusterRadius", { valueAsNumber: true })} />
+            </Field>
+            <Field label="Tiny-corpus threshold" help={HELP.tinyCorpusThreshold} htmlFor="rag.tinyCorpusThreshold">
+              <Input id="rag.tinyCorpusThreshold" type="number" {...register("rag.tinyCorpusThreshold", { valueAsNumber: true })} />
+            </Field>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="public">
+          <div className={STACK}>
+            <Field label="Greeting" help={HELP.greeting} htmlFor="public.greeting">
+              <Input id="public.greeting" {...register("public.greeting")} />
+            </Field>
+            <Field label="Suggestions" help={HELP.suggestions} htmlFor="public.suggestions">
+              <Controller
+                control={control}
+                name="public.suggestions"
+                render={({ field }) => (
+                  <Textarea
+                    id="public.suggestions"
+                    value={(field.value ?? []).join("\n")}
+                    onChange={(e) => field.onChange(e.target.value.split("\n"))}
+                    onBlur={field.onBlur}
+                  />
+                )}
+              />
+            </Field>
+            <Field label="Cal.com URL" help={HELP.calUrl} htmlFor="public.calUrl">
+              <Input id="public.calUrl" {...register("public.calUrl")} />
+            </Field>
+            <Field label="GitHub URL" help={HELP.githubUrl} htmlFor="public.githubUrl">
+              <Input id="public.githubUrl" {...register("public.githubUrl")} />
+            </Field>
+            <Field label="Contact email" help={HELP.contactEmail} htmlFor="public.contactEmail">
+              <Input id="public.contactEmail" {...register("public.contactEmail")} />
+            </Field>
+          </div>
+        </TabsContent>
+      </Tabs>
+
+      <div className="mt-6 flex items-center gap-3">
+        <Button type="submit" loading={isSubmitting}>Save</Button>
+        <span className={`text-sm ${msg.startsWith("Saved") ? "text-success" : msg ? "text-destructive" : "text-muted-foreground"}`}>{msg}</span>
       </div>
-    </TooltipProvider>
+    </form>
   );
 }

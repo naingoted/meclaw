@@ -6,6 +6,7 @@ export { Textarea } from "./components/textarea";
 export * from "./components/table";
 export * from "./components/tabs";
 export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "./components/tooltip";
+export { Popover, PopoverTrigger, PopoverAnchor, PopoverContent } from "./components/popover";
 export { Skeleton } from "./components/skeleton";
 export { Spinner } from "./components/spinner";
 export { StatusPill } from "./components/status-pill";
