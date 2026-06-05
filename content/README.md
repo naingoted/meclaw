@@ -11,10 +11,12 @@ comes from the markdown here — nothing else.
 | `personal.md` | Real owner profile/contact details copied from the example. | 🚫 git-ignored |
 | `resume.md` | Skills, experience, education. | ✅ starter content |
 | `projects/*.md` | One file per notable project. | ✅ |
-| `knowledge/*.md` | Deeper corpus — career timeline, case studies, FAQs. Feeds RAG. | 🚫 git-ignored (your real files stay local) |
+| `knowledge/**/*.{md,pdf}` | Main private corpus — career timeline, case studies, FAQs. Feeds RAG. | 🚫 git-ignored (samples + `.gitkeep` only) |
+| `private/**/*.{md,pdf}` | Local-only sensitive-but-ingestable notes. Feeds RAG, never the public repo. | 🚫 git-ignored (`.gitkeep` only) |
 
-The loader (`lib/content.ts`) reads **all `*.md` under `content/` recursively**,
-so any file you add anywhere here becomes knowledge after a restart / re-ingest.
+The markdown loader (`packages/core/src/content`) reads **all `*.md` under
+`content/` recursively**, so markdown you add here can be seeded into the admin
+Documents table. The RAG ingest loader also reads PDFs under `content/`.
 
 ### Work-impact packs (`data/work_impact_<company>/`)
 
@@ -32,18 +34,28 @@ code change. `data/**` is git-ignored, so internal history stays local.
 
 ## Privacy model
 
-`content/personal.md`, `content/private/**`, `content/knowledge/**`, and
-`data/**` are git-ignored so personal history never hits a public remote. The
-only committed personal-profile file is `personal.example.md`, and the only
-committed knowledge files are the **`*_sample_*` demos** in `knowledge/`, which
-exist so the repo runs end-to-end on a fresh clone. Delete or replace the
-samples once you've added your own local corpus.
+`content/personal.md`, real `content/private/**`, real `content/knowledge/**`,
+and `data/**` payloads are git-ignored so personal history never hits a public
+remote. The only committed personal-profile file is `personal.example.md`; the
+only committed corpus files are the **`*_sample_*` demos**, `.gitkeep` folder
+markers, and `data/work_impact_example/04_rag_entries.example.json`, which exist
+so the repo shows the expected first-run shape.
 
 ## Adding your own
 
 1. Copy `content/personal.example.md` to `content/personal.md` and fill in the
    real profile/contact details you want the chatbot to know.
-2. Drop markdown into `content/knowledge/` — one topic per file, with an H1 and
-   topic-scoped H2 sections (see the sample docs for the shape). Structure-aware
-   chunking splits on those headings.
-3. Restart `pnpm dev` (context-stuffing path) or re-run `pnpm ingest` (RAG path).
+2. Drop markdown or PDFs into `content/knowledge/` for normal private corpus
+   files. Use one topic per markdown file, with an H1 and topic-scoped H2
+   sections (see the sample docs for the shape). Structure-aware chunking splits
+   on those headings.
+3. Put sensitive-but-ingestable notes in `content/private/` when you want the bot
+   to know them locally but never want them in Git.
+4. For structured employer impact, copy
+   `data/work_impact_example/04_rag_entries.example.json` to
+   `data/work_impact_<company>/04_rag_entries.json` and fill it in.
+5. First setup:
+   ```bash
+   pnpm --filter @meclaw/admin seed:docs  # imports content/**/*.md into Documents
+   pnpm ingest                            # embeds markdown, PDFs, and work-impact packs
+   ```

@@ -135,6 +135,7 @@ After `pnpm services` (or `pnpm dev:full`), run once:
 
 ```bash
 docker compose exec ollama ollama pull nomic-embed-text   # download embed model
+pnpm --filter @meclaw/admin seed:docs                     # import content/**/*.md into Documents
 pnpm --filter @meclaw/rag ingest                           # embed corpus → Postgres
 ```
 
@@ -144,8 +145,22 @@ If Ollama or Postgres is down, chat falls back to full-corpus prompt. App stays 
 
 `content/` ships with public-safe starter files (`personal.example.md`, `resume.md`, `projects/`) + samples
 in `content/knowledge/` so chat works immediately. Your own `content/personal.md`,
-`content/private/**`, `content/knowledge/**`, and `data/**` are gitignored
-(local-only). See `content/README.md` for details.
+real `content/knowledge/**`, `content/private/**`, and `data/**` payloads are
+gitignored (local-only). See `content/README.md` for details.
+
+First-run ingest folders:
+
+- `content/personal.md` — copy from `content/personal.example.md`; markdown profile/contact details.
+- `content/knowledge/**` — main private markdown/PDF corpus.
+- `content/private/**` — local-only sensitive markdown/PDF notes that are still ingestable.
+- `data/work_impact_<company>/04_rag_entries.json` — optional structured employer-impact pack; start from `data/work_impact_example/04_rag_entries.example.json`.
+
+Then run:
+
+```bash
+pnpm --filter @meclaw/admin seed:docs  # imports content/**/*.md into Documents
+pnpm --filter @meclaw/rag ingest       # embeds markdown, PDFs, and work-impact packs
+```
 
 ## Adding a shadcn component
 

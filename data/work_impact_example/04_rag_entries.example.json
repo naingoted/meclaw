@@ -1,0 +1,12 @@
+[
+  {
+    "category": "project impact",
+    "period": "2026",
+    "size": "small|medium|large",
+    "summary": "Short public-safe summary of what happened.",
+    "context_for_non_internal_audience": "Explain internal names and acronyms in public language.",
+    "measurable_impact": "Optional metric or outcome.",
+    "related_initiatives": ["example initiative"],
+    "confidence": "medium"
+  }
+]

@@ -18,13 +18,18 @@ infra/.env
 .env.*.local
 
 # local db + personal corpus (local only — never commit)
-data/
+data/*
+!data/.gitkeep
+!data/work_impact_example/
+!data/work_impact_example/04_rag_entries.example.json
 content/persona.md
 content/personal.md
-content/private/
+content/private/*
+!content/private/.gitkeep
 docs/superpowers/
 # ignore the whole knowledge corpus EXCEPT the committed sample docs
 content/knowledge/*
+!content/knowledge/.gitkeep
 !content/knowledge/00_sample_career_timeline.md
 !content/knowledge/01_sample_project_case_study.md
 

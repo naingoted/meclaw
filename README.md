@@ -129,7 +129,14 @@ pnpm dev:full                     # postgres, ollama, ai sidecar, chat (:3000), 
 One-time, after services are up:
 ```bash
 docker compose exec ollama ollama pull nomic-embed-text   # download embed model
-pnpm ingest                                                # embed content/ corpus → Postgres
+
+# Optional: add your private first-run corpus before seeding/ingesting.
+cp content/personal.example.md content/personal.md
+# Drop .md/.pdf files into content/knowledge/ or content/private/
+# Optional structured packs: data/work_impact_<company>/04_rag_entries.json
+
+pnpm --filter @meclaw/admin seed:docs                     # import content/**/*.md into Documents
+pnpm ingest                                                # embed markdown/pdf/work-impact docs → Postgres
 ```
 
 ## Quickstart B — Host dev (fast UI loop)
@@ -159,7 +166,8 @@ pnpm --filter @meclaw/admin dev   # admin :3001 (needs AUTH_SECRET + ADMIN_PASSW
 | `pnpm --filter @meclaw/admin dev` | Admin Next.js dev :3001. |
 | `pnpm db:migrate` | Apply Drizzle migrations to `DATABASE_URL`. |
 | `pnpm db:generate` | Generate a new migration from schema changes. |
-| `pnpm ingest` | Embed `content/` corpus → Postgres pgvector. |
+| `pnpm --filter @meclaw/admin seed:docs` | Import `content/**/*.md` into the admin Documents table. |
+| `pnpm ingest` | Embed ingestable markdown, PDFs, and work-impact packs → Postgres pgvector. |
 | `pnpm --filter @meclaw/admin gen:admin-hash <password>` | Mint scrypt admin password hash. |
 | `pnpm verify` | Lint + typecheck + build (turbo, all packages) — run before claiming done. |
 | `pnpm test` | Vitest (all JS packages). |
@@ -205,7 +213,16 @@ The flow:
 3. **Ingest** — each document is chunked, embedded (Ollama `nomic-embed-text`), and written to `rag_chunks` (`source = document:<id>`, replace-on-edit so no stale vectors).
 4. **Chat reads `rag_chunks`** — cosine kNN over pgvector. DB only.
 
-**Privacy:** `content/` ships only public-safe templates + samples so a fresh clone chats immediately. Put real profile/contact details in `content/personal.md`, private notes in `content/private/**`, and real corpus files in `content/knowledge/**`; those paths are gitignored and stay local. See `content/README.md`.
+**First-run ingest folders:**
+
+| Local path | File types | What happens |
+|------------|------------|--------------|
+| `content/personal.md` | Markdown | Copy from `content/personal.example.md`; seed imports it into Documents, ingest embeds it. |
+| `content/knowledge/**` | Markdown, PDF | Main private RAG corpus. Markdown can be seeded into Documents; markdown + PDFs are embedded by `pnpm ingest`. |
+| `content/private/**` | Markdown, PDF | Local-only sensitive-but-ingestable notes. Same ingest behavior as `content/knowledge/**`. |
+| `data/work_impact_<company>/04_rag_entries.json` | JSON | Optional structured work-impact pack. `pnpm ingest` renders one RAG doc per company. See `data/work_impact_example/04_rag_entries.example.json`. |
+
+**Privacy:** `content/` ships only public-safe templates + samples so a fresh clone chats immediately. Real `content/personal.md`, `content/private/**`, real `content/knowledge/**` files, and `data/**` payloads are gitignored and stay local. The tracked `.gitkeep` and `.example` files exist only to show the expected folder shape. See `content/README.md`.
 
 ## Docs
 

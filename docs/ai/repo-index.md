@@ -46,7 +46,10 @@ meclaw/
 ├─ content/                          # owner's knowledge corpus (markdown + PDF)
 │  ├─ personal.example.md · resume.md
 │  ├─ projects/*.md
-│  └─ knowledge/                     # (gitignored) real corpus for ingest
+│  ├─ knowledge/                     # gitignored real corpus for ingest (.md/.pdf)
+│  └─ private/                       # gitignored sensitive-but-ingestable local notes
+├─ data/
+│  └─ work_impact_example/           # tracked schema example for work_impact_<company> packs
 ├─ docs/ai/
 │  ├─ HANDOFF.md                     # current build state (read first)
 │  ├─ {repo-index,architecture,setup,deploy,conventions}.md
