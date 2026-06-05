@@ -27,7 +27,8 @@ Chat at http://localhost:3000 · Admin at http://localhost:3001.
 **Host dev (fast UI loop):**
 ```bash
 pnpm install
-cp infra/.env.example .env.local  # Next reads .env.local
+cp infra/.env.example .env.local              # Next reads .env.local
+cp services/ai/.env.example services/ai/.env  # sidecar reads this; fill ANTHROPIC_API_KEY
 pnpm services                     # postgres + ollama (data plane)
 pnpm db:migrate                   # create tables
 pnpm dev:ai                       # Python sidecar :8000 (needs uv)
@@ -85,7 +86,7 @@ Keep both if switching between paths, or symlink one to the other.
 | `pnpm services` | Docker Compose data plane: postgres + ollama only (no app containers). |
 | `pnpm --filter @meclaw/chat dev` | Chat Next dev server (:3000 with HMR). |
 | `pnpm --filter @meclaw/admin dev` | Admin Next dev server (:3001 with HMR, requires `AUTH_SECRET` + `ADMIN_PASSWORD_HASH`). |
-| `pnpm --filter @meclaw/core db:generate` | Regenerate Drizzle migrations from `packages/core/lib/db/schema.ts` → `packages/core/drizzle/`. |
+| `pnpm --filter @meclaw/core db:generate` | Regenerate Drizzle migrations from `packages/core/src/db/schema.ts` → `packages/core/drizzle/`. |
 | `pnpm --filter @meclaw/core db:migrate` | Apply pending migrations to `DATABASE_URL`. |
 | `pnpm --filter @meclaw/rag ingest` | Embed `content/` → Postgres `rag_chunks` table. |
 | `pnpm --filter @meclaw/admin gen:admin-hash <password>` | Mint scrypt admin password hash. |

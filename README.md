@@ -4,6 +4,8 @@ A personal AI bot for **Thet Naing**. Visitors chat on a public page; an AI answ
 
 Local-first by design: knowledge lives in markdown under `content/`, everything runs in Docker, no managed cloud DB required.
 
+This project applies what I learned from [RAG and Agentic AI](https://coursera.org/share/7f66461a5be8323f542f68d4a45b8a25) together with my product engineering experience.
+
 ## How it works
 
 A monorepo of **two Next.js apps** (public chat + admin) sharing **three packages** (DB/core, RAG, UI), fronted by a **Python LLM sidecar** that does the actual reasoning, all backed by a single **PostgreSQL + pgvector** datastore and **Ollama** for embeddings.
@@ -143,7 +145,8 @@ pnpm ingest                                                # embed markdown/pdf/
 
 ```bash
 pnpm install
-cp infra/.env.example .env.local  # Next reads .env.local; fill ANTHROPIC_* + DATABASE_URL
+cp infra/.env.example .env.local              # Next reads .env.local; fill ANTHROPIC_* + DATABASE_URL
+cp services/ai/.env.example services/ai/.env  # sidecar reads this; fill ANTHROPIC_API_KEY
 pnpm services                     # postgres + ollama (data plane only)
 pnpm db:migrate                   # create tables
 pnpm dev:ai                       # Python sidecar :8000 (needs uv)
