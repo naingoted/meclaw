@@ -19,7 +19,7 @@
 
 **Full stack in Docker (recommended):**
 ```bash
-cp .env.example .env              # compose reads .env; fill ANTHROPIC_API_KEY
+cp infra/.env.example .env        # compose reads .env; fill ANTHROPIC_API_KEY
 pnpm dev:full                     # builds + boots postgres, ollama, ai sidecar, chat, admin
 ```
 Chat at http://localhost:3000 · Admin at http://localhost:3001.
@@ -27,7 +27,7 @@ Chat at http://localhost:3000 · Admin at http://localhost:3001.
 **Host dev (fast UI loop):**
 ```bash
 pnpm install
-cp .env.example .env.local        # Next reads .env.local
+cp infra/.env.example .env.local  # Next reads .env.local
 pnpm services                     # postgres + ollama (data plane)
 pnpm db:migrate                   # create tables
 pnpm dev:ai                       # Python sidecar :8000 (needs uv)
@@ -81,7 +81,7 @@ Keep both if switching between paths, or symlink one to the other.
 | Command | Does |
 |---------|------|
 | `pnpm dev:full` | Docker Compose: postgres, ollama, ai sidecar, chat (:3000), admin (:3001) — full stack with HMR. |
-| `pnpm dev:ai` | Python sidecar on :8000 (host, via `uv`). Requires sidecar `.env` with `ANTHROPIC_*` (no `/v1`), `OLLAMA_BASE_URL`, `QDRANT_URL`. |
+| `pnpm dev:ai` | Python sidecar on :8000 (host, via `uv`). Requires sidecar `.env` with `ANTHROPIC_*` (no `/v1`), `OLLAMA_BASE_URL`, and `DATABASE_URL`. |
 | `pnpm services` | Docker Compose data plane: postgres + ollama only (no app containers). |
 | `pnpm --filter @meclaw/chat dev` | Chat Next dev server (:3000 with HMR). |
 | `pnpm --filter @meclaw/admin dev` | Admin Next dev server (:3001 with HMR, requires `AUTH_SECRET` + `ADMIN_PASSWORD_HASH`). |
@@ -142,9 +142,10 @@ If Ollama or Postgres is down, chat falls back to full-corpus prompt. App stays 
 
 ## Knowledge corpus
 
-`content/` ships with starter files (`persona.md`, `resume.md`, `projects/`) + samples
-in `content/knowledge/` so chat works immediately. Your own `content/knowledge/**`
-and `data/**` are gitignored (local-only). See `content/README.md` for details.
+`content/` ships with public-safe starter files (`personal.example.md`, `resume.md`, `projects/`) + samples
+in `content/knowledge/` so chat works immediately. Your own `content/personal.md`,
+`content/private/**`, `content/knowledge/**`, and `data/**` are gitignored
+(local-only). See `content/README.md` for details.
 
 ## Adding a shadcn component
 

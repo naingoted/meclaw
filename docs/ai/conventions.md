@@ -36,7 +36,7 @@ Prefer this over asserting "it works" — capture real browser evidence per mile
 
 ## Secrets
 
-- Real secrets only in `.env.local` (gitignored). `.env.example` holds empty placeholders.
+- Real secrets only in `.env` / `.env.local` / service-local env files (all gitignored). `infra/.env.example` and `infra/.env.prod.example` hold placeholders.
 - Never echo, log, or commit key values.
 
 ## Git / PRs

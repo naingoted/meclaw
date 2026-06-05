@@ -7,7 +7,8 @@ comes from the markdown here — nothing else.
 
 | Path | Purpose | Tracked in git? |
 |------|---------|-----------------|
-| `persona.md` | Voice, vibe, what the owner's looking for, contact. | ✅ starter content |
+| `personal.example.md` | Public-safe template for private owner profile/contact details. | ✅ placeholder |
+| `personal.md` | Real owner profile/contact details copied from the example. | 🚫 git-ignored |
 | `resume.md` | Skills, experience, education. | ✅ starter content |
 | `projects/*.md` | One file per notable project. | ✅ |
 | `knowledge/*.md` | Deeper corpus — career timeline, case studies, FAQs. Feeds RAG. | 🚫 git-ignored (your real files stay local) |
@@ -31,14 +32,18 @@ code change. `data/**` is git-ignored, so internal history stays local.
 
 ## Privacy model
 
-`content/knowledge/**` and `data/**` are git-ignored so personal history never
-hits a public remote. The only committed knowledge files are the **`*_sample_*`
-demos** in `knowledge/`, which exist so the repo runs end-to-end on a fresh
-clone. Delete them once you've added your own.
+`content/personal.md`, `content/private/**`, `content/knowledge/**`, and
+`data/**` are git-ignored so personal history never hits a public remote. The
+only committed personal-profile file is `personal.example.md`, and the only
+committed knowledge files are the **`*_sample_*` demos** in `knowledge/`, which
+exist so the repo runs end-to-end on a fresh clone. Delete or replace the
+samples once you've added your own local corpus.
 
 ## Adding your own
 
-1. Drop markdown into `content/knowledge/` — one topic per file, with an H1 and
+1. Copy `content/personal.example.md` to `content/personal.md` and fill in the
+   real profile/contact details you want the chatbot to know.
+2. Drop markdown into `content/knowledge/` — one topic per file, with an H1 and
    topic-scoped H2 sections (see the sample docs for the shape). Structure-aware
    chunking splits on those headings.
-2. Restart `pnpm dev` (context-stuffing path) or re-run `pnpm ingest` (RAG path).
+3. Restart `pnpm dev` (context-stuffing path) or re-run `pnpm ingest` (RAG path).

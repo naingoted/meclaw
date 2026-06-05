@@ -11,7 +11,7 @@ Personal AI-twin chatbot (single user). Public chat page; an AI answers about th
 ## Resume / orientation
 
 - **Build state + next milestone:** `docs/ai/HANDOFF.md` — read first when resuming.
-- **Full design (locked decisions, do not re-litigate):** see the archived design notes under `docs/superpowers/specs/`.
+- **Design context:** public-facing architecture/setup docs live under `docs/ai/`. Internal planning/review notes are not tracked in the public repo.
 - **Where things live:** `docs/ai/repo-index.md`.
 - **How it fits together:** `docs/ai/architecture.md`.
 - **Local setup:** `docs/ai/setup.md`.
@@ -31,7 +31,7 @@ pnpm test       # vitest run
 
 ## Rules
 
-- **Secrets:** never commit `.env.local`. Only `.env.example` (empty placeholders) is tracked. The owner pasted a live key in chat once — treat as exposed; recommend rotation.
+- **Secrets:** never commit `.env.local` or filled env files. Only placeholder examples are tracked. Rotate any key that has ever been pasted into chat or logs.
 - **TDD:** write a failing Vitest test before feature logic (persona builder, content loader, tools, route). Mock the provider in tests — no live gateway calls.
 - **Provider-agnostic:** all LLM wiring goes through `lib/ai/provider.ts`. Swapping models (qwen → OpenAI/Ollama) = edit that file only.
 - **Milestones are sequential**; each must render in the browser before moving on. Update the Status line in `docs/ai/HANDOFF.md` as you finish each.

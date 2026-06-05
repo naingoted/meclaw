@@ -3,7 +3,7 @@
 Push to `main` → Actions builds four images (chat, admin, ai, ops) → pushes to GHCR →
 SSHes to the VPS → pulls images → runs Postgres migrations via the ops image →
 runs ingest via the ops image → starts the full stack with Caddy reverse proxy.
-See archived deployment spec under `docs/superpowers/specs/`.
+This public guide is the deployment source of truth; internal planning notes are not tracked.
 
 ## Architecture
 
@@ -64,7 +64,7 @@ cp infra/.env.prod.example infra/.env
 #   DOMAIN=yourdomain.com
 #   IMAGE_TAG=<latest git commit SHA from Actions or 'latest'>
 #   GHCR_OWNER=<your GitHub username>
-#   ANTHROPIC_API_KEY=<rotated key from owner>
+#   ANTHROPIC_API_KEY=
 #   AUTH_SECRET=openssl rand -hex 32
 #   ADMIN_PASSWORD_HASH=$(pnpm --filter @meclaw/admin gen:admin-hash '<password>')
 ```

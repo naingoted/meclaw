@@ -37,7 +37,7 @@ Ollama (nomic-embed-text embeddings)
 4. Python sidecar (services/ai):
    - Triage intent (glm-4.7 non-stream, routing rules)
    - Retrieves top-K matching chunks from Postgres pgvector (by cosine similarity)
-   - Builds persona prompt (persona.md + retrieved chunks or full corpus fallback)
+   - Builds persona prompt (private `personal.md` when present, public template/sample docs, and retrieved chunks or full corpus fallback)
    - Drafts response with qwen3.6-plus (stream to client)
 5. Tokens stream back to browser → UI renders markdown with auto-scroll + live trace checklist.
 6. On stream finish → best-effort persist of conversation + messages to Postgres (failures logged, never break stream).

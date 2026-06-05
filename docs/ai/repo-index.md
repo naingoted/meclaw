@@ -41,17 +41,16 @@ meclaw/
 │  ├─ docker-compose.prod.yml        # prod: chat + admin + ai + ops (migrate/ingest runner)
 │  ├─ Dockerfile.ops                 # one-shot migrate + ingest runner
 │  ├─ Caddyfile                      # reverse proxy: apex → chat, admin.* → admin
-│  ├─ .env.example                   # dev env placeholders
+│  ├─ .env.example                   # dev env placeholders; copy to root .env for compose
 │  └─ .env.prod.example              # prod env + secret names (.env/.env.* excluded by root .gitignore)
 ├─ content/                          # owner's knowledge corpus (markdown + PDF)
-│  ├─ persona.md · resume.md
+│  ├─ personal.example.md · resume.md
 │  ├─ projects/*.md
 │  └─ knowledge/                     # (gitignored) real corpus for ingest
 ├─ docs/ai/
 │  ├─ HANDOFF.md                     # current build state (read first)
 │  ├─ {repo-index,architecture,setup,deploy,conventions}.md
 │  └─ ...
-├─ docs/superpowers/specs/           # locked design decisions (archived)
 ├─ .github/workflows/{ci,deploy}.yml
 ├─ .github/pull_request_template.md
 ├─ pnpm-workspace.yaml               # monorepo root config
@@ -70,4 +69,4 @@ meclaw/
 - **Database:** PostgreSQL via `@meclaw/core` (Drizzle ORM + `postgres-js`). Persistence (conversations, messages) + RAG vectors (`rag_chunks`, pgvector, HNSW cosine) in the same store. Migrations live in `packages/core/drizzle/`.
 - **RAG infra:** local Ollama (`nomic-embed-text`) + PostgreSQL (pgvector) configured by `infra/docker-compose.yml`. Ingestion runs on-demand (`pnpm ingest` = `pnpm --filter @meclaw/rag ingest`). Retrieval happens in Python sidecar (`services/ai/app/retriever.py`) via psycopg cosine kNN over `rag_chunks`.
 - **Deploy config:** four Docker images → pushed to GHCR → pulled and run by `infra/docker-compose.prod.yml`. Build sources: chat → `apps/chat/Dockerfile` (target `runner`), admin → `apps/admin/Dockerfile` (target `runner`), ai → `services/ai/Dockerfile`, ops → `infra/Dockerfile.ops` (one-shot migrations + ingest). Caddy reverse proxy (`infra/Caddyfile`) routes apex domain → chat, `admin.<domain>` → admin.
-- **Environment variables:** Each app reads `.env` (dev) or env secrets (prod). See `.env.example` (dev) + `infra/.env.prod.example` (prod) and `docs/ai/setup.md` for details.
+- **Environment variables:** Each app reads `.env` / `.env.local` (dev) or env secrets (prod). See `infra/.env.example` (dev) + `infra/.env.prod.example` (prod) and `docs/ai/setup.md` for details.

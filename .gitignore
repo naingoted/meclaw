@@ -19,6 +19,10 @@ infra/.env
 
 # local db + personal corpus (local only — never commit)
 data/
+content/persona.md
+content/personal.md
+content/private/
+docs/superpowers/
 # ignore the whole knowledge corpus EXCEPT the committed sample docs
 content/knowledge/*
 !content/knowledge/00_sample_career_timeline.md
