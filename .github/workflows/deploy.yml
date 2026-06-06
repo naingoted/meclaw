@@ -9,7 +9,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  quality:
+    uses: ./.github/workflows/quality-gate.yml
+    with:
+      fallow-base: ${{ github.event.before }}
+
   build:
+    needs: quality
     runs-on: ubuntu-latest
     permissions:
       contents: read

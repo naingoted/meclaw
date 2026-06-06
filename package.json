@@ -20,6 +20,7 @@
     "fallow:audit": "fallow audit",
     "coverage": "turbo run test --force -- --coverage && node scripts/merge-coverage.mjs",
     "fallow:cov": "pnpm coverage && fallow health --coverage coverage/coverage-final.json",
+    "fallow:cov:report": "pnpm coverage && fallow health --coverage coverage/coverage-final.json --report-only",
     "prepare": "husky"
   },
   "devDependencies": {

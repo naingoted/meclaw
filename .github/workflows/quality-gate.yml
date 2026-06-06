@@ -1,0 +1,99 @@
+name: Quality Gate
+
+on:
+  workflow_call:
+    inputs:
+      fallow-base:
+        required: true
+        type: string
+      fetch-base-ref:
+        required: false
+        type: string
+        default: ""
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: meclaw
+          POSTGRES_PASSWORD: meclaw
+          POSTGRES_DB: meclaw
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U meclaw"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://meclaw:meclaw@localhost:5432/meclaw
+      ANTHROPIC_API_KEY: dummy-ci-key
+      ANTHROPIC_BASE_URL: https://example.invalid/anthropic
+      ANTHROPIC_MODEL: qwen3.6-plus
+      AUTH_SECRET: ci-secret-not-used-at-runtime
+      ADMIN_PASSWORD_HASH: deadbeef:deadbeef
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Fetch audit base branch
+        if: ${{ inputs.fetch-base-ref != '' }}
+        run: git fetch --no-tags origin "${{ inputs.fetch-base-ref }}:refs/remotes/origin/${{ inputs.fetch-base-ref }}"
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.32.1 --activate
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        run: python -m pip install --upgrade uv
+
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Python dependencies
+        working-directory: services/ai
+        run: uv sync --frozen
+
+      - name: Migrate test database
+        run: pnpm --filter @meclaw/core db:migrate
+
+      - name: Test JS workspace
+        run: pnpm test
+
+      - name: Test Python sidecar
+        working-directory: services/ai
+        run: uv run pytest
+
+      - name: Verify JS workspace
+        run: pnpm verify
+
+      - name: Fallow audit
+        run: |
+          set -euo pipefail
+          base="${{ inputs.fallow-base }}"
+          if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ]; then
+            base="HEAD~1"
+          fi
+          pnpm exec fallow audit --base "$base"
+
+      - name: Coverage quality report
+        run: pnpm fallow:cov:report

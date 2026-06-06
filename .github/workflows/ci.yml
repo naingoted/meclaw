@@ -2,55 +2,11 @@ name: CI
 
 on:
   push:
-    branches: [main]
   pull_request:
 
 jobs:
-  verify:
-    runs-on: ubuntu-latest
-
-    services:
-      postgres:
-        image: pgvector/pgvector:pg16
-        env:
-          POSTGRES_USER: meclaw
-          POSTGRES_PASSWORD: meclaw
-          POSTGRES_DB: meclaw
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U meclaw"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-    env:
-      DATABASE_URL: postgres://meclaw:meclaw@localhost:5432/meclaw
-
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Enable pnpm
-        run: |
-          corepack enable
-          corepack prepare pnpm@10.32.1 --activate
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Install
-        run: pnpm install --frozen-lockfile
-
-      - name: Migrate (Postgres)
-        run: pnpm --filter @meclaw/core db:migrate
-
-      - name: Lint / Typecheck / Test / Build
-        run: pnpm -w turbo run lint typecheck test build
-        env:
-          ANTHROPIC_API_KEY: dummy-ci-key
-          ANTHROPIC_BASE_URL: https://example.invalid/anthropic
-          ANTHROPIC_MODEL: qwen3.6-plus
-          AUTH_SECRET: ci-secret-not-used-at-runtime
-          ADMIN_PASSWORD_HASH: deadbeef:deadbeef
+  quality:
+    uses: ./.github/workflows/quality-gate.yml
+    with:
+      fallow-base: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || github.event.before }}
+      fetch-base-ref: ${{ github.event_name == 'pull_request' && github.base_ref || '' }}
