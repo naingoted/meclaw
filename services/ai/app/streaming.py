@@ -166,6 +166,7 @@ def run_stream(
                 "steps": list(steps),
                 "lead": lead,
                 "corpus_version": corpus_version,
+                "retrieval": None,
             },
         )
         return
@@ -198,6 +199,7 @@ def run_stream(
                 "steps": list(steps),
                 "corpus_version": corpus_version,
                 "miss": detect_miss("clarify", None),
+                "retrieval": None,
             },
         )
         return
@@ -227,6 +229,13 @@ def run_stream(
                 system = knowledge_system or PERSONAS.get(intent, PERSONAS["general"])
                 sources = []
                 stuffed = True
+                # Stuffed path: record telemetry with no per-chunk scores.
+                retrieval_meta = _retrieval_meta(
+                    query, intent,
+                    grounded=True, stuffed=True,
+                    candidates=[], kept_ids=set(),
+                    top_score=None, answer_used=False,
+                )
 
         if not stuffed:
             yield status("Searching knowledge base…", "retrieval")
@@ -253,6 +262,15 @@ def run_stream(
                         "steps": list(steps),
                         "corpus_version": corpus_version,
                         "miss": detect_miss(reason, None if not kept else top_score),
+                        "retrieval": _retrieval_meta(
+                            query, intent,
+                            grounded=False, stuffed=False,
+                            candidates=retrieval.chunks,
+                            kept_ids={c.id for c in kept},
+                            # None when no chunk passed threshold; otherwise the kept top score.
+                            top_score=None if not kept else top_score,
+                            answer_used=False,
+                        ),
                     },
                 )
                 return

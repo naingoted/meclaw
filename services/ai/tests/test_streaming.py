@@ -829,3 +829,108 @@ def test_grounded_path_attaches_retrieval_metadata():
     assert by_id["about:0"]["kept"] is True
     assert by_id["resume:3"]["kept"] is False
     assert by_id["about:0"]["score"] == 0.62
+
+
+def test_fallback_miss_attaches_ungrounded_retrieval():
+    # Top score below floor -> groundedness gate fires; retrieval still recorded.
+    def retrieve(query):
+        return RetrievalResult(
+            chunks=[RetrievedChunk(id="about:0", source="about.md", title="About",
+                                   text="weak", ordinal=0, score=0.05)],
+            sources=[],
+        )
+
+    body = _collect(
+        run_stream(
+            [{"role": "user", "content": "obscure question"}],
+            triage_fn=_triage("tech", 0.9),
+            retriever_retrieve=retrieve,
+            draft_stream_fn=lambda s, m, c: iter(()),
+            schedule_fn=lambda: {},
+            contact_fn=lambda: {},
+            score_floor=0.35,
+            score_threshold=0.0,
+        )
+    )
+    retr = _finish_metadata(body)["retrieval"]
+    assert retr["grounded"] is False
+    assert retr["answer_used"] is False
+    assert retr["chunks"][0]["id"] == "about:0"
+    # kept (>= score_threshold 0.0) but below floor -> top_score recorded
+    assert retr["top_score"] == 0.05
+
+
+def test_zero_kept_miss_records_null_top_score():
+    def retrieve(query):
+        return RetrievalResult(
+            chunks=[RetrievedChunk(id="about:0", source="about.md", title="About",
+                                   text="x", ordinal=0, score=0.1)],
+            sources=[],
+        )
+    body = _collect(
+        run_stream(
+            [{"role": "user", "content": "q"}],
+            triage_fn=_triage("tech", 0.9),
+            retriever_retrieve=retrieve,
+            draft_stream_fn=lambda s, m, c: iter(()),
+            schedule_fn=lambda: {},
+            contact_fn=lambda: {},
+            score_floor=0.35,
+            score_threshold=0.5,  # nothing survives -> kept empty
+        )
+    )
+    retr = _finish_metadata(body)["retrieval"]
+    assert retr["grounded"] is False
+    assert retr["top_score"] is None
+    assert retr["chunks"][0]["kept"] is False
+
+
+def test_stuffed_path_attaches_stuffed_retrieval():
+    body = _collect(
+        run_stream(
+            [{"role": "user", "content": "q"}],
+            triage_fn=_triage("general", 0.9),
+            retriever_retrieve=lambda q: RetrievalResult(chunks=[], sources=[]),
+            draft_stream_fn=lambda s, m, c: iter(["Full ", "corpus ", "answer."]),
+            schedule_fn=lambda: {},
+            contact_fn=lambda: {},
+            corpus_text_fn=lambda: ("Full corpus answer text", 5),
+            tiny_corpus_threshold=100,
+            answer_use_threshold=0.3,
+        )
+    )
+    retr = _finish_metadata(body)["retrieval"]
+    assert retr["stuffed"] is True
+    assert retr["grounded"] is True
+    assert retr["top_score"] is None
+    assert retr["chunks"] == []
+    assert retr["answer_used"] is True
+
+
+def test_contact_route_retrieval_is_null():
+    body = _collect(
+        run_stream(
+            [{"role": "user", "content": "how do I reach you?"}],
+            triage_fn=_triage("contact", 0.9),
+            retriever_retrieve=lambda q: RetrievalResult(chunks=[], sources=[]),
+            draft_stream_fn=lambda s, m, c: iter(["Email me."]),
+            schedule_fn=lambda: {},
+            contact_fn=lambda: {"email": "a@b.c"},
+        )
+    )
+    assert _finish_metadata(body)["retrieval"] is None
+
+
+def test_clarify_path_retrieval_is_null():
+    body = _collect(
+        run_stream(
+            [{"role": "user", "content": "huh?"}],
+            triage_fn=_triage("general", 0.1, question="What do you mean?"),
+            retriever_retrieve=lambda q: RetrievalResult(chunks=[], sources=[]),
+            draft_stream_fn=lambda s, m, c: iter(()),
+            schedule_fn=lambda: {},
+            contact_fn=lambda: {},
+        )
+    )
+    # clarify uses _emit_static; assert its metadata carries retrieval: null
+    assert '"retrieval":null' in body
