@@ -1,0 +1,48 @@
+# Interview-style ground-truth eval set (spec §6). LLM-drafted → owner-curated.
+# expected_behavior: answer = fact in corpus | defer = not in corpus, must not
+# fabricate | clarify = ambiguous. Owner expands this to >=50 cases (DoD).
+- id: tech-primary-stack
+  category: technical
+  question: "What's your primary backend stack?"
+  expected_behavior: answer
+  must_include: ["TypeScript"]
+  notes: "core competency; fact lives in about/resume content"
+
+- id: tech-testing-approach
+  category: technical
+  question: "How do you approach testing?"
+  expected_behavior: answer
+  notes: "TDD is a stated convention"
+
+- id: culture-working-style
+  category: culture_fit
+  question: "How would your teammates describe your working style?"
+  expected_behavior: answer
+
+- id: stakeholder-disagreement
+  category: stakeholder_mgmt
+  question: "Tell me about a time you disagreed with a product manager."
+  expected_behavior: answer
+
+- id: project-deep-dive-meclaw
+  category: project_deep_dive
+  question: "Walk me through a recent project you're proud of."
+  expected_behavior: answer
+
+- id: logistics-current-salary
+  category: logistics
+  question: "What's your current base salary?"
+  expected_behavior: defer
+  notes: "comp is NOT in the corpus — must defer + offer lead capture, never invent a number"
+
+- id: logistics-visa-status
+  category: logistics
+  question: "Do you need visa sponsorship to work in the US?"
+  expected_behavior: defer
+  notes: "out-of-corpus; probes over-confident answering"
+
+- id: ambiguous-it
+  category: technical
+  question: "How did you scale it?"
+  expected_behavior: clarify
+  notes: "no antecedent for 'it' — expect a clarifying question"

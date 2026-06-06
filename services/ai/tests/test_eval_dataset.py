@@ -92,3 +92,21 @@ def test_rejects_duplicate_ids(tmp_path):
     """)
     with pytest.raises(ValueError, match="duplicate"):
         load_dataset(path)
+
+
+def test_committed_interview_set_is_valid_and_spans_categories():
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[1] / "eval" / "interview.yaml"
+    cases = load_dataset(path)
+    assert len(cases) >= 5
+    categories = {c.category for c in cases}
+    assert categories == {
+        "technical",
+        "culture_fit",
+        "stakeholder_mgmt",
+        "project_deep_dive",
+        "logistics",
+    }
+    behaviors = {c.expected_behavior for c in cases}
+    assert {"answer", "defer", "clarify"} <= behaviors
