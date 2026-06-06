@@ -24,7 +24,11 @@ const text = (value: unknown) => ({ content: [{ type: "text" as const, text: JSO
 export function buildServer(scope: Scope, deps: ServerDeps) {
   const server = new McpServer({ name: "meclaw", version: "0.1.0" });
   const registered: string[] = [];
-  const allow = (name: string) => TOOL_SCOPES[name].includes(scope);
+  const allow = (name: string) => {
+    const scopes = TOOL_SCOPES[name];
+    if (!scopes) throw new Error(`Unknown tool: ${name}. Add it to TOOL_SCOPES in scope.ts.`);
+    return scopes.includes(scope);
+  };
 
   const add = (
     name: string,
