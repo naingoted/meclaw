@@ -445,5 +445,74 @@ describe("POST /api/chat — Guard Tests", () => {
       await res.text();
       expect(saveMiss).not.toHaveBeenCalled();
     });
+
+    it("persists a retrieval_event emitted in stream metadata, keyed to the assistant message", async () => {
+      const saveRetrievalEvent = vi.fn().mockResolvedValue(undefined);
+      vi.doMock("@meclaw/core/db", () => ({
+        initDb: vi.fn().mockResolvedValue({}),
+        saveTurn: vi.fn().mockResolvedValue(undefined),
+        saveLead: vi.fn().mockResolvedValue(undefined),
+        saveMiss: vi.fn().mockResolvedValue(undefined),
+        saveRetrievalEvent,
+      }));
+      vi.resetModules();
+      const { POST: PostWithMock } = await import("./route");
+
+      const finishPart =
+        "data: " +
+        JSON.stringify({
+          type: "finish",
+          messageMetadata: {
+            retrieval: {
+              query: "what's the stack?",
+              intent: "tech",
+              grounded: true,
+              stuffed: false,
+              top_score: 0.62,
+              answer_used: true,
+              chunks: [{ id: "about:0", source: "about.md", score: 0.62, kept: true }],
+            },
+          },
+        }) +
+        "\n\n";
+
+      const upstream = new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode('data: {"type":"text-delta","delta":"hi"}\n\n'));
+            controller.enqueue(new TextEncoder().encode(finishPart));
+            controller.enqueue(new TextEncoder().encode("data: [DONE]\n\n"));
+            controller.close();
+          },
+        }),
+        {
+          status: 200,
+          headers: { "content-type": "text/event-stream" },
+        },
+      );
+
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(upstream));
+
+      const res = await PostWithMock(
+        new Request("http://localhost/api/chat", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ messages: [{ role: "user", content: "what's the stack?" }], conversationId: "conv-1" }),
+        }),
+      );
+      // drain the stream so flush() runs
+      await res.text();
+
+      expect(saveRetrievalEvent).toHaveBeenCalledTimes(1);
+      const arg = saveRetrievalEvent.mock.calls[0][1];
+      expect(arg.query).toBe("what's the stack?");
+      expect(arg.intent).toBe("tech");
+      expect(arg.grounded).toBe(true);
+      expect(arg.stuffed).toBe(false);
+      expect(arg.topScore).toBe(0.62);
+      expect(arg.answerUsed).toBe(true);
+      expect(arg.conversationId).toBe("conv-1");
+      expect(arg.chunks).toEqual([{ id: "about:0", source: "about.md", score: 0.62, kept: true }]);
+    });
   });
 });

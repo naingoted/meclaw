@@ -4,7 +4,7 @@ import {
   createUIMessageStreamResponse,
 } from "ai";
 import { randomUUID } from "node:crypto";
-import { initDb, saveTurn, saveLead, saveMiss, type PersistentMessage, type LeadInput, type MissInput } from "@meclaw/core/db";
+import { initDb, saveTurn, saveLead, saveMiss, saveRetrievalEvent, type PersistentMessage, type LeadInput, type MissInput, type RetrievalEventInput } from "@meclaw/core/db";
 import { notifyLead } from "@/lib/notify";
 import { chatRateLimiter } from "@/lib/rate-limit";
 import { detectInjection } from "@/lib/ai/guardrails";
@@ -63,6 +63,7 @@ function teeForPersistence(
   let buffered = "";
   let capturedLead: Omit<LeadInput, "conversationId"> | null = null;
   let capturedMiss: Omit<MissInput, "messageId" | "conversationId" | "query"> | null = null;
+  let capturedRetrieval: Omit<RetrievalEventInput, "messageId" | "conversationId"> | null = null;
 
   // Shared logic: parse a single SSE line and accumulate text-delta content
   const accumulateDelta = (line: string) => {
@@ -77,6 +78,15 @@ function teeForPersistence(
         messageMetadata?: {
           lead?: Omit<LeadInput, "conversationId">;
           miss?: { reason: "floor" | "fallback" | "clarify" | "answer_gap"; topScore: number | null; clusterId: string };
+          retrieval?: {
+            query: string;
+            intent: string;
+            grounded: boolean;
+            stuffed: boolean;
+            top_score: number | null;
+            answer_used: boolean;
+            chunks: { id: string; source: string; score: number; kept: boolean }[];
+          } | null;
         };
       };
       if (part.type === "text-delta" && typeof part.delta === "string") {
@@ -89,6 +99,18 @@ function teeForPersistence(
       const miss = part.messageMetadata?.miss;
       if (miss && miss.clusterId) {
         capturedMiss = { reason: miss.reason, topScore: miss.topScore, clusterId: miss.clusterId };
+      }
+      const retrieval = part.messageMetadata?.retrieval;
+      if (retrieval) {
+        capturedRetrieval = {
+          query: retrieval.query,
+          intent: retrieval.intent,
+          grounded: retrieval.grounded,
+          stuffed: retrieval.stuffed,
+          topScore: retrieval.top_score,
+          answerUsed: retrieval.answer_used,
+          chunks: retrieval.chunks,
+        };
       }
     } catch {
       // ignore non-JSON keep-alive lines
@@ -137,6 +159,13 @@ function teeForPersistence(
             conversationId,
             query: userMessages.at(-1)?.content ?? "",
             ...capturedMiss,
+          });
+        }
+        if (capturedRetrieval) {
+          await saveRetrievalEvent(db, {
+            messageId: assistantMessageId,
+            conversationId,
+            ...capturedRetrieval,
           });
         }
       } catch (error) {
