@@ -248,9 +248,6 @@ importers:
 
   packages/mcp:
     dependencies:
-      '@meclaw/core':
-        specifier: workspace:*
-        version: link:../core
       '@meclaw/rag':
         specifier: workspace:*
         version: link:../rag
