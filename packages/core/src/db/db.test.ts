@@ -3,10 +3,11 @@ import {
   saveTurn,
   saveLead,
   saveMiss,
+  saveRetrievalEvent,
   type PersistentMessage,
 } from "./index";
 import { makeTestDb } from "./test-db";
-import { messages, chatMisses, gapClusters } from "./schema";
+import { messages, chatMisses, gapClusters, retrievalEvents } from "./schema";
 import { eq } from "drizzle-orm";
 
 /**
@@ -276,5 +277,46 @@ describe("saveMiss + assistant messageId", () => {
       .from(chatMisses)
       .where(eq(chatMisses.messageId, "m-ag"));
     expect(rows[0].reason).toBe("answer_gap");
+  });
+});
+
+describe("saveRetrievalEvent", () => {
+  const baseEvent = {
+    messageId: "assistant-msg-1",
+    conversationId: "conv-1",
+    query: "what's the stack?",
+    intent: "tech",
+    grounded: true,
+    stuffed: false,
+    topScore: 0.62,
+    answerUsed: true,
+    chunks: [{ id: "about:0", source: "about.md", score: 0.62, kept: true }],
+  };
+
+  it("inserts a row and is idempotent on duplicate messageId", async () => {
+    const { db } = await makeTestDb();
+    await saveRetrievalEvent(db as never, baseEvent);
+    await saveRetrievalEvent(db as never, baseEvent); // duplicate — no second row
+
+    const rows = await db.select().from(retrievalEvents);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].intent).toBe("tech");
+    expect(rows[0].grounded).toBe(true);
+    expect(rows[0].chunks).toEqual([{ id: "about:0", source: "about.md", score: 0.62, kept: true }]);
+  });
+
+  it("persists a miss event with null topScore and grounded=false", async () => {
+    const { db } = await makeTestDb();
+    await saveRetrievalEvent(db as never, {
+      ...baseEvent,
+      messageId: "assistant-msg-2",
+      grounded: false,
+      topScore: null,
+      answerUsed: false,
+      chunks: [{ id: "about:0", source: "about.md", score: 0.05, kept: false }],
+    });
+    const rows = await db.select().from(retrievalEvents);
+    expect(rows[0].grounded).toBe(false);
+    expect(rows[0].topScore).toBeNull();
   });
 });

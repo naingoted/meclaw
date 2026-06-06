@@ -170,3 +170,51 @@ export async function saveMiss(
     .onConflictDoNothing({ target: schema.chatMisses.messageId })
     .execute();
 }
+
+/** A single retrieval candidate as persisted in retrieval_events.chunks. */
+export type RetrievalChunk = {
+  id: string;
+  source: string;
+  score: number;
+  kept: boolean;
+};
+
+export type RetrievalEventInput = {
+  messageId: string;
+  conversationId: string;
+  query: string;
+  intent: string;
+  grounded: boolean;
+  stuffed: boolean;
+  topScore: number | null;
+  answerUsed: boolean;
+  chunks: RetrievalChunk[];
+};
+
+/**
+ * Persist a knowledge-route retrieval event (hit or miss). Idempotent on
+ * messageId (unique index): a flush retry is a no-op. Best-effort caller
+ * contract — the chat route swallows failures.
+ */
+export async function saveRetrievalEvent(
+  db: Awaited<ReturnType<typeof initDb>>,
+  event: RetrievalEventInput,
+): Promise<void> {
+  await db
+    .insert(schema.retrievalEvents)
+    .values({
+      id: randomUUID(),
+      messageId: event.messageId,
+      conversationId: event.conversationId,
+      query: event.query,
+      intent: event.intent,
+      grounded: event.grounded,
+      stuffed: event.stuffed,
+      topScore: event.topScore,
+      answerUsed: event.answerUsed,
+      chunks: event.chunks,
+      createdAt: new Date(),
+    })
+    .onConflictDoNothing({ target: schema.retrievalEvents.messageId })
+    .execute();
+}
