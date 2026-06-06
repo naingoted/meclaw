@@ -1,6 +1,7 @@
 """build_production_runner wires two distinct, thinking-off models."""
 
 import app.runner as runner
+from app.config import ANSWER_USE_THRESHOLD
 
 
 def test_runner_splits_triage_and_draft_models(monkeypatch):
@@ -89,3 +90,21 @@ def test_build_runner_threads_new_config_and_binds_tools(monkeypatch):
         "email": "owner@example.com",
         "github": "https://github.com/owner",
     }
+
+
+def test_production_runner_binds_answer_use_threshold(monkeypatch):
+    captured = {}
+
+    def fake_run_stream(messages, **kwargs):
+        captured.update(kwargs)
+        yield ""
+
+    monkeypatch.setattr(runner, "run_stream", fake_run_stream)
+    # get_chat_model is lru_cached and reads env; stub it so no gateway is touched.
+    monkeypatch.setattr(runner, "get_chat_model", lambda *a, **k: object())
+    runner.build_production_runner.cache_clear()
+
+    run_fn = runner.build_production_runner()
+    list(run_fn([{"role": "user", "content": "hi"}]))
+
+    assert captured["answer_use_threshold"] == ANSWER_USE_THRESHOLD
