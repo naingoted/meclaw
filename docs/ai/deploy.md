@@ -34,7 +34,10 @@ git push -u origin main
 - `SSH_KEY` — private key whose public half is in VPS user's `~/.ssh/authorized_keys`
 - `SSH_PORT` — SSH port (omit/`22` if default)
 
-`GITHUB_TOKEN` is automatic with `packages: write` — no PAT needed for GHCR.
+`GITHUB_TOKEN` is automatic. The deploy workflow uses it with `packages: write`
+to push GHCR images, then with `packages: read` during the SSH deploy to pull
+those images on the VPS. No `GHCR_USER` or `GHCR_PAT` repository secret is needed
+for the automated workflow.
 
 ### 3. DNS
 Two A records pointing to VPS IP:
@@ -79,6 +82,8 @@ mkdir -p content/knowledge
 ```bash
 echo "<PAT with read:packages>" | docker login ghcr.io -u <owner> --password-stdin
 ```
+This manual login is only for ad hoc pulls outside GitHub Actions. The automated
+deploy workflow logs in before `docker compose pull`.
 
 ### 5. Mint secrets
 ```bash
