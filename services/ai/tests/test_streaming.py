@@ -2,6 +2,8 @@
 token streaming, applying the groundedness gate BEFORE drafting so we never
 stream tokens we'd have to retract."""
 
+import json
+
 from app.graph.nodes import TriageResult
 from app.lead import SOFT_OFFER, CONNECT_OFFER, ESCALATED_OFFER, NEUTRAL_FALLBACK, confirm
 from app.retriever import RetrievalResult, RetrievedChunk
@@ -16,6 +18,21 @@ def _chunk(text: str) -> RetrievedChunk:
 
 def _collect(gen) -> str:
     return "".join(gen)
+
+
+def _finish_metadata(body: str) -> dict:
+    """Parse the SSE body and return the messageMetadata from the `finish` frame."""
+    for line in body.splitlines():
+        line = line.strip()
+        if not line.startswith("data:"):
+            continue
+        payload = line[len("data:"):].strip()
+        if payload in ("", "[DONE]"):
+            continue
+        part = json.loads(payload)
+        if part.get("type") == "finish":
+            return part.get("messageMetadata", {})
+    raise AssertionError("no finish frame found")
 
 
 def _triage(intent: str, confidence: float, question=None):
@@ -598,8 +615,15 @@ def test_score_threshold_drops_subthreshold_chunks_before_gate():
 
     assert "STRONG" in captured["context"]
     assert "WEAK" not in captured["context"]      # filtered before context build
-    assert '"source":"a.md"' in body
-    assert '"source":"b.md"' not in body          # dropped chunk's source removed
+    # User-facing sources array only includes kept chunks
+    meta = _finish_metadata(body)
+    assert len(meta["sources"]) == 1
+    assert meta["sources"][0]["source"] == "a.md"
+    # But all chunks (kept + dropped) are in retrieval telemetry with kept flags
+    retr = meta["retrieval"]
+    by_id = {c["id"]: c for c in retr["chunks"]}
+    assert by_id["d#0"]["kept"] is True
+    assert by_id["d#1"]["kept"] is False
 
 
 def test_score_threshold_filtering_can_trigger_fallback():
@@ -763,3 +787,45 @@ def test_tool_route_does_not_run_answer_gap_detection():
     )
     assert '"miss":null' in body
     assert '"reason":"answer_gap"' not in body
+
+
+def test_grounded_path_attaches_retrieval_metadata():
+    def retrieve(query):
+        return RetrievalResult(
+            chunks=[
+                RetrievedChunk(id="about:0", source="about.md", title="About",
+                               text="Thet uses Python.", ordinal=0, score=0.62),
+                RetrievedChunk(id="resume:3", source="resume.md", title="Resume",
+                               text="unrelated text here", ordinal=3, score=0.10),
+            ],
+            sources=[{"source": "about.md", "title": "About", "score": 0.62}],
+        )
+
+    def draft_stream(system, messages, context):
+        yield "Thet uses Python."
+
+    body = _collect(
+        run_stream(
+            [{"role": "user", "content": "what's the stack?"}],
+            triage_fn=_triage("tech", 0.9),
+            retriever_retrieve=retrieve,
+            draft_stream_fn=draft_stream,
+            schedule_fn=lambda: {},
+            contact_fn=lambda: {},
+            score_threshold=0.3,
+            answer_use_threshold=0.3,
+        )
+    )
+
+    retr = _finish_metadata(body)["retrieval"]
+    assert retr["query"] == "what's the stack?"
+    assert retr["intent"] == "tech"
+    assert retr["grounded"] is True
+    assert retr["stuffed"] is False
+    assert retr["top_score"] == 0.62
+    assert retr["answer_used"] is True  # draft overlaps the kept chunk text
+    # both candidates listed; only the >=0.3 one is kept
+    by_id = {c["id"]: c for c in retr["chunks"]}
+    assert by_id["about:0"]["kept"] is True
+    assert by_id["resume:3"]["kept"] is False
+    assert by_id["about:0"]["score"] == 0.62

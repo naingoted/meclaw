@@ -21,7 +21,8 @@ from typing import Callable, Iterator
 
 from app import stream as sse
 from app.answer_gap import is_missing_fact_answer
-from app.config import TRIAGE_CONFIDENCE_THRESHOLD
+from app.answer_use import compute_answer_used
+from app.config import TRIAGE_CONFIDENCE_THRESHOLD, ANSWER_USE_THRESHOLD
 from app.graph.nodes import (
     CONTACT_PERSONA,
     PERSONAS,
@@ -65,6 +66,34 @@ def _emit_static(text: str, metadata: dict) -> Iterator[str]:
     yield sse.sse_done()
 
 
+def _retrieval_meta(
+    query: str,
+    intent: str,
+    *,
+    grounded: bool,
+    stuffed: bool,
+    candidates: list,
+    kept_ids: set[str],
+    top_score: float | None,
+    answer_used: bool,
+) -> dict:
+    """Build the `retrieval` metadata object (spec §5.1). `candidates` are the
+    RetrievedChunk objects the retriever returned; `kept_ids` are those that
+    survived the score threshold."""
+    return {
+        "query": query,
+        "intent": intent,
+        "grounded": grounded,
+        "stuffed": stuffed,
+        "top_score": top_score,
+        "answer_used": answer_used,
+        "chunks": [
+            {"id": c.id, "source": c.source, "score": c.score, "kept": c.id in kept_ids}
+            for c in candidates
+        ],
+    }
+
+
 def run_stream(
     messages: list[dict],
     *,
@@ -82,6 +111,7 @@ def run_stream(
     score_threshold: float = 0.0,
     tiny_corpus_threshold: int = 0,
     triage_confidence: float = TRIAGE_CONFIDENCE_THRESHOLD,
+    answer_use_threshold: float = ANSWER_USE_THRESHOLD,
     corpus_text_fn: Callable[[], tuple[str, int]] | None = None,
     embed_fn: Callable[[str], list[float]] | None = None,
     assign_cluster_fn: Callable[[list[float], str], str] | None = None,
@@ -113,6 +143,10 @@ def run_stream(
             logger.warning("Gap clustering failed; miss not recorded", exc_info=True)
             return None
         return {"reason": reason, "topScore": top_score, "clusterId": cluster_id}
+
+    # Retrieval telemetry for the terminal metadata. None on tool/clarify/capture
+    # routes (spec §5.1); populated on knowledge routes (hit, stuffed, or miss).
+    retrieval_meta: dict | None = None
 
     # --- Capture path: visitor supplied contact info → record + confirm. -----
     contact = extract_contact(_last_user_text(messages))
@@ -230,6 +264,15 @@ def run_stream(
             # tiny-corpus stuffed path above has no per-chunk score, so it stays
             # out (answer_gap_score remains None there).
             answer_gap_score = top_score
+            # answer_used is filled after drafting (needs the draft text).
+            retrieval_meta = _retrieval_meta(
+                query, intent,
+                grounded=True, stuffed=False,
+                candidates=retrieval.chunks,
+                kept_ids={c.id for c in kept},
+                top_score=top_score,
+                answer_used=False,
+            )
 
     # Apply persona prefix if configured
     if persona_prefix:
@@ -256,6 +299,12 @@ def run_stream(
     # don't retract the streamed answer, just record the gap in terminal metadata.
     if answer_gap_score is not None and is_missing_fact_answer(draft_text):
         metadata["miss"] = detect_miss("answer_gap", answer_gap_score)
+    # Finalize retrieval telemetry: answer_used needs the streamed draft text.
+    if retrieval_meta is not None:
+        retrieval_meta["answer_used"] = compute_answer_used(
+            draft_text, context, answer_use_threshold
+        )
+    metadata["retrieval"] = retrieval_meta
     # Connect-intent answers invite the visitor to leave their own contact too.
     if intent in ("scheduler", "contact") and not suppress:
         yield sse.sse_text_delta(_TEXT_ID, "\n\n" + CONNECT_OFFER)
