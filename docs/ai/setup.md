@@ -130,6 +130,25 @@ Each package emits Istanbul `coverage/coverage-final.json` (per-package
 shallow-merges them (Istanbul keys on absolute paths, no collisions) into the
 root `coverage/coverage-final.json` that fallow reads.
 
+## MCP read-only role (@meclaw/mcp)
+
+The MCP server connects as a dedicated read-only role, `meclaw_ro`. Migration
+`0006_meclaw_ro_grant` creates the role (NOLOGIN) and grants it SELECT on all
+public tables — so `pnpm db:migrate` is safe on a fresh database. Enable login and
+set a password out-of-band (never committed):
+
+```sql
+ALTER ROLE meclaw_ro WITH LOGIN PASSWORD '<choose-a-strong-password>';
+```
+
+Then point the server at it:
+
+```
+MCP_DATABASE_URL=postgres://meclaw_ro:<password>@localhost:5432/meclaw
+MCP_AUTH_TOKEN=<random-token-for-http-transport>
+# MCP_ALLOW_PII=true   # operator only; off by default
+```
+
 ## RAG one-time setup
 
 After `pnpm services` (or `pnpm dev:full`), run once:
