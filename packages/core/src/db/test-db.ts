@@ -140,5 +140,21 @@ export async function makeTestDb() {
   `);
   await db.execute(sql`CREATE UNIQUE INDEX uq_chat_misses_messageId ON chat_misses ("messageId");`);
   await db.execute(sql`CREATE INDEX idx_chat_misses_clusterId ON chat_misses ("clusterId");`);
+  await db.execute(sql`
+    CREATE TABLE retrieval_events (
+      id uuid PRIMARY KEY,
+      "messageId" text NOT NULL,
+      "conversationId" text NOT NULL,
+      query text NOT NULL,
+      intent text NOT NULL,
+      grounded boolean NOT NULL,
+      stuffed boolean NOT NULL,
+      "topScore" double precision,
+      "answerUsed" boolean NOT NULL,
+      chunks jsonb NOT NULL,
+      "createdAt" timestamptz NOT NULL
+    );
+  `);
+  await db.execute(sql`CREATE UNIQUE INDEX uq_retrieval_events_messageId ON retrieval_events ("messageId");`);
   return { db, client };
 }

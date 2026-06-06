@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { randomUUID } from "node:crypto";
 import { makeTestDb } from "./test-db";
-import { documents, settings, gapClusters, chatMisses } from "./schema";
+import { documents, settings, gapClusters, chatMisses, retrievalEvents } from "./schema";
 
 describe("admin schema", () => {
   it("documents/jobs/settings/audit tables accept inserts", async () => {
@@ -78,5 +78,31 @@ describe("admin schema", () => {
     const byTitle = Object.fromEntries(rows.map((r) => [r.title, r.origin]));
     expect(byTitle.D).toBe("manual");
     expect(byTitle.G).toBe("gap");
+  });
+
+  it("retrieval_events accepts inserts; messageId is unique", async () => {
+    const { db } = await makeTestDb();
+    const now = new Date();
+    const row = {
+      id: "11111111-1111-4111-8111-111111111111",
+      messageId: "assistant-msg-1",
+      conversationId: "conv-1",
+      query: "what's the stack?",
+      intent: "tech",
+      grounded: true,
+      stuffed: false,
+      topScore: 0.62,
+      answerUsed: true,
+      chunks: [{ id: "about:0", source: "about.md", score: 0.62, kept: true }],
+      createdAt: now,
+    };
+    await db.insert(retrievalEvents).values(row);
+    const rows = await db.select().from(retrievalEvents);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].chunks).toEqual([{ id: "about:0", source: "about.md", score: 0.62, kept: true }]);
+
+    await expect(
+      db.insert(retrievalEvents).values({ ...row, id: "22222222-2222-4222-8222-222222222222" }),
+    ).rejects.toThrow(); // duplicate messageId
   });
 });

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, timestamp, jsonb, integer, index, check, vector, uuid, doublePrecision, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, jsonb, integer, index, check, vector, uuid, doublePrecision, uniqueIndex, boolean } from "drizzle-orm/pg-core";
 
 /**
  * Database schema for meclaw persistence (Postgres).
@@ -203,5 +203,37 @@ export const chatMisses = pgTable(
     index("idx_chat_misses_clusterId").on(t.clusterId),
     index("idx_chat_misses_conversationId").on(t.conversationId),
     index("idx_chat_misses_createdAt").on(t.createdAt),
+  ],
+);
+
+/**
+ * One row per knowledge-route turn (hit OR miss), written by the Next /api/chat
+ * flush from `metadata.retrieval`. Complementary to chat_misses/gap_clusters
+ * (which stay as the clustering layer) — no migration or removal of those.
+ * Keyed unique on messageId so a flush retry is idempotent.
+ */
+export const retrievalEvents = pgTable(
+  "retrieval_events",
+  {
+    id: uuid("id").primaryKey(),
+    /** references messages.id (no hard FK); unique per event */
+    messageId: text("messageId").notNull(),
+    conversationId: text("conversationId").notNull(),
+    query: text("query").notNull(),
+    intent: text("intent").notNull(),
+    grounded: boolean("grounded").notNull(),
+    stuffed: boolean("stuffed").notNull(),
+    /** null when 0 kept chunks or the tiny-corpus stuffed path was taken */
+    topScore: doublePrecision("topScore"),
+    answerUsed: boolean("answerUsed").notNull(),
+    /** [{ id, source, score, kept }] — the candidates the retriever returned */
+    chunks: jsonb("chunks").notNull(),
+    createdAt: timestamp("createdAt", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    uniqueIndex("uq_retrieval_events_messageId").on(t.messageId),
+    index("idx_retrieval_events_conversationId").on(t.conversationId),
+    index("idx_retrieval_events_createdAt").on(t.createdAt),
+    index("idx_retrieval_events_intent").on(t.intent),
   ],
 );
