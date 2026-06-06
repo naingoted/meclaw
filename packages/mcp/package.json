@@ -1,0 +1,27 @@
+{
+  "name": "@meclaw/mcp",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "mcp:stdio": "jiti src/bin/stdio.ts",
+    "mcp:http": "jiti src/bin/http.ts",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@meclaw/core": "workspace:*",
+    "@meclaw/rag": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "postgres": "^3.4.9",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "jiti": "^2.7.0",
+    "vitest": "^4.1.7"
+  }
+}
