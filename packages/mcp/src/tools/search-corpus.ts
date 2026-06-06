@@ -7,7 +7,7 @@ export const searchCorpusInput = z.object({
   topK: z.number().int().min(1).max(20).default(5).describe("Number of chunks to return"),
 });
 
-export type SearchCorpusArgs = z.infer<typeof searchCorpusInput>;
+export type SearchCorpusArgs = { query: string; topK?: number };
 
 export interface CorpusDeps {
   embedder: EmbeddingClient;

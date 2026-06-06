@@ -30,7 +30,7 @@ export async function getTelemetry(
       notice: "retrieval telemetry not available — Spec B (retrieval_events) is not built yet.",
     };
   }
-  const queries: Record<typeof args.kind, ReturnType<ReadOnlySql>> = {
+  const queries: Record<typeof args.kind, Promise<Array<Record<string, unknown>>>> = {
     misses: deps.sql`SELECT reason, count(*)::int AS n FROM chat_misses GROUP BY reason ORDER BY n DESC`,
     gaps: deps.sql`SELECT status, count(*)::int AS n FROM gap_clusters GROUP BY status ORDER BY n DESC`,
     ingestion: deps.sql`SELECT status, count(*)::int AS n FROM ingestion_jobs GROUP BY status`,
