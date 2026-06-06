@@ -27,3 +27,8 @@ TRIAGE_CONFIDENCE_THRESHOLD = float(os.getenv("TRIAGE_CONFIDENCE_THRESHOLD", "0.
 # Conservative defaults — calibrate against real nomic-embed-text scores once live.
 RAG_SCORE_FLOOR = float(os.getenv("RAG_SCORE_FLOOR", "0.35"))
 CLUSTER_RADIUS = float(os.getenv("CLUSTER_RADIUS", "0.15"))
+
+# `answer_used` hot-path heuristic: a draft "used" retrieval iff the share of its
+# distinct word tokens also present in the kept-chunk context >= this ratio.
+# Deliberately approximate (spec §5.2) — authoritative faithfulness is Ragas offline.
+ANSWER_USE_THRESHOLD = float(os.getenv("ANSWER_USE_THRESHOLD", "0.3"))
