@@ -50,6 +50,13 @@
       "when": 1780745169646,
       "tag": "0006_meclaw_ro_grant",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1780757098295,
+      "tag": "0007_good_silver_fox",
+      "breakpoints": true
     }
   ]
 }
