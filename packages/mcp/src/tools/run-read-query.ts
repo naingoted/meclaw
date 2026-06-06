@@ -2,7 +2,6 @@ import { z } from "zod";
 import { assertReadOnly } from "../guard";
 import { redactRows } from "../redact";
 
-// fallow-ignore-next-line unused-export
 export const runReadQueryInput = z.object({
   sql: z.string().min(1).describe("A single read-only SELECT or WITH...SELECT query"),
   limit: z.number().int().min(1).optional().describe("Max rows to return (capped server-side)"),

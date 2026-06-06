@@ -1,7 +1,6 @@
 import { z } from "zod";
 import type { ReadOnlySql } from "../db";
 
-// fallow-ignore-next-line unused-export
 export const getTelemetryInput = z.object({
   kind: z.enum(["gaps", "misses", "ingestion", "retrieval"]).describe("Which telemetry summary"),
 });

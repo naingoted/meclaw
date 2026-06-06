@@ -1,7 +1,6 @@
 import { z } from "zod";
 import type { ReadOnlySql } from "../db";
 
-// fallow-ignore-next-line unused-export
 export const describeSchemaInput = z.object({
   table: z.string().optional().describe("Optional: restrict to one table"),
 });

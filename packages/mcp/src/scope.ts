@@ -2,7 +2,6 @@ export const SCOPES = ["public", "operator"] as const;
 export type Scope = (typeof SCOPES)[number];
 
 /** Canonical tool names and which scopes expose them. Single source of truth. */
-// fallow-ignore-next-line unused-export
 export const TOOL_SCOPES: Record<string, Scope[]> = {
   search_corpus: ["public", "operator"],
   owner_contact: ["public", "operator"],

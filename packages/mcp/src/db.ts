@@ -14,5 +14,4 @@ export function makeReadOnlyClient(env: McpEnv) {
   });
 }
 
-// fallow-ignore-next-line unused-type
 export type ReadOnlySql = ReturnType<typeof makeReadOnlyClient>;

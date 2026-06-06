@@ -1,7 +1,6 @@
 import { z } from "zod";
 import type { EmbeddingClient, RagSearchResult, VectorStoreClient } from "@meclaw/rag";
 
-// fallow-ignore-next-line unused-export
 export const searchCorpusInput = z.object({
   query: z.string().min(1).describe("Natural-language query to search the knowledge corpus"),
   topK: z.number().int().min(1).max(20).default(5).describe("Number of chunks to return"),
