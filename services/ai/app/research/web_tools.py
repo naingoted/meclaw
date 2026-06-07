@@ -69,26 +69,34 @@ def fetch_url(args: dict) -> dict:
         with httpx.Client(
             timeout=config.FETCH_TIMEOUT_S, follow_redirects=False
         ) as client:
-            with client.stream("GET", url) as resp:
-                # Redirects: re-validate each hop's target before following.
-                hops = 0
-                while resp.status_code in (301, 302, 303, 307, 308):
-                    if hops >= config.FETCH_MAX_REDIRECTS:
-                        return {"error": "too many redirects"}
-                    nxt = resp.headers.get("location", "")
-                    assert_public_url(nxt)
-                    hops += 1
-                    resp = client.stream("GET", nxt).__enter__()  # noqa: PLC2801
-                ctype = resp.headers.get("content-type", "").split(";")[0].strip()
-                if ctype and ctype not in _ALLOWED_CONTENT:
-                    return {"error": f"unsupported content-type: {ctype}"}
-                body = bytearray()
-                for chunk in resp.iter_bytes(chunk_size=16384):
-                    body.extend(chunk)
-                    if len(body) > config.FETCH_MAX_BYTES:
-                        body = body[: config.FETCH_MAX_BYTES]
-                        break
-        return {"url": url, "content": bytes(body).decode("utf-8", errors="replace")}
+            current = url
+            hops = 0
+            # Each hop's stream is opened in its own `with`, so a redirect closes
+            # the prior response before the next is opened (no leaked connection).
+            while True:
+                with client.stream("GET", current) as resp:
+                    if resp.status_code in (301, 302, 303, 307, 308):
+                        if hops >= config.FETCH_MAX_REDIRECTS:
+                            return {"error": "too many redirects"}
+                        nxt = resp.headers.get("location", "")
+                        assert_public_url(nxt)  # re-validate each hop before following
+                        hops += 1
+                        current = nxt
+                        continue
+                    ctype = resp.headers.get("content-type", "").split(";")[0].strip()
+                    # Missing/empty content-type is treated as disallowed (no bypass).
+                    if ctype not in _ALLOWED_CONTENT:
+                        return {"error": f"unsupported content-type: {ctype or '(none)'}"}
+                    body = bytearray()
+                    for chunk in resp.iter_bytes(chunk_size=16384):
+                        body.extend(chunk)
+                        if len(body) > config.FETCH_MAX_BYTES:
+                            body = body[: config.FETCH_MAX_BYTES]
+                            break
+                    return {
+                        "url": url,
+                        "content": bytes(body).decode("utf-8", errors="replace"),
+                    }
     except UnsafeUrlError as exc:
         return {"error": f"blocked redirect: {exc}"}
     except Exception as exc:  # timeout / transport / decode
