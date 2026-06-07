@@ -153,6 +153,23 @@ http:
 The `letsencrypt` resolver (HTTP-01 on `web`) and the `redirect-to-https` middleware already exist
 in `/etc/dokploy/traefik/traefik.yml` + `dynamic/middlewares.yml`. Cert issues in ~30s.
 
+**Panel login (or any POST) returns `403 {"code":"INVALID_ORIGIN"}`.** better-auth's CSRF guard
+rejects the request because Dokploy's `trustedOrigins` doesn't include the panel host. This happens
+when the panel domain was wired only at the Traefik layer (the manual `dokploy.yml` patch above)
+while Dokploy's own `webServerSettings.host` stayed blank. It's a catch-22 — the login POST is itself
+blocked, so the UI (Settings → Web Server → Domain) can't fix it. Patch the DB directly, then restart
+the `dokploy` service so it rebuilds trusted origins:
+```bash
+PG=$(sudo docker ps -q -f name=dokploy-postgres | head -1)
+sudo docker exec "$PG" psql -U dokploy -d dokploy -c \
+  "update \"webServerSettings\" set host='dokploy.leanior.com', https=true, \
+   \"certificateType\"='letsencrypt', \"letsEncryptEmail\"='<email>';"
+sudo docker service update --force dokploy
+```
+Verify with the login POST below but add `-H 'Origin: https://dokploy.leanior.com'` — a `200` +
+`better-auth.session_token` cookie means the origin is now trusted. `webServerSettings` is the
+**canonical** home for the panel domain; once set, the manual Traefik `dokploy.yml` patch is redundant.
+
 **ACME email is `test@localhost.com`.** Only affects LE expiry notices (certs issue regardless).
 To change: edit `email:` in static `/etc/dokploy/traefik/traefik.yml`, then `sudo docker restart
 dokploy-traefik` (brief `:80`/`:443` blip on the live sites).
