@@ -109,3 +109,39 @@ def test_two_subtasks_one_good_one_unresolved_is_degraded():
     state = build_research_graph(deps).invoke({"request": {"role": "X"}})
     assert state["status"] == "degraded"
     assert spy.synth_notes == ["note for q-a"]
+
+
+def test_run_research_persists_and_returns_report(monkeypatch):
+    from app.research import run as run_mod
+
+    steps = []
+
+    class _Writer:
+        def start_run(self, request, model_set, use_case="briefing"):
+            steps.append(("start", request))
+            return "run-xyz"
+
+        def add_step(self, run_id, **kw):
+            steps.append(("step", kw["role"]))
+
+        def finish_run(self, run_id, *, status, report, eval_records, totals):
+            steps.append(("finish", status))
+
+        def fail_run(self, run_id, error):
+            steps.append(("fail", error))
+
+    spy = _Spy()
+    deps = _deps(spy, plan=[_subtask("a")], validate_seq=[{"verdict": "good", "score": 0.9}])
+
+    result = run_mod.run_research(
+        {"company": "Acme", "role": "Backend"},
+        deps=deps,
+        writer=_Writer(),
+        model_set={"planner": "m"},
+    )
+    assert result["status"] == "done"
+    assert result["report"]["summary"] == "done"
+    assert ("start", {"company": "Acme", "role": "Backend"}) in steps
+    assert ("finish", "done") in steps
+    assert any(s == ("step", "planner") for s in steps)
+    assert any(s == ("step", "synthesizer") for s in steps)
