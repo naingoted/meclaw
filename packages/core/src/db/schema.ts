@@ -237,3 +237,65 @@ export const retrievalEvents = pgTable(
     index("idx_retrieval_events_intent").on(t.intent),
   ],
 );
+
+/**
+ * Spec C — research/briefing agent run log. One row per briefing run. Written by
+ * the Python sidecar via psycopg (the gap_clusters disjoint-writer pattern — TS
+ * owns the schema, Python writes; no hard cross-writer FKs). Not on the chat path.
+ */
+export const agentRuns = pgTable(
+  "agent_runs",
+  {
+    id: uuid("id").primaryKey(),
+    useCase: text("useCase").notNull(),
+    input: jsonb("input").notNull(), // { company?, role?, jd? }
+    status: text("status", { enum: ["running", "done", "degraded", "error"] })
+      .notNull()
+      .default("running"),
+    modelSet: jsonb("modelSet"), // { planner, researcher, judge, synthesizer }
+    subtasks: integer("subtasks").notNull().default(0),
+    retries: integer("retries").notNull().default(0),
+    toolCalls: integer("toolCalls").notNull().default(0),
+    tokens: integer("tokens").notNull().default(0),
+    report: jsonb("report"), // BriefingReport | null
+    /** [{ question, contexts: string[], answer }] — Ragas-scorable triples (Spec B soft dep) */
+    evalRecords: jsonb("evalRecords"),
+    error: text("error"),
+    startedAt: timestamp("startedAt", { withTimezone: true }).notNull(),
+    endedAt: timestamp("endedAt", { withTimezone: true }),
+  },
+  (t) => [
+    index("idx_agent_runs_status").on(t.status),
+    index("idx_agent_runs_startedAt").on(t.startedAt),
+  ],
+);
+
+/**
+ * One row per agent action + tool call within a run (Spec C §8 — "log every
+ * agent's inputs, outputs, and tool calls"). Written by the Python sidecar.
+ */
+export const agentSteps = pgTable(
+  "agent_steps",
+  {
+    id: uuid("id").primaryKey(),
+    /** references agent_runs.id (no hard FK, schema style) */
+    runId: uuid("runId").notNull(),
+    seq: integer("seq").notNull(),
+    role: text("role", {
+      enum: ["planner", "researcher", "validate", "synthesizer"],
+    }).notNull(),
+    input: jsonb("input"),
+    output: jsonb("output"),
+    /** [{ name, args, resultDigest }] */
+    toolCalls: jsonb("toolCalls"),
+    validationVerdict: text("validationVerdict"), // good | bad | null
+    score: doublePrecision("score"),
+    retryIndex: integer("retryIndex"),
+    durationMs: integer("durationMs"),
+    createdAt: timestamp("createdAt", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    index("idx_agent_steps_runId").on(t.runId),
+    index("idx_agent_steps_role").on(t.role),
+  ],
+);
