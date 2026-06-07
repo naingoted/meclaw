@@ -93,6 +93,42 @@ class JsonToolCaller:
         return Proposal(calls=[ToolCall(name=str(name), args=dict(parsed.get("args") or {}))], content="")
 
 
+class NativeToolCaller:
+    """Gateway-native tool calling via bind_tools. Use only when the §7.1 spike
+    verdict is PASS. Each Tool is advertised as a langchain StructuredTool-style
+    spec; we read resp.tool_calls back.
+
+    NOTE: verify against the installed langchain-anthropic — `bind_tools` accepts
+    a list of tool specs and the response exposes `.tool_calls` as
+    [{name, args, id}]. If the installed version differs, adapt the spec shape
+    here only; the researcher loop is unaffected."""
+
+    def __init__(self, model):
+        self._model = model
+
+    def _specs(self, tools: list[Tool]) -> list[dict]:
+        return [
+            {
+                "name": t.name,
+                "description": t.description,
+                "parameters": {
+                    "type": "object",
+                    "properties": {k: {"type": "string"} for k in t.args_schema},
+                },
+            }
+            for t in tools
+        ]
+
+    def propose(self, messages: list[dict], tools: list[Tool]) -> Proposal:
+        bound = self._model.bind_tools(self._specs(tools))
+        resp = bound.invoke(messages)
+        calls = [
+            ToolCall(name=tc["name"], args=dict(tc.get("args") or {}))
+            for tc in (getattr(resp, "tool_calls", None) or [])
+        ]
+        return Proposal(calls=calls, content=_extract_text(resp.content) if not calls else "")
+
+
 def dispatch(call: ToolCall, tools: list[Tool]) -> Any:
     """Run a proposed tool call against the tool list."""
     for tool in tools:
@@ -103,3 +139,8 @@ def dispatch(call: ToolCall, tools: list[Tool]) -> Any:
                 logger.warning("Tool %s failed: %s", call.name, exc)
                 return {"error": f"tool {call.name} failed: {exc}"}
     return {"error": f"unknown tool {call.name!r}"}
+
+
+def make_tool_caller(model, mode: str) -> ToolCaller:
+    """Select the ToolCaller from config.RESEARCH_TOOLCALL_MODE."""
+    return NativeToolCaller(model) if mode == "native" else JsonToolCaller(model)

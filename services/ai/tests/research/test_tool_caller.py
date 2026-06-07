@@ -70,3 +70,51 @@ def test_dispatch_unknown_tool_returns_error_marker():
     tools, _ = _tools()
     out = dispatch(ToolCall(name="nope", args={}), tools)
     assert out["error"].startswith("unknown tool")
+
+
+def test_native_caller_reads_tool_calls_from_bound_model():
+    from app.research.tool_caller import NativeToolCaller
+
+    class _Bound:
+        def invoke(self, messages):
+            class _R:
+                content = ""
+                tool_calls = [{"name": "search_corpus", "args": {"query": "stack"}}]
+
+            return _R()
+
+    class _Model:
+        def __init__(self):
+            self.bound_with = None
+
+        def bind_tools(self, specs):
+            self.bound_with = specs
+            return _Bound()
+
+    tools, _ = _tools()
+    model = _Model()
+    prop = NativeToolCaller(model).propose([{"role": "user", "content": "go"}], tools)
+    assert prop.calls[0].name == "search_corpus"
+    assert prop.calls[0].args == {"query": "stack"}
+    assert model.bound_with is not None  # tools were bound
+
+
+def test_native_caller_no_tool_calls_means_done():
+    from app.research.tool_caller import NativeToolCaller
+
+    class _Bound:
+        def invoke(self, messages):
+            class _R:
+                content = "Thet built the sidecar."
+                tool_calls = []
+
+            return _R()
+
+    class _Model:
+        def bind_tools(self, specs):
+            return _Bound()
+
+    tools, _ = _tools()
+    prop = NativeToolCaller(_Model()).propose([{"role": "user", "content": "go"}], tools)
+    assert prop.calls == []
+    assert "sidecar" in prop.content
