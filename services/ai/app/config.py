@@ -32,3 +32,37 @@ CLUSTER_RADIUS = float(os.getenv("CLUSTER_RADIUS", "0.15"))
 # distinct word tokens also present in the kept-chunk context >= this ratio.
 # Deliberately approximate (spec §5.2) — authoritative faithfulness is Ragas offline.
 ANSWER_USE_THRESHOLD = float(os.getenv("ANSWER_USE_THRESHOLD", "0.3"))
+
+# --- Spec C: research/briefing agent (additive; never on the chat path) ------
+
+# Models (provider-agnostic; routed through get_chat_model). Default the
+# reasoning roles to the triage model and synthesis to the draft model so a
+# single gateway/model swap (provider.py) covers everything.
+RESEARCH_MODEL = os.getenv("RESEARCH_MODEL", TRIAGE_MODEL)        # planner/researcher/judge
+RESEARCH_SYNTH_MODEL = os.getenv("RESEARCH_SYNTH_MODEL", DRAFT_MODEL)
+
+# Tool-calling mode for the researcher loop — set from the §7.1 spike outcome.
+# "json" (default) works regardless of gateway native tool-calling support.
+RESEARCH_TOOLCALL_MODE = os.getenv("RESEARCH_TOOLCALL_MODE", "json")  # json | native
+
+# Budgets / loop guards (Spec C §5, §10). Degrade-not-hang on exhaustion.
+RESEARCH_MAX_SUBTASKS = int(os.getenv("RESEARCH_MAX_SUBTASKS", "6"))
+RESEARCH_RETRY_BUDGET = int(os.getenv("RESEARCH_RETRY_BUDGET", "2"))      # per subtask
+RESEARCH_MAX_ITERATIONS = int(os.getenv("RESEARCH_MAX_ITERATIONS", "24")) # global loop guard
+RESEARCH_MAX_TOOL_CALLS = int(os.getenv("RESEARCH_MAX_TOOL_CALLS", "30"))
+RESEARCH_REACT_MAX_STEPS = int(os.getenv("RESEARCH_REACT_MAX_STEPS", "4"))  # tool turns / subtask
+
+# Validation thresholds (Spec C §5).
+RESEARCH_MIN_NOTE_CHARS = int(os.getenv("RESEARCH_MIN_NOTE_CHARS", "40"))
+RESEARCH_JUDGE_THRESHOLD = float(os.getenv("RESEARCH_JUDGE_THRESHOLD", "0.6"))
+RESEARCH_CORPUS_SCORE_FLOOR = float(os.getenv("RESEARCH_CORPUS_SCORE_FLOOR", str(RAG_SCORE_FLOOR)))
+
+# Operator-scope MCP client (Spec A server over Streamable HTTP + bearer).
+MCP_OPERATOR_URL = os.getenv("MCP_OPERATOR_URL", "http://localhost:8787/mcp")
+MCP_AUTH_TOKEN = os.getenv("MCP_AUTH_TOKEN")  # bearer for the HTTP transport
+
+# Web tools. Absent TAVILY_API_KEY → web subtasks degrade (not fatal, Spec C §6).
+TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
+FETCH_TIMEOUT_S = float(os.getenv("FETCH_TIMEOUT_S", "10"))
+FETCH_MAX_BYTES = int(os.getenv("FETCH_MAX_BYTES", str(1_000_000)))  # ~1 MB
+FETCH_MAX_REDIRECTS = int(os.getenv("FETCH_MAX_REDIRECTS", "3"))
