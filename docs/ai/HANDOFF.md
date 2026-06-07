@@ -42,6 +42,7 @@ ANTHROPIC_MODEL=qwen3.6-plus
 
 Status: **All milestones (M0–M6) + Phase 1 RAG + Phase 3 (sidecar) + Phase 5 (deploy) complete.** 
 **Plan C (monorepo restructure + infra/) complete:** workspace = `apps/*` + `packages/*` + `services/ai` + `infra/`; root flat app/shims removed; turbo orchestration + four Docker images (chat, admin, ai, ops) + subdomain Caddy routing. All docs updated. Ready for VPS deploy.
+**Spec B (RAG telemetry + eval harness) complete — merged to `main` (`f93e0fc`), dev stack refreshed.** `retrieval_events` table (migration 0007) live in Postgres; chat flush path persists one row per knowledge turn. Eval harness (`services/ai/app/eval/*`): generate → collect → score (custom + Ragas) → report; `uv run -m app.eval.run --set eval/interview.yaml --report out/` produces `report.json` + `report.md`, `--ci` enforces regression thresholds. Gates: Python **165 passed**, `pnpm verify` green, migration applied. **Owner to-do (DoD §10):** expand `interview.yaml` to ≥50 cases; run live smoke (needs gateway + Ollama + Postgres); browser-verify a `retrieval_events` row writes on a real knowledge turn.
 
 Earlier milestones (M0–M6 chat, Phase 1 RAG, Phase 3 sidecar, latency tuning, postgres migration, qdrant→pgvector) are locked-in; see Progress log below. Build sequentially; each change must render in browser before moving on. Use TDD (Vitest). **Browser-verify via Playwright MCP** (`MCP_DOCKER` `browser_*` tools) — see `conventions.md`.
 
