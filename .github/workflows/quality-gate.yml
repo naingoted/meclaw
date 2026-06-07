@@ -47,7 +47,9 @@ jobs:
 
       - name: Fetch audit base branch
         if: ${{ inputs.fetch-base-ref != '' }}
-        run: git fetch --no-tags origin "${{ inputs.fetch-base-ref }}:refs/remotes/origin/${{ inputs.fetch-base-ref }}"
+        env:
+          FETCH_BASE_REF: ${{ inputs.fetch-base-ref }}
+        run: git fetch --no-tags origin "$FETCH_BASE_REF:refs/remotes/origin/$FETCH_BASE_REF"
 
       - name: Enable pnpm
         run: |
@@ -90,9 +92,11 @@ jobs:
         run: pnpm format:check
 
       - name: Fallow audit
+        env:
+          FALLOW_BASE: ${{ inputs.fallow-base }}
         run: |
           set -euo pipefail
-          base="${{ inputs.fallow-base }}"
+          base="$FALLOW_BASE"
           if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ]; then
             base="HEAD~1"
           fi

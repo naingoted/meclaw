@@ -19,6 +19,8 @@ RUN pnpm install --no-frozen-lockfile
 ##### dev: hot-reload (compose dev only) #####
 FROM deps AS dev
 ENV NEXT_TELEMETRY_DISABLED=1 WATCHPACK_POLLING=true CHOKIDAR_USEPOLLING=true
+RUN chown -R node:node /app
+USER node
 EXPOSE 3001
 CMD ["pnpm", "--filter", "@meclaw/admin", "dev"]
 

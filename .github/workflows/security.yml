@@ -44,7 +44,10 @@ jobs:
 
       - name: Conventional commits (PR range)
         if: ${{ inputs.commit-range-from != '' }}
-        run: pnpm exec commitlint --from "${{ inputs.commit-range-from }}" --to "${{ inputs.commit-range-to }}"
+        env:
+          COMMIT_FROM: ${{ inputs.commit-range-from }}
+          COMMIT_TO: ${{ inputs.commit-range-to }}
+        run: pnpm exec commitlint --from "$COMMIT_FROM" --to "$COMMIT_TO"
 
       - name: Dependency audit
         run: pnpm audit --audit-level=high

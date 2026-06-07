@@ -100,26 +100,11 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: read
     steps:
-      - name: SSH deploy
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          port: ${{ secrets.SSH_PORT }}
-          script: |
-            set -euo pipefail
-            cd /opt/meclaw
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-            git pull --ff-only
-            docker compose -f infra/docker-compose.prod.yml pull
-            docker compose -f infra/docker-compose.prod.yml up -d --wait postgres
-            docker compose -f infra/docker-compose.prod.yml run --rm ops pnpm --filter @meclaw/core db:migrate
-            docker compose -f infra/docker-compose.prod.yml up -d
-            docker compose -f infra/docker-compose.prod.yml exec -T ollama ollama pull nomic-embed-text
-            docker compose -f infra/docker-compose.prod.yml run --rm ops pnpm --filter @meclaw/rag ingest
-            docker image prune -f
+      - name: Trigger Dokploy redeploy
+        env:
+          DOKPLOY_TOKEN: ${{ secrets.DOKPLOY_TOKEN }}
+          DOKPLOY_WEBHOOK_URL: ${{ secrets.DOKPLOY_WEBHOOK_URL }}
+        run: |
+          curl -sS -f -X POST "$DOKPLOY_WEBHOOK_URL" \
+            -H "Authorization: Bearer $DOKPLOY_TOKEN"
