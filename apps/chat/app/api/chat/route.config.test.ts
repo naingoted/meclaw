@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const snapshot = {
   agents: {
@@ -7,7 +7,13 @@ const snapshot = {
   },
   shared: { persona: "" },
   rag: { topK: 4 },
-  public: { greeting: "Hi", suggestions: ["a"], calUrl: "https://cal.com/x", githubUrl: "", contactEmail: "owner@example.com" },
+  public: {
+    greeting: "Hi",
+    suggestions: ["a"],
+    calUrl: "https://cal.com/x",
+    githubUrl: "",
+    contactEmail: "owner@example.com",
+  },
 };
 
 vi.mock("@meclaw/core/settings", () => ({
@@ -35,7 +41,7 @@ describe("chat route forwards config", () => {
       async () =>
         new Response("data: {}\n\n", {
           headers: { "content-type": "text/event-stream" },
-        })
+        }),
     );
     vi.stubGlobal("fetch", fetchMock);
 
@@ -44,7 +50,7 @@ describe("chat route forwards config", () => {
       new Request("http://x/api/chat", {
         method: "POST",
         body: JSON.stringify({ messages: [{ role: "user", content: "hi" }] }),
-      })
+      }),
     );
 
     const sent = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);

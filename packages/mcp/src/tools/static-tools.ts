@@ -14,8 +14,7 @@ export function scheduleCall(env: EnvMap = process.env): { url: string } {
 export function showResume(): { path: string; description: string } {
   return {
     path: "/resume",
-    description:
-      "The resume is available for download at /resume. Offer this link to the visitor.",
+    description: "The resume is available for download at /resume. Offer this link to the visitor.",
   };
 }
 

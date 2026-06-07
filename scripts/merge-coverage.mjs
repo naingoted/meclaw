@@ -7,8 +7,8 @@
 // file path, so packages never collide and a shallow merge is correct. Run
 // after `turbo run test -- --coverage` (the root `coverage` script does both).
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -29,7 +29,9 @@ for (const pkg of pkgGlobs) {
 }
 
 if (found === 0) {
-  console.error("merge-coverage: no package coverage found. Run `pnpm coverage` (turbo test -- --coverage).");
+  console.error(
+    "merge-coverage: no package coverage found. Run `pnpm coverage` (turbo test -- --coverage).",
+  );
   process.exit(1);
 }
 
@@ -37,4 +39,6 @@ const outDir = join(root, "coverage");
 mkdirSync(outDir, { recursive: true });
 const out = join(outDir, "coverage-final.json");
 writeFileSync(out, JSON.stringify(merged));
-console.log(`merge-coverage: merged ${found} packages, ${Object.keys(merged).length} files -> coverage/coverage-final.json`);
+console.log(
+  `merge-coverage: merged ${found} packages, ${Object.keys(merged).length} files -> coverage/coverage-final.json`,
+);

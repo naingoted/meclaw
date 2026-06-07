@@ -1,6 +1,6 @@
 import { embedderFromEnv, storeFromEnv } from "@meclaw/rag";
-import { parseMcpEnv } from "./env";
 import { makeReadOnlyClient } from "./db";
+import { parseMcpEnv } from "./env";
 import type { ServerDeps } from "./registry";
 
 export function buildDeps(): ServerDeps {
@@ -12,7 +12,10 @@ export function buildDeps(): ServerDeps {
     sql,
     env,
     tableExists: async (table: string) => {
-      const rows = (await sql`SELECT to_regclass(${"public." + table}) IS NOT NULL AS ok`) as Array<{ ok: boolean }>;
+      const rows =
+        (await sql`SELECT to_regclass(${"public." + table}) IS NOT NULL AS ok`) as Array<{
+          ok: boolean;
+        }>;
       return rows[0]?.ok ?? false;
     },
   };

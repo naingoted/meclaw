@@ -2,6 +2,9 @@
   "name": "meclaw",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "packageManager": "pnpm@10.32.1",
   "scripts": {
     "dev": "turbo run dev",
@@ -21,9 +24,15 @@
     "coverage": "turbo run test --force -- --coverage && node scripts/merge-coverage.mjs",
     "fallow:cov": "pnpm coverage && fallow health --coverage coverage/coverage-final.json",
     "fallow:cov:report": "pnpm coverage && fallow health --coverage coverage/coverage-final.json --report-only",
+    "format": "biome check --write .",
+    "format:check": "biome check .",
     "prepare": "husky"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.4.16",
+    "@commitlint/cli": "19.8.1",
+    "@commitlint/config-conventional": "19.8.1",
+    "@secretlint/secretlint-rule-preset-recommend": "12.0.0",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
@@ -37,8 +46,10 @@
     "fallow": "^2.87.0",
     "husky": "^9.1.7",
     "jsdom": "^29.1.1",
+    "lint-staged": "15.5.2",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "secretlint": "12.0.0",
     "tailwindcss": "^4",
     "turbo": "^2",
     "typescript": "^5",

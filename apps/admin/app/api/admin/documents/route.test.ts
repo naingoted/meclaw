@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/admin/request", () => ({
   clientIp: () => "ip",
@@ -7,12 +7,16 @@ vi.mock("@/lib/admin/request", () => ({
 
 vi.mock("@/lib/admin/documents", () => {
   const listDocuments = vi.fn(async () => [{ id: "d1", title: "A", status: "draft" }]);
-  const createDocument = vi.fn(async (_db: unknown, input: { origin?: string }) => ({ id: "d1", title: "A", origin: input.origin ?? "manual" }));
+  const createDocument = vi.fn(async (_db: unknown, input: { origin?: string }) => ({
+    id: "d1",
+    title: "A",
+    origin: input.origin ?? "manual",
+  }));
   return { listDocuments, createDocument };
 });
 
-import { GET, POST } from "./route";
 import * as documentsMod from "@/lib/admin/documents";
+import { GET, POST } from "./route";
 
 describe("documents API", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -55,17 +59,23 @@ describe("documents API", () => {
   });
 
   it("POST persists origin:'gap' when supplied", async () => {
-    const res = await POST(new Request("http://x/api/admin/documents", {
-      method: "POST", body: JSON.stringify({ title: "A", body: "x", origin: "gap" }),
-    }));
+    const res = await POST(
+      new Request("http://x/api/admin/documents", {
+        method: "POST",
+        body: JSON.stringify({ title: "A", body: "x", origin: "gap" }),
+      }),
+    );
     expect(res.status).toBe(201);
     expect((await res.json()).origin).toBe("gap");
   });
 
   it("POST 400 on an invalid origin", async () => {
-    const res = await POST(new Request("http://x/api/admin/documents", {
-      method: "POST", body: JSON.stringify({ title: "A", body: "x", origin: "bogus" }),
-    }));
+    const res = await POST(
+      new Request("http://x/api/admin/documents", {
+        method: "POST",
+        body: JSON.stringify({ title: "A", body: "x", origin: "bogus" }),
+      }),
+    );
     expect(res.status).toBe(400);
   });
 });

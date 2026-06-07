@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { relativeTime, statusTone, deriveStatusCounts } from "./status";
+import { describe, expect, it } from "vitest";
+import { deriveStatusCounts, relativeTime, statusTone } from "./status";
 
 describe("relativeTime", () => {
   const now = 1_000_000_000_000;
@@ -31,16 +31,27 @@ describe("statusTone", () => {
 describe("deriveStatusCounts", () => {
   it("counts job statuses and carries dirty through", () => {
     const jobs = [
-      { status: "running" }, { status: "failed" }, { status: "failed" },
-      { status: "succeeded" }, { status: "queued" },
+      { status: "running" },
+      { status: "failed" },
+      { status: "failed" },
+      { status: "succeeded" },
+      { status: "queued" },
     ];
     expect(deriveStatusCounts(jobs, 3)).toEqual({
-      dirty: 3, queued: 1, running: 1, succeeded: 1, failed: 2,
+      dirty: 3,
+      queued: 1,
+      running: 1,
+      succeeded: 1,
+      failed: 2,
     });
   });
   it("defaults dirty to 0 and ignores unknown statuses", () => {
     expect(deriveStatusCounts([{ status: "weird" }])).toEqual({
-      dirty: 0, queued: 0, running: 0, succeeded: 0, failed: 0,
+      dirty: 0,
+      queued: 0,
+      running: 0,
+      succeeded: 0,
+      failed: 0,
     });
   });
 });

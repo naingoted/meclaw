@@ -1,16 +1,16 @@
-import { z } from "zod";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { EmbeddingClient, VectorStoreClient } from "@meclaw/rag";
-import type { McpEnv } from "./env";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { z } from "zod";
 import type { ReadOnlySql } from "./db";
-import { type Scope, TOOL_SCOPES } from "./scope";
-import { searchCorpus, searchCorpusInput } from "./tools/search-corpus";
-import { ownerContact, scheduleCall, showResume, howThisWorks } from "./tools/static-tools";
-import { describeSchema, describeSchemaInput } from "./tools/describe-schema";
-import { runReadQuery, runReadQueryInput } from "./tools/run-read-query";
-import { getTelemetry, getTelemetryInput } from "./tools/get-telemetry";
-import { schemaDictionaryJson } from "./resources/schema-dictionary";
+import type { McpEnv } from "./env";
 import { latestEvalReport } from "./resources/eval-report";
+import { schemaDictionaryJson } from "./resources/schema-dictionary";
+import { type Scope, TOOL_SCOPES } from "./scope";
+import { describeSchema, describeSchemaInput } from "./tools/describe-schema";
+import { getTelemetry, getTelemetryInput } from "./tools/get-telemetry";
+import { runReadQuery, runReadQueryInput } from "./tools/run-read-query";
+import { searchCorpus, searchCorpusInput } from "./tools/search-corpus";
+import { howThisWorks, ownerContact, scheduleCall, showResume } from "./tools/static-tools";
 
 export interface ServerDeps {
   embedder: EmbeddingClient;
@@ -20,7 +20,9 @@ export interface ServerDeps {
   env: McpEnv;
 }
 
-const text = (value: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(value) }] });
+const text = (value: unknown) => ({
+  content: [{ type: "text" as const, text: JSON.stringify(value) }],
+});
 
 export function buildServer(scope: Scope, deps: ServerDeps) {
   const server = new McpServer({ name: "meclaw", version: "0.1.0" });
@@ -34,9 +36,11 @@ export function buildServer(scope: Scope, deps: ServerDeps) {
   if (allow("search_corpus")) {
     server.registerTool(
       "search_corpus",
-      { description: "Semantic search over the knowledge corpus", inputSchema: searchCorpusInput.shape },
-      async (args: z.infer<typeof searchCorpusInput>) =>
-        text(await searchCorpus(args, deps)),
+      {
+        description: "Semantic search over the knowledge corpus",
+        inputSchema: searchCorpusInput.shape,
+      },
+      async (args: z.infer<typeof searchCorpusInput>) => text(await searchCorpus(args, deps)),
     );
     registered.push("search_corpus");
   }
@@ -106,7 +110,10 @@ export function buildServer(scope: Scope, deps: ServerDeps) {
   if (allow("get_telemetry")) {
     server.registerTool(
       "get_telemetry",
-      { description: "Summaries of misses/gaps/ingestion/retrieval", inputSchema: getTelemetryInput.shape },
+      {
+        description: "Summaries of misses/gaps/ingestion/retrieval",
+        inputSchema: getTelemetryInput.shape,
+      },
       async (args: z.infer<typeof getTelemetryInput>) =>
         text(await getTelemetry(args, { sql: deps.sql, tableExists: deps.tableExists })),
     );
@@ -114,22 +121,12 @@ export function buildServer(scope: Scope, deps: ServerDeps) {
   }
 
   if (scope === "operator") {
-    server.registerResource(
-      "schema-dictionary",
-      "schema://dictionary",
-      {},
-      async (uri: URL) => ({
-        contents: [{ uri: uri.href, text: schemaDictionaryJson() }],
-      }),
-    );
-    server.registerResource(
-      "eval-report",
-      "eval://latest-report",
-      {},
-      async (uri: URL) => ({
-        contents: [{ uri: uri.href, text: (await latestEvalReport()).content }],
-      }),
-    );
+    server.registerResource("schema-dictionary", "schema://dictionary", {}, async (uri: URL) => ({
+      contents: [{ uri: uri.href, text: schemaDictionaryJson() }],
+    }));
+    server.registerResource("eval-report", "eval://latest-report", {}, async (uri: URL) => ({
+      contents: [{ uri: uri.href, text: (await latestEvalReport()).content }],
+    }));
   }
 
   return { server, listToolNames: () => [...registered] };

@@ -1,6 +1,6 @@
 import * as React from "react";
+import { type StatusTone, statusTone } from "../status";
 import { cn } from "../utils";
-import { statusTone, type StatusTone } from "../status";
 
 const TONE: Record<StatusTone, string> = {
   neutral: "bg-muted text-muted-foreground",

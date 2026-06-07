@@ -1,11 +1,19 @@
 "use client";
-import { Label, Popover, PopoverTrigger, PopoverContent } from "@meclaw/ui";
+import { Label, Popover, PopoverContent, PopoverTrigger } from "@meclaw/ui";
 import { Info } from "lucide-react";
 import * as React from "react";
 
 /** Label row with an inline info icon. Click the icon to toggle a help popover
  *  (also keyboard-accessible: focus + Enter/Space, Escape to close). */
-export function FieldLabel({ label, help, htmlFor }: { label: string; help: string; htmlFor?: string }) {
+export function FieldLabel({
+  label,
+  help,
+  htmlFor,
+}: {
+  label: string;
+  help: string;
+  htmlFor?: string;
+}) {
   return (
     <div className="flex items-center gap-1.5">
       <Label htmlFor={htmlFor}>{label}</Label>

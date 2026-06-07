@@ -22,8 +22,7 @@ export async function GET() {
       },
     });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : String(error);
+    const message = error instanceof Error ? error.message : String(error);
     console.error("Resume download error:", message);
     return new Response("Resume not found", { status: 404 });
   }

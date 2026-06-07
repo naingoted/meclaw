@@ -1,12 +1,23 @@
-import { describe, it, expect } from "vitest";
 import { makeTestDb } from "@meclaw/core/db/test-db";
-import { createDocument, updateDocument, deleteDocument, getDocument, isDirty, listDocuments } from "./documents";
 import { recentAudit } from "@meclaw/core/settings";
+import { describe, expect, it } from "vitest";
+import {
+  createDocument,
+  deleteDocument,
+  getDocument,
+  isDirty,
+  listDocuments,
+  updateDocument,
+} from "./documents";
 
 describe("document service", () => {
   it("creates a document, hashes body, writes an audit row, and is dirty (never ingested)", async () => {
     const { db } = await makeTestDb();
-    const doc = await createDocument(db, { title: "Resume", body: "# Resume", category: "resume" }, "127.0.0.1");
+    const doc = await createDocument(
+      db,
+      { title: "Resume", body: "# Resume", category: "resume" },
+      "127.0.0.1",
+    );
     expect(doc.contentHash).toHaveLength(64);
     expect(isDirty(doc)).toBe(true);
     const audit = await recentAudit(db, 10);

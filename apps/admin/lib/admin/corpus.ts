@@ -1,6 +1,6 @@
-import { count, eq, max } from "drizzle-orm";
 import { documents, ingestionJobs, ragChunks } from "@meclaw/core/db/schema";
 import type { Db } from "@meclaw/core/db/types";
+import { count, eq, max } from "drizzle-orm";
 
 /**
  * Derived corpus state — the TS half of the corpus contract.
@@ -24,9 +24,7 @@ export async function getCorpusState(db: Db): Promise<CorpusState> {
     .select({ value: count() })
     .from(documents)
     .where(eq(documents.status, "ready"));
-  const [{ value: chunks }] = await db
-    .select({ value: count() })
-    .from(ragChunks);
+  const [{ value: chunks }] = await db.select({ value: count() }).from(ragChunks);
   const [{ value: last }] = await db
     .select({ value: max(documents.lastIngestedAt) })
     .from(documents);

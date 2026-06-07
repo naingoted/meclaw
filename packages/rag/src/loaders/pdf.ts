@@ -1,9 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
-
-import { extractText, getDocumentProxy } from "unpdf";
-
 import type { KnowledgeDoc } from "@meclaw/core/content";
+import { extractText, getDocumentProxy } from "unpdf";
 
 /**
  * Loads a PDF file into a KnowledgeDoc for the RAG ingest pipeline.

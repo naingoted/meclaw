@@ -1,6 +1,6 @@
 import { z } from "zod";
+import { createDocument, listDocuments } from "@/lib/admin/documents";
 import { clientIp, db } from "@/lib/admin/request";
-import { listDocuments, createDocument } from "@/lib/admin/documents";
 
 const ORIGINS = ["manual", "seed", "gap"] as const;
 
@@ -19,8 +19,7 @@ export async function GET(req: Request) {
   let origin: (typeof ORIGINS)[number] | undefined;
   if (raw !== null) {
     const parsed = OriginFilter.safeParse(raw);
-    if (!parsed.success)
-      return Response.json({ error: parsed.error?.flatten() }, { status: 400 });
+    if (!parsed.success) return Response.json({ error: parsed.error?.flatten() }, { status: 400 });
     origin = parsed.data;
   }
   return Response.json(await listDocuments(await db(), origin));
@@ -29,8 +28,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   // access enforced by middleware.ts (Auth.js)
   const parsed = Body.safeParse(await req.json().catch(() => null));
-  if (!parsed.success)
-    return Response.json({ error: parsed.error?.flatten() }, { status: 400 });
+  if (!parsed.success) return Response.json({ error: parsed.error?.flatten() }, { status: 400 });
   const doc = await createDocument(await db(), parsed.data, clientIp(req));
   return Response.json(doc, { status: 201 });
 }

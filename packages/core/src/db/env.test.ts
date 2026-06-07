@@ -6,9 +6,7 @@ describe("parseDbEnv", () => {
     const cfg = parseDbEnv({
       DATABASE_URL: "postgres://meclaw:meclaw@localhost:5432/meclaw",
     });
-    expect(cfg.DATABASE_URL).toBe(
-      "postgres://meclaw:meclaw@localhost:5432/meclaw",
-    );
+    expect(cfg.DATABASE_URL).toBe("postgres://meclaw:meclaw@localhost:5432/meclaw");
   });
 
   it("throws when DATABASE_URL is missing", () => {
@@ -20,8 +18,6 @@ describe("parseDbEnv", () => {
   });
 
   it("throws when DATABASE_URL is not a postgres URL", () => {
-    expect(() =>
-      parseDbEnv({ DATABASE_URL: "https://example.com/database" }),
-    ).toThrow(/postgres/i);
+    expect(() => parseDbEnv({ DATABASE_URL: "https://example.com/database" })).toThrow(/postgres/i);
   });
 });

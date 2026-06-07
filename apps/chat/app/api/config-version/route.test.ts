@@ -35,7 +35,9 @@ describe("GET /api/config-version", () => {
   });
 
   it("creates the default settings row when no version exists yet", async () => {
-    getSettingsVersion.mockResolvedValueOnce(null).mockResolvedValueOnce("2026-06-03T09:00:00.000Z");
+    getSettingsVersion
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce("2026-06-03T09:00:00.000Z");
     const { GET } = await import("./route");
 
     const res = await GET();

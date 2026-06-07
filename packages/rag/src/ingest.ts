@@ -1,8 +1,7 @@
 import type { KnowledgeDoc } from "@meclaw/core/content";
-
-import { loadIngestDocs } from "./loaders";
 import { chunkKnowledgeDocs } from "./chunk";
 import { OllamaEmbedder } from "./embed";
+import { loadIngestDocs } from "./loaders";
 import { PgVectorStore } from "./pgvector";
 import type { EmbeddingClient, RagChunk, VectorStoreClient } from "./types";
 
@@ -10,7 +9,10 @@ const DEFAULT_CHUNK_SIZE = 1200;
 const DEFAULT_OVERLAP = 180;
 const DEFAULT_EMBED_CONCURRENCY = 4;
 
-type Chunker = (docs: KnowledgeDoc[], options: { chunkSize: number; overlap: number }) => RagChunk[];
+type Chunker = (
+  docs: KnowledgeDoc[],
+  options: { chunkSize: number; overlap: number },
+) => RagChunk[];
 
 type LoadDocs = () => KnowledgeDoc[] | Promise<KnowledgeDoc[]>;
 

@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { randomUUID } from "node:crypto";
-import { makeTestDb } from "@meclaw/core/db/test-db";
 import { documents, ingestionJobs, ragChunks } from "@meclaw/core/db/schema";
+import { makeTestDb } from "@meclaw/core/db/test-db";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { getCorpusState } from "./corpus";
 
 describe("getCorpusState", () => {

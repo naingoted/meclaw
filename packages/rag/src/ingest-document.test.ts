@@ -1,14 +1,21 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { ingestDocument, ingesterFor } from "./ingest-document";
-import type { VectorStoreClient, EmbeddingClient } from "./types";
+import type { EmbeddingClient, VectorStoreClient } from "./types";
 
 describe("ingestDocument", () => {
   it("deletes the doc's old chunks by source then upserts embedded new ones", async () => {
     const calls: string[] = [];
     const store = {
-      ensureCollection: vi.fn(async () => { calls.push("ensure"); }),
-      deleteBySource: vi.fn(async () => { calls.push("delete"); }),
-      upsert: vi.fn(async (pts: { source: string }[]) => { calls.push("upsert"); expect(pts[0].source).toBe("document:d1"); }),
+      ensureCollection: vi.fn(async () => {
+        calls.push("ensure");
+      }),
+      deleteBySource: vi.fn(async () => {
+        calls.push("delete");
+      }),
+      upsert: vi.fn(async (pts: { source: string }[]) => {
+        calls.push("upsert");
+        expect(pts[0].source).toBe("document:d1");
+      }),
       search: vi.fn(),
     };
     const embedder: EmbeddingClient = { embed: vi.fn(async () => [0.1, 0.2]) };
@@ -25,7 +32,9 @@ describe("ingestDocument", () => {
     const store = {
       ensureCollection: vi.fn(async () => {}),
       deleteBySource: vi.fn(async () => {}),
-      upsert: vi.fn(async (pts: { text: string }[]) => { captured = pts; }),
+      upsert: vi.fn(async (pts: { text: string }[]) => {
+        captured = pts;
+      }),
       search: vi.fn(),
     };
     const embedder: EmbeddingClient = { embed: vi.fn(async () => [0.1, 0.2]) };
@@ -41,7 +50,9 @@ describe("ingestDocument", () => {
     const store = {
       ensureCollection: vi.fn(async () => {}),
       deleteBySource: vi.fn(async () => {}),
-      upsert: vi.fn(async (pts: { text: string }[]) => { captured = pts; }),
+      upsert: vi.fn(async (pts: { text: string }[]) => {
+        captured = pts;
+      }),
       search: vi.fn(),
     };
     const embedder: EmbeddingClient = { embed: vi.fn(async () => [0.1, 0.2]) };
@@ -57,7 +68,9 @@ describe("ingestDocument", () => {
     const store = {
       ensureCollection: vi.fn(async () => {}),
       deleteBySource: vi.fn(async () => {}),
-      upsert: vi.fn(async (pts: { text: string }[]) => { captured = pts; }),
+      upsert: vi.fn(async (pts: { text: string }[]) => {
+        captured = pts;
+      }),
       search: vi.fn(),
     };
     const embedder: EmbeddingClient = { embed: vi.fn(async () => [0.1, 0.2]) };
@@ -73,12 +86,19 @@ describe("ingestDocument", () => {
     const store = {
       ensureCollection: vi.fn(async () => {}),
       deleteBySource: vi.fn(async () => {}),
-      upsert: vi.fn(async (pts: { text: string }[]) => { captured = pts; }),
+      upsert: vi.fn(async (pts: { text: string }[]) => {
+        captured = pts;
+      }),
       search: vi.fn(),
     };
     const embedder: EmbeddingClient = { embed: vi.fn(async () => [0.1, 0.2]) };
     const doc = { id: "g2", title: "Fav language?", body: "TypeScript.", origin: "gap" as const };
-    const opts = { store: store as unknown as VectorStoreClient, embedder, chunkSize: 1200, overlap: 180 };
+    const opts = {
+      store: store as unknown as VectorStoreClient,
+      embedder,
+      chunkSize: 1200,
+      overlap: 180,
+    };
     await ingestDocument(doc, opts);
     await ingestDocument(doc, opts);
     expect((captured[0].text.match(/# Fav language\?/g) ?? []).length).toBe(1);

@@ -36,9 +36,10 @@ export async function describeSchema(
   const countMap = new Map(counts.map((c) => [c.table_name, Number(c.n)]));
   const tables: SchemaOut["tables"] = {};
   for (const row of cols) {
-    (tables[row.table_name] ??= { columns: [], rowCount: countMap.get(row.table_name) ?? 0 }).columns.push(
-      { name: row.column_name, type: row.data_type },
-    );
+    (tables[row.table_name] ??= {
+      columns: [],
+      rowCount: countMap.get(row.table_name) ?? 0,
+    }).columns.push({ name: row.column_name, type: row.data_type });
   }
   return { tables };
 }

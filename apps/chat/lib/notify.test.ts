@@ -34,8 +34,6 @@ describe("notifyLead", () => {
   it("never throws when the webhook fetch fails", async () => {
     vi.stubEnv("LEAD_WEBHOOK_URL", "https://hooks.example.com/x");
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("network down"));
-    await expect(
-      notifyLead({ phone: "+65 1", trigger: "provided" }),
-    ).resolves.toBeUndefined();
+    await expect(notifyLead({ phone: "+65 1", trigger: "provided" })).resolves.toBeUndefined();
   });
 });

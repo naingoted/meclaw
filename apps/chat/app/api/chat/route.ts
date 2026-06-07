@@ -1,14 +1,20 @@
-import {
-  type UIMessage,
-  createUIMessageStream,
-  createUIMessageStreamResponse,
-} from "ai";
 import { randomUUID } from "node:crypto";
-import { initDb, saveTurn, saveLead, saveMiss, saveRetrievalEvent, type PersistentMessage, type LeadInput, type MissInput, type RetrievalEventInput } from "@meclaw/core/db";
+import {
+  initDb,
+  type LeadInput,
+  type MissInput,
+  type PersistentMessage,
+  type RetrievalEventInput,
+  saveLead,
+  saveMiss,
+  saveRetrievalEvent,
+  saveTurn,
+} from "@meclaw/core/db";
+import { configSnapshot } from "@meclaw/core/settings";
+import { createUIMessageStream, createUIMessageStreamResponse, type UIMessage } from "ai";
+import { detectInjection } from "@/lib/ai/guardrails";
 import { notifyLead } from "@/lib/notify";
 import { chatRateLimiter } from "@/lib/rate-limit";
-import { detectInjection } from "@/lib/ai/guardrails";
-import { configSnapshot } from "@meclaw/core/settings";
 
 // Allow streaming responses up to 30 seconds.
 export const maxDuration = 30;
@@ -77,7 +83,11 @@ function teeForPersistence(
         delta?: string;
         messageMetadata?: {
           lead?: Omit<LeadInput, "conversationId">;
-          miss?: { reason: "floor" | "fallback" | "clarify" | "answer_gap"; topScore: number | null; clusterId: string };
+          miss?: {
+            reason: "floor" | "fallback" | "clarify" | "answer_gap";
+            topScore: number | null;
+            clusterId: string;
+          };
           retrieval?: {
             query: string;
             intent: string;
@@ -187,7 +197,7 @@ export async function POST(req: Request) {
 
   if (!rateLimitResult.allowed) {
     console.warn(
-      `[chat] Rate limit exceeded for IP: ${clientIp}. Retry-After: ${rateLimitResult.retryAfter}s`
+      `[chat] Rate limit exceeded for IP: ${clientIp}. Retry-After: ${rateLimitResult.retryAfter}s`,
     );
     return Response.json(
       { error: "Too many requests. Please try again later." },
@@ -196,7 +206,7 @@ export async function POST(req: Request) {
         headers: {
           "Retry-After": String(rateLimitResult.retryAfter),
         },
-      }
+      },
     );
   }
 
@@ -241,10 +251,7 @@ export async function POST(req: Request) {
   try {
     config = await configSnapshot(await getDb());
   } catch (e) {
-    console.warn(
-      "[chat] config snapshot unavailable, sidecar will use env defaults:",
-      e
-    );
+    console.warn("[chat] config snapshot unavailable, sidecar will use env defaults:", e);
   }
 
   const aiServiceUrl = process.env.AI_SERVICE_URL || "http://localhost:8000";
@@ -295,9 +302,10 @@ function createRefusalStream(): ReturnType<typeof createUIMessageStream> {
       writer.write({
         type: "text-delta",
         id: "refusal-1",
-        delta: "I appreciate your interest, but I can't respond to that request. "
-          + "I'm designed to answer questions about Thet and help facilitate introductions. "
-          + "Feel free to ask about his work, projects, or how to get in touch!",
+        delta:
+          "I appreciate your interest, but I can't respond to that request. " +
+          "I'm designed to answer questions about Thet and help facilitate introductions. " +
+          "Feel free to ask about his work, projects, or how to get in touch!",
       });
 
       writer.write({
@@ -321,11 +329,9 @@ function extractTextContent(msg: UIMessage | Record<string, unknown>): string {
   // Otherwise, look for the first text part in the parts array
   if (Array.isArray((msg as Record<string, unknown>).parts)) {
     const parts = (msg as Record<string, unknown>).parts as unknown[];
-    const textPart = parts.find(
-      (p) => (p as Record<string, unknown>).type === "text"
-    );
+    const textPart = parts.find((p) => (p as Record<string, unknown>).type === "text");
     if (textPart && "text" in (textPart as Record<string, unknown>)) {
-      return ((textPart as Record<string, string>).text) || "";
+      return (textPart as Record<string, string>).text || "";
     }
   }
   return "";

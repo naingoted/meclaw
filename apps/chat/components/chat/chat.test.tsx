@@ -1,5 +1,5 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Configurable mock state for useChat
 let mockState: {
@@ -23,14 +23,14 @@ vi.mock("@/components/chat/config-refresh-poller", () => ({
 }));
 
 import {
-  Chat,
-  shouldShowThinking,
   appendStep,
+  Chat,
+  extractCorpusVersion,
   extractSteps,
+  groundingLabel,
   hasRenderedText,
   LiveTrace,
-  groundingLabel,
-  extractCorpusVersion,
+  shouldShowThinking,
 } from "@/components/chat/chat";
 
 const CHAT_PROPS = {
@@ -100,9 +100,9 @@ describe("extractSteps", () => {
   });
 
   it("returns [] for a user message", () => {
-    expect(
-      extractSteps({ role: "user", metadata: { steps: ["Routing your question…"] } }),
-    ).toEqual([]);
+    expect(extractSteps({ role: "user", metadata: { steps: ["Routing your question…"] } })).toEqual(
+      [],
+    );
   });
 
   it("returns [] when metadata is missing or malformed", () => {
@@ -125,9 +125,7 @@ describe("extractSteps", () => {
 
 describe("hasRenderedText", () => {
   it("is true once an assistant message has non-empty text", () => {
-    expect(
-      hasRenderedText({ parts: [{ type: "text", text: "Python." }] }),
-    ).toBe(true);
+    expect(hasRenderedText({ parts: [{ type: "text", text: "Python." }] })).toBe(true);
   });
 
   it("is false for an empty or text-less message (pre-token window)", () => {
@@ -159,19 +157,15 @@ describe("Chat component — M4 behavioral tests", () => {
     // Assert greeting is rendered
     expect(screen.getByText(/Hi! I'm meclaw, Thet's personal bot/)).toBeInTheDocument();
     expect(
-      screen.getByText(/Ask me anything about his work, skills, or projects/)
+      screen.getByText(/Ask me anything about his work, skills, or projects/),
     ).toBeInTheDocument();
 
     // Assert all 3 suggestion chips are rendered with exact text
+    expect(screen.getByRole("button", { name: "What's Thet's tech stack?" })).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "What's Thet's tech stack?" })
+      screen.getByRole("button", { name: "Walk me through a recent project" }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Walk me through a recent project" })
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "How do I get in touch?" })
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "How do I get in touch?" })).toBeInTheDocument();
   });
 
   it("renders the config refresh poller with the initial version and chat status", () => {
@@ -250,19 +244,17 @@ describe("Chat component — M4 behavioral tests", () => {
     render(<Chat {...CHAT_PROPS} />);
 
     // Assert greeting is NOT rendered
-    expect(
-      screen.queryByText(/Hi! I'm meclaw, Thet's personal bot/)
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/Hi! I'm meclaw, Thet's personal bot/)).not.toBeInTheDocument();
 
     // Assert suggestion chips are NOT rendered
     expect(
-      screen.queryByRole("button", { name: "What's Thet's tech stack?" })
+      screen.queryByRole("button", { name: "What's Thet's tech stack?" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Walk me through a recent project" })
+      screen.queryByRole("button", { name: "Walk me through a recent project" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "How do I get in touch?" })
+      screen.queryByRole("button", { name: "How do I get in touch?" }),
     ).not.toBeInTheDocument();
 
     // Assert messages are still rendered
@@ -507,16 +499,18 @@ describe("LiveTrace", () => {
   });
 
   it("renders each accumulated step, last one active", () => {
-    render(
-      <LiveTrace steps={["Routing your question…", "Searching knowledge base…"]} />,
-    );
+    render(<LiveTrace steps={["Routing your question…", "Searching knowledge base…"]} />);
     expect(screen.getByText("Routing your question…")).toBeInTheDocument();
     expect(screen.getByText("Searching knowledge base…")).toBeInTheDocument();
     // the active (last) step is marked for assistive tech
-    expect(screen.getByText("Searching knowledge base…").closest("li"))
-      .toHaveAttribute("data-active", "true");
-    expect(screen.getByText("Routing your question…").closest("li"))
-      .toHaveAttribute("data-active", "false");
+    expect(screen.getByText("Searching knowledge base…").closest("li")).toHaveAttribute(
+      "data-active",
+      "true",
+    );
+    expect(screen.getByText("Routing your question…").closest("li")).toHaveAttribute(
+      "data-active",
+      "false",
+    );
   });
 });
 

@@ -1,9 +1,8 @@
+import type { KnowledgeDoc } from "@meclaw/core/content";
 import { describe, expect, it, vi } from "vitest";
 
-import type { KnowledgeDoc } from "@meclaw/core/content";
-
 import { ingestKnowledge } from "./ingest";
-import type { RagChunk, VectorStoreClient } from "./types";
+import type { VectorStoreClient } from "./types";
 
 describe("ingestKnowledge", () => {
   it("loads docs, chunks them, embeds each chunk, and upserts the enriched chunks", async () => {
@@ -33,10 +32,7 @@ describe("ingestKnowledge", () => {
     const loadDocs = vi.fn(async () => docs);
     const chunker = vi.fn(() => chunks);
     const embedder = {
-      embed: vi
-        .fn()
-        .mockResolvedValueOnce([0.1, 0.2, 0.3])
-        .mockResolvedValueOnce([0.4, 0.5, 0.6]),
+      embed: vi.fn().mockResolvedValueOnce([0.1, 0.2, 0.3]).mockResolvedValueOnce([0.4, 0.5, 0.6]),
     };
     const store = {
       ensureCollection: vi.fn(async () => undefined),
@@ -217,9 +213,15 @@ describe("ingestKnowledge delete-before-upsert", () => {
 
     const calls: string[] = [];
     const store: VectorStoreClient = {
-      ensureCollection: vi.fn(async () => { calls.push("ensure"); }),
-      deleteBySource: vi.fn(async (source: string) => { calls.push(`delete:${source}`); }),
-      upsert: vi.fn(async (_points: Array<RagChunk & { embedding: number[] }>) => { calls.push("upsert"); }),
+      ensureCollection: vi.fn(async () => {
+        calls.push("ensure");
+      }),
+      deleteBySource: vi.fn(async (source: string) => {
+        calls.push(`delete:${source}`);
+      }),
+      upsert: vi.fn(async () => {
+        calls.push("upsert");
+      }),
       search: vi.fn(async () => []),
     };
     const embedder = { embed: vi.fn(async () => [0.1, 0.2, 0.3]) };
@@ -228,7 +230,10 @@ describe("ingestKnowledge delete-before-upsert", () => {
 
     const upsertIdx = calls.indexOf("upsert");
     expect(upsertIdx).toBeGreaterThan(-1);
-    expect(calls.filter((c) => c.startsWith("delete:"))).toEqual(["delete:persona.md", "delete:resume.pdf"]);
+    expect(calls.filter((c) => c.startsWith("delete:"))).toEqual([
+      "delete:persona.md",
+      "delete:resume.pdf",
+    ]);
     for (const [i, c] of calls.entries()) {
       if (c.startsWith("delete:")) expect(i).toBeLessThan(upsertIdx);
     }

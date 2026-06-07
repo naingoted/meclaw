@@ -1,5 +1,5 @@
-import { db } from "@/lib/admin/request";
 import { listClusters } from "@/lib/admin/gaps";
+import { db } from "@/lib/admin/request";
 
 export async function GET(req: Request) {
   // access enforced by middleware.ts (Auth.js)

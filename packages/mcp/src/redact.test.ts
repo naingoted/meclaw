@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { redactRows, PII_COLUMNS } from "./redact";
+import { PII_COLUMNS, redactRows } from "./redact";
 
 describe("redactRows", () => {
   it("masks allowlisted PII columns when allowPii is false", () => {
     const rows = [{ id: "1", email: "a@b.com", phone: "123", title: "Engineer" }];
     const out = redactRows(rows, false);
-    expect(out[0]).toEqual({ id: "1", email: "[redacted]", phone: "[redacted]", title: "Engineer" });
+    expect(out[0]).toEqual({
+      id: "1",
+      email: "[redacted]",
+      phone: "[redacted]",
+      title: "Engineer",
+    });
   });
 
   it("passes everything through when allowPii is true", () => {

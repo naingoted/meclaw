@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/admin/request", () => ({
   clientIp: () => "ip",
@@ -6,16 +6,34 @@ vi.mock("@/lib/admin/request", () => ({
 }));
 
 vi.mock("@/lib/admin/gaps", async () => {
-  const listClusters = vi.fn(async () => [{ id: "c1", exemplarQuery: "q", count: 3, status: "new", updatedAt: "t", reasons: { floor: 3 } }]);
-  const getCluster = vi.fn(async () => ({ cluster: { id: "c1", exemplarQuery: "q" }, misses: [{ id: "m1" }] }));
+  const listClusters = vi.fn(async () => [
+    {
+      id: "c1",
+      exemplarQuery: "q",
+      count: 3,
+      status: "new",
+      updatedAt: "t",
+      reasons: { floor: 3 },
+    },
+  ]);
+  const getCluster = vi.fn(async () => ({
+    cluster: { id: "c1", exemplarQuery: "q" },
+    misses: [{ id: "m1" }],
+  }));
   const resolveCluster = vi.fn(async () => {});
   const ignoreCluster = vi.fn(async () => {});
-  return { listClusters, getCluster, resolveCluster, ignoreCluster, exportMissesCsv: vi.fn(async () => "h\n") };
+  return {
+    listClusters,
+    getCluster,
+    resolveCluster,
+    ignoreCluster,
+    exportMissesCsv: vi.fn(async () => "h\n"),
+  };
 });
 
-import { GET } from "./route";
-import { GET as GET_ONE, PATCH } from "./[id]/route";
 import * as gapsMod from "@/lib/admin/gaps";
+import { GET as GET_ONE, PATCH } from "./[id]/route";
+import { GET } from "./route";
 
 describe("gaps API", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -33,13 +51,18 @@ describe("gaps API", () => {
   });
 
   it("GET /[id] returns the drill-in", async () => {
-    const res = await GET_ONE(new Request("http://x/api/admin/gaps/c1"), { params: Promise.resolve({ id: "c1" }) });
+    const res = await GET_ONE(new Request("http://x/api/admin/gaps/c1"), {
+      params: Promise.resolve({ id: "c1" }),
+    });
     expect((await res.json()).cluster.id).toBe("c1");
   });
 
   it("PATCH resolve links the document", async () => {
     const res = await PATCH(
-      new Request("http://x/api/admin/gaps/c1", { method: "PATCH", body: JSON.stringify({ action: "resolve", documentId: "d1" }) }),
+      new Request("http://x/api/admin/gaps/c1", {
+        method: "PATCH",
+        body: JSON.stringify({ action: "resolve", documentId: "d1" }),
+      }),
       { params: Promise.resolve({ id: "c1" }) },
     );
     expect(res.status).toBe(200);
@@ -48,7 +71,10 @@ describe("gaps API", () => {
 
   it("PATCH ignore hides the cluster", async () => {
     const res = await PATCH(
-      new Request("http://x/api/admin/gaps/c1", { method: "PATCH", body: JSON.stringify({ action: "ignore" }) }),
+      new Request("http://x/api/admin/gaps/c1", {
+        method: "PATCH",
+        body: JSON.stringify({ action: "ignore" }),
+      }),
       { params: Promise.resolve({ id: "c1" }) },
     );
     expect(res.status).toBe(200);
@@ -57,7 +83,10 @@ describe("gaps API", () => {
 
   it("PATCH 400 on resolve without documentId", async () => {
     const res = await PATCH(
-      new Request("http://x/api/admin/gaps/c1", { method: "PATCH", body: JSON.stringify({ action: "resolve" }) }),
+      new Request("http://x/api/admin/gaps/c1", {
+        method: "PATCH",
+        body: JSON.stringify({ action: "resolve" }),
+      }),
       { params: Promise.resolve({ id: "c1" }) },
     );
     expect(res.status).toBe(400);

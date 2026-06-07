@@ -5,8 +5,9 @@
 
 ## Prerequisites
 
-- **Node 20+** and **pnpm 9+** (`corepack enable` if missing). The Docker images
-  pin Node 20 + pnpm 9. _(`.nvmrc` not enforced.)_
+- **Node 22.12+** and **pnpm 10+** (`corepack enable` if missing). The workspace
+  pins `pnpm@10.32.1`, `.nvmrc` pins Node `22.12.0`, and the Docker images run
+  on Node 22.
 - **Docker + Docker Compose** — required for `pnpm dev:full` and local RAG infra
   (`pnpm services`).
 - **`uv`** (Python package runner) if you run the AI sidecar on the host via
@@ -91,10 +92,10 @@ Keep both if switching between paths, or symlink one to the other.
 | `pnpm --filter @meclaw/rag ingest` | Embed `content/` → Postgres `rag_chunks` table. |
 | `pnpm --filter @meclaw/admin gen:admin-hash <password>` | Mint scrypt admin password hash. |
 | `pnpm install` | Install all monorepo dependencies (pnpm workspaces). |
-| `pnpm verify` | Lint + typecheck + build (pre-merge gate). Runs turbo: `turbo run lint typecheck test build`. |
+| `pnpm verify` | Lint + typecheck + build (pre-merge gate). Runs turbo: `turbo run lint typecheck build`. |
 | `pnpm test` | Vitest (all packages). |
 | `pnpm fallow` | Full static analysis (dead code, dupes, health). CRAP scores are **estimated** from export refs (fast, no tests). |
-| `pnpm fallow:audit` | Changed-files audit (same command the pre-commit hook runs). |
+| `pnpm fallow:audit` | Manual changed-files audit. The pre-commit hook adds its own base, gate, quiet, and marker flags. |
 | `pnpm coverage` | Run all package tests with Istanbul coverage, merge → `coverage/coverage-final.json`. |
 | `pnpm fallow:cov` | `pnpm coverage` then `fallow health --coverage` — **exact** per-function CRAP from real test coverage. |
 | `docker compose -f infra/docker-compose.yml config -q` | Validate dev compose. |
@@ -102,18 +103,30 @@ Keep both if switching between paths, or symlink one to the other.
 
 ## Git hooks (Fallow + Husky)
 
-After `pnpm install`, Husky wires `.husky/pre-commit`, which runs
-`fallow audit` on files changed since the merge-base with your upstream branch
-(or `main` if none). By default only **new** findings in the changeset block the
-commit (`gate=new-only`); inherited issues on touched files do not.
+After `pnpm install`, Husky wires the local hooks:
+
+- `pre-commit`: cheap staged-content guard, Biome format/organize + secretlint
+  through lint-staged, then incremental `fallow audit` on files changed since
+  the merge-base with your upstream branch (or `main` if none).
+- `commit-msg`: commitlint enforces Conventional Commits.
+- `pre-push`: whole-repo `turbo run lint typecheck test`.
 
 ```bash
+pnpm format              # Biome format + organize imports
+pnpm format:check        # verify formatting
 pnpm fallow              # full-repo scan (optional baseline)
-pnpm fallow:audit        # manual pre-commit check
-git commit --no-verify   # skip hook once
+pnpm fallow:audit        # manual fallow audit
 ```
 
-Config: `.fallowrc.json`. Reinstall hook after edits: `pnpm exec fallow hooks install --target git --force`.
+Config: `.fallowrc.json`. Fix hook findings instead of using `--no-verify`.
+Reinstall hook plumbing after Husky edits with `pnpm install`.
+
+## Quality tooling
+
+All hook tooling is npm-native and arrives with `pnpm install` — no extra local
+installs: Biome (format), secretlint (secret scan), commitlint (commit messages),
+lint-staged, husky, fallow. Heavier security (`pnpm audit`, semgrep) runs in CI
+only. If a commit is blocked, fix the finding — do not use `--no-verify`.
 
 ### Exact CRAP via coverage
 

@@ -1,5 +1,5 @@
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const nav = vi.hoisted(() => ({
   replace: vi.fn(),
@@ -26,7 +26,9 @@ function stubFetchLive(get: () => State) {
       const u = String(url);
       if (u.includes("/api/admin/jobs")) {
         if (init?.method === "POST")
-          return new Response(JSON.stringify({ id: "jX", status: "queued", documentId: "d1" }), { status: 202 });
+          return new Response(JSON.stringify({ id: "jX", status: "queued", documentId: "d1" }), {
+            status: 202,
+          });
         return new Response(JSON.stringify(get().jobs));
       }
       return new Response(JSON.stringify(get().docs));
@@ -64,22 +66,42 @@ describe("DocumentsClient", () => {
     render(<DocumentsClient />);
 
     await waitFor(() => expect(screen.getByText("running")).toBeTruthy());
-    expect((screen.getByRole("button", { name: /ingest/i }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: /ingest/i }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
 
     state.jobs = [{ id: "j1", status: "succeeded", error: null, documentId: "d1", createdAt: NOW }];
-    state.docs = [{ id: "d1", title: "Resume", status: "ready", updatedAt: NOW, lastIngestedAt: LATER }];
+    state.docs = [
+      { id: "d1", title: "Resume", status: "ready", updatedAt: NOW, lastIngestedAt: LATER },
+    ];
 
     await vi.advanceTimersByTimeAsync(2100);
 
     await waitFor(() => expect(screen.getByText("succeeded")).toBeTruthy());
-    expect((screen.getByRole("button", { name: /ingest/i }) as HTMLButtonElement).disabled).toBe(false);
+    expect((screen.getByRole("button", { name: /ingest/i }) as HTMLButtonElement).disabled).toBe(
+      false,
+    );
   });
 
   it("renders a gap pill for origin:'gap' docs and not for manual docs", async () => {
     stubFetchLive(() => ({
       docs: [
-        { id: "d1", title: "Manual doc", status: "ready", origin: "manual", updatedAt: NOW, lastIngestedAt: NOW },
-        { id: "d2", title: "Gap doc", status: "ready", origin: "gap", updatedAt: NOW, lastIngestedAt: NOW },
+        {
+          id: "d1",
+          title: "Manual doc",
+          status: "ready",
+          origin: "manual",
+          updatedAt: NOW,
+          lastIngestedAt: NOW,
+        },
+        {
+          id: "d2",
+          title: "Gap doc",
+          status: "ready",
+          origin: "gap",
+          updatedAt: NOW,
+          lastIngestedAt: NOW,
+        },
       ],
       jobs: [],
     }));
@@ -104,7 +126,9 @@ describe("DocumentsClient", () => {
       }),
     );
     render(<DocumentsClient />);
-    await waitFor(() => expect(urls.some((u) => u.includes("/api/admin/documents?origin=gap"))).toBe(true));
+    await waitFor(() =>
+      expect(urls.some((u) => u.includes("/api/admin/documents?origin=gap"))).toBe(true),
+    );
     expect(screen.getByRole("button", { name: "gap" }).getAttribute("aria-pressed")).toBe("true");
     expect(screen.getByRole("button", { name: "all" }).getAttribute("aria-pressed")).toBe("false");
   });

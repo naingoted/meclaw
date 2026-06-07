@@ -28,21 +28,24 @@ flowchart TB
 
     subgraph sidecar["Python sidecar · services/ai · :8000"]
         api["FastAPI /chat (SSE)"]
-        triage["Triage (glm-4.7, non-stream)"]
+        triage["Triage · non-stream"]
         retrieve["Retrieve top-K (pgvector kNN)"]
-        draft["Draft (qwen3.6-plus, stream)"]
+        draft["Draft · streaming"]
         gaps["Gap + lead detection"]
         api --> triage --> retrieve --> draft --> gaps
     end
 
-    gw["DashScope gateway<br/>(Anthropic-compatible)"]
+    gw["LLM gateway<br/>(Anthropic- or OpenAI-compatible)"]
     ollama["Ollama<br/>nomic-embed-text"]
     pg[("PostgreSQL + pgvector")]
+
+    agent([MCP client · Claude / agent])
+    mcp["@meclaw/mcp<br/>read-only server · stdio/http<br/>telemetry · schema · corpus"]
 
     visitor --> chat
     owner --> admin
     chat -->|"POST /api/chat → proxy"| api
-    chat -. persist turn / miss / lead .-> core
+    chat -. persist turn / retrieval event / miss / lead .-> core
     admin --> core
     admin -->|enqueue ingest| rag
 
@@ -53,6 +56,9 @@ flowchart TB
     rag --> pg
     gaps --> pg
     core --> pg
+
+    agent --> mcp
+    mcp -. read-only .-> pg
 
     classDef store fill:#1f2937,stroke:#10b981,color:#e5e7eb
     class pg,ollama,gw store
@@ -76,22 +82,23 @@ sequenceDiagram
         N-->>B: stream refusal (never hits sidecar)
     else allowed
         N->>AI: proxy (SSE) + config snapshot
-        AI->>GW: triage intent (glm-4.7)
+        AI->>GW: triage intent
         AI->>PG: retrieve top-K chunks (cosine kNN)
-        AI->>GW: draft answer (qwen3.6-plus, streaming)
+        AI->>GW: draft answer (streaming)
         AI-->>N: token stream + step trace + metadata
         N-->>B: stream tokens, live "how I answered" trace
         AI->>AI: detect miss (low score / fallback / "don't know")
         N->>PG: persist conversation + messages
+        N->>PG: persist retrieval_events (telemetry)
         N->>PG: persist miss → gap cluster (if any)
     end
 ```
 
 1. **Edge guards first.** `apps/chat/app/api/chat/route.ts` runs an in-memory IP rate-limit (429 + Retry-After) and a prompt-injection regex guard (streams a refusal without ever calling the sidecar).
 2. **Proxy + config.** It forwards to the sidecar at `AI_SERVICE_URL`, attaching a live config snapshot (persona, model knobs, RAG floors, public fields) read from the `settings` table.
-3. **Agent pipeline** (`services/ai`): triage intent with `glm-4.7` (thinking-off, non-stream) → retrieve top-K chunks from pgvector → draft with `qwen3.6-plus` (streaming). Contact/scheduler intents answer via tools instead of retrieval.
+3. **Agent pipeline** (`services/ai`): triage intent with the **triage model** (thinking-off, non-stream) → retrieve top-K chunks from pgvector → draft with the **draft model** (streaming). Contact/scheduler intents answer via tools instead of retrieval.
 4. **Stream + trace.** Tokens stream back to the browser, which renders markdown with auto-scroll and a live, collapsible step trace ("how I answered").
-5. **Persist (best-effort).** On stream finish the route persists the conversation + messages. Failures are logged, never break the stream.
+5. **Persist (best-effort).** On stream finish the route persists the conversation + messages, plus a **retrieval_events** telemetry row (query, intent, grounding flags, top score, candidate chunks). Failures are logged, never break the stream.
 6. **Gap feedback loop.** If the corpus couldn't ground the answer (low cosine score, zero chunks, low triage confidence, or an explicit "I don't know"), the sidecar records a **miss** and folds it into the nearest **gap cluster** by embedding similarity — surfacing it in the admin Gaps inbox.
 
 ## Admin console
@@ -114,12 +121,13 @@ sequenceDiagram
 | `packages/core` | `@meclaw/core` | Drizzle ORM + postgres-js, content loader, settings |
 | `packages/rag` | `@meclaw/rag` | Ingest (chunk → embed → store) + retrieval config |
 | `packages/ui` | `@meclaw/ui` | shadcn/ui + shared design system |
-| `services/ai` | — | Python FastAPI + LangGraph LLM sidecar (:8000) |
+| `packages/mcp` | `@meclaw/mcp` | MCP server: read-only telemetry/schema tools (scoped + redacted) |
+| `services/ai` | — | Python FastAPI + LangGraph sidecar (:8000) + Ragas eval harness |
 | `infra/` | — | Docker Compose (dev + prod), Caddy reverse proxy, deploy |
 
 **Tech:** Next.js 16 (App Router) · React 19 · TypeScript · Tailwind 4 · shadcn/ui · Vercel AI SDK · Python (FastAPI + LangGraph) · PostgreSQL + pgvector · Ollama (`nomic-embed-text`, 768-dim) · Drizzle ORM · Auth.js v5 · Zod · Vitest + pytest · turbo.
 
-**Models** (via DashScope Anthropic-compatible gateway): `qwen3.6-plus` drafts (streaming), `glm-4.7` triages (non-stream). Both run thinking-off for latency. Provider-agnostic — swap models in `services/ai/app/provider.py`.
+**Models** — two roles: a **draft model** (streaming) and a **triage model** (non-stream), both run thinking-off for latency where the endpoint supports it. Provider-agnostic: point the `ANTHROPIC_*` env at any Anthropic-compatible endpoint — the Anthropic API itself, or an Anthropic-compatible gateway (e.g. DashScope). For an OpenAI-compatible endpoint, swap the client in `services/ai/app/provider.py`. Either way, models are chosen in that one place.
 
 ## Quickstart A — Full stack in Docker (recommended)
 
@@ -186,13 +194,52 @@ All tables live in one `DATABASE_URL` instance; vectors use the pgvector extensi
 - **settings** — single-row config (agents / shared persona / rag / public) driving chat live.
 - **audit_log** — every admin mutation.
 - **gap_clusters**, **chat_misses** — RAG gap feedback loop (centroid-clustered misses → admin Gaps inbox).
+- **retrieval_events** — per-message retrieval telemetry (query, intent, grounded/stuffed, top score, answer-used, candidate chunks). Written by the chat edge; feeds evals + the MCP telemetry tool.
+
+## Evaluation & telemetry
+
+Every answer logs a **retrieval_events** row — the ground truth for *how* the bot answered (what it retrieved, what it grounded on, whether the draft used the context). Read by the eval harness and the `@meclaw/mcp` telemetry tool.
+
+An offline **Ragas eval harness** (`services/ai/app/eval/`) drives the *real* pipeline — production retriever → triage → gate → draft — over a YAML eval set (`services/ai/eval/interview.yaml`) and scores each case:
+
+- **Custom checks** — required-fact / exact-match presence, reference-free defer-accuracy.
+- **Ragas** — Faithfulness, Answer Relevancy, Context Precision (+ Context Recall & Factual Correctness when a reference is present). The judge runs through the same provider seam + Ollama embeddings.
+
+```bash
+# from services/ai/
+uv run -m app.eval.generate                                          # draft cases from the corpus
+uv run -m app.eval.run --set eval/interview.yaml --report out/       # run + write report.json / report.md
+uv run -m app.eval.run --set eval/interview.yaml --report out/ --ci  # regression gate (exit ≠0 below thresholds)
+```
+
+Thresholds: pass-rate ≥ 0.70, faithfulness ≥ 0.50. `--ci` is an opt-in regression gate (not yet wired into blocking PR CI).
+
+## MCP server (read-only)
+
+`packages/mcp` (`@meclaw/mcp`) is a **standalone, read-only [MCP](https://modelcontextprotocol.io) server** — an out-of-band side-door for an AI client (Claude Desktop, an agent) to inspect how the bot is doing. It is **not** in the chat request path; nothing in the apps imports it. It connects directly to Postgres with a read-only role and exposes:
+
+| Tool | Does |
+|------|------|
+| `get-telemetry` | Summaries by `kind`: `gaps`, `misses`, `ingestion`, `retrieval` (reads `gap_clusters` / `chat_misses` / `ingestion_jobs` / `retrieval_events`). |
+| `describe-schema` | Table/column dictionary for safe self-service querying. |
+| `run-read-query` | Arbitrary **read-only** SQL (guarded). |
+| `search-corpus` | Semantic search over `rag_chunks`. |
+
+It reports over the **same gaps/telemetry tables** the chat loop writes — it surfaces them, it does not create or resolve gaps (that stays in the admin **Gaps** inbox).
+
+```bash
+pnpm --filter @meclaw/mcp mcp:stdio   # local MCP client (e.g. Claude Desktop)
+pnpm --filter @meclaw/mcp mcp:http    # HTTP transport (token-auth)
+```
+
+Env: `MCP_DATABASE_URL` (read-only role), `MCP_AUTH_TOKEN` (http auth), `MCP_ALLOW_PII` (default `false` → redacts PII).
 
 ## Environment variables
 
 **Dev** (`.env.local` for Next, `.env` for Docker):
-- `ANTHROPIC_API_KEY` — gateway key (required)
-- `ANTHROPIC_BASE_URL` — DashScope Anthropic-compatible endpoint. **TS AI SDK needs the `/v1` suffix; the Python sidecar must OMIT it** (it appends `/v1/messages` itself).
-- `ANTHROPIC_MODEL` — draft model (default `qwen3.6-plus`)
+- `ANTHROPIC_API_KEY` — your LLM provider API key (required)
+- `ANTHROPIC_BASE_URL` — Anthropic-compatible endpoint root (the Anthropic API, or a compatible gateway like DashScope). **TS AI SDK needs the `/v1` suffix; the Python sidecar must OMIT it** (it appends `/v1/messages` itself).
+- `ANTHROPIC_MODEL` — draft model id (your provider's model name)
 - `DATABASE_URL` — Postgres conn (default `postgres://meclaw:meclaw@localhost:5432/meclaw`)
 - `AI_SERVICE_URL` — sidecar (host dev `http://localhost:8000`; Docker `http://ai:8000`)
 - `OLLAMA_BASE_URL` / `OLLAMA_EMBED_MODEL` — embeddings (admin ingests in-process; required there)

@@ -1,7 +1,7 @@
-import { Chat } from "@/components/chat/chat";
-import { ChatLayout } from "@/components/chat/chat-layout";
 import { initDb } from "@meclaw/core/db";
 import { defaultSettings, getSettings, getSettingsVersion } from "@meclaw/core/settings";
+import { Chat } from "@/components/chat/chat";
+import { ChatLayout } from "@/components/chat/chat-layout";
 
 export const dynamic = "force-dynamic";
 

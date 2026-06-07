@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, render } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ConfigRefreshPoller, shouldDeferConfigRefresh } from "./config-refresh-poller";
 
 const refresh = vi.fn();

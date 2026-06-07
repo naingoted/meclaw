@@ -39,8 +39,12 @@ export function CorpusStrip() {
   }, []);
 
   React.useEffect(() => {
-    void (async () => { await load(); })();
-    const t = setInterval(() => { void load(); }, 2000);
+    void (async () => {
+      await load();
+    })();
+    const t = setInterval(() => {
+      void load();
+    }, 2000);
     return () => clearInterval(t);
   }, [load]);
 
@@ -52,7 +56,8 @@ export function CorpusStrip() {
   }
   return (
     <p className="font-mono text-xs text-muted-foreground">
-      Corpus v{state.version} · {state.documents} docs · {state.chunks} chunks · {relativeTime(state.lastIngestedAt)}
+      Corpus v{state.version} · {state.documents} docs · {state.chunks} chunks ·{" "}
+      {relativeTime(state.lastIngestedAt)}
     </p>
   );
 }

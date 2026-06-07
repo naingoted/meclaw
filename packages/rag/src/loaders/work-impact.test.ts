@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -35,7 +35,9 @@ describe("loadWorkImpactDocs", () => {
         summary: "Worked on revenue-sensitive flows.",
         context_for_non_internal_audience: "Modals affected revenue surfaces.",
         measurable_impact: [
-          { "Migrated 3 revenue-generating modals": "Upgrade CTA, Purchase Boost, Activate Boost." },
+          {
+            "Migrated 3 revenue-generating modals": "Upgrade CTA, Purchase Boost, Activate Boost.",
+          },
           "Preserved conversion analytics.",
         ],
         related_initiatives: ["Boost", "Upgrade CTA"],

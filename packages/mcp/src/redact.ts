@@ -4,19 +4,11 @@
  * tool results unless MCP_ALLOW_PII=true. The public scope never reaches the
  * tools that return these, so this is the operator-scope safety net.
  */
-export const PII_COLUMNS = new Set<string>([
-  "email",
-  "phone",
-  "content",
-  "triggerQuestion",
-]);
+export const PII_COLUMNS = new Set<string>(["email", "phone", "content", "triggerQuestion"]);
 
 const MASK = "[redacted]";
 
-export function redactRows<T extends Record<string, unknown>>(
-  rows: T[],
-  allowPii: boolean,
-): T[] {
+export function redactRows<T extends Record<string, unknown>>(rows: T[], allowPii: boolean): T[] {
   if (allowPii) return rows;
   return rows.map((row) => {
     const out: Record<string, unknown> = { ...row };

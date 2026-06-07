@@ -1,6 +1,6 @@
-import { describe, it, expect } from "vitest";
-import { makeTestDb } from "./test-db";
+import { describe, expect, it } from "vitest";
 import { conversations } from "./schema";
+import { makeTestDb } from "./test-db";
 
 describe("makeTestDb", () => {
   it("creates an isolated drizzle instance with the schema applied", async () => {

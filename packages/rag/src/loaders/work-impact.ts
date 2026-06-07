@@ -66,9 +66,7 @@ function renderEntryHeading(entry: WorkImpactEntry, index: number): string {
   return meta.length > 0 ? `## ${heading} (${meta})` : `## ${heading}`;
 }
 
-function renderMeasurableImpact(
-  impact: WorkImpactEntry["measurable_impact"],
-): string | undefined {
+function renderMeasurableImpact(impact: WorkImpactEntry["measurable_impact"]): string | undefined {
   if (!impact?.length) {
     return undefined;
   }

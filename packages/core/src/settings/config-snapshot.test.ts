@@ -1,7 +1,7 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { makeTestDb } from "../db/test-db";
-import { configSnapshot } from "./config-snapshot";
 import { configCache } from "./config-cache";
+import { configSnapshot } from "./config-snapshot";
 import { defaultSettings } from "./settings";
 
 afterEach(() => configCache.clear());

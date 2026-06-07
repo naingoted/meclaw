@@ -1,7 +1,7 @@
 "use client";
 
 import { Button, ThemeToggle } from "@meclaw/ui";
-import { Download, Calendar, GitBranch } from "lucide-react";
+import { Calendar, Download, GitBranch } from "lucide-react";
 
 export function ChatLayout({
   children,

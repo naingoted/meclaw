@@ -1,21 +1,70 @@
-import { describe, it, expect } from "vitest";
+import { chatMisses, gapClusters } from "@meclaw/core/db/schema";
 import { makeTestDb } from "@meclaw/core/db/test-db";
-import { gapClusters, chatMisses } from "@meclaw/core/db/schema";
-import { listClusters, getCluster, resolveCluster, ignoreCluster, exportMissesCsv } from "./gaps";
+import { describe, expect, it } from "vitest";
+import { exportMissesCsv, getCluster, ignoreCluster, listClusters, resolveCluster } from "./gaps";
 
 async function seed(db: Awaited<ReturnType<typeof makeTestDb>>["db"]) {
   const now = new Date();
   const big = "11111111-1111-4111-8111-111111111111";
   const small = "22222222-2222-4222-8222-222222222222";
-  await db.insert(gapClusters).values([
-    { id: big, centroid: Array(768).fill(0), count: 5, status: "new", exemplarQuery: "salary?", createdAt: now, updatedAt: now },
-    { id: small, centroid: Array(768).fill(0), count: 2, status: "new", exemplarQuery: "relocation?", createdAt: now, updatedAt: now },
-  ]).execute();
-  await db.insert(chatMisses).values([
-    { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", messageId: "m1", conversationId: "c1", clusterId: big, query: "salary?", reason: "floor", topScore: 0.2, createdAt: now },
-    { id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", messageId: "m2", conversationId: "c1", clusterId: big, query: "his pay?", reason: "fallback", topScore: null, createdAt: now },
-    { id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", messageId: "m3", conversationId: "c2", clusterId: small, query: "relocate?", reason: "clarify", topScore: null, createdAt: now },
-  ]).execute();
+  await db
+    .insert(gapClusters)
+    .values([
+      {
+        id: big,
+        centroid: Array(768).fill(0),
+        count: 5,
+        status: "new",
+        exemplarQuery: "salary?",
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: small,
+        centroid: Array(768).fill(0),
+        count: 2,
+        status: "new",
+        exemplarQuery: "relocation?",
+        createdAt: now,
+        updatedAt: now,
+      },
+    ])
+    .execute();
+  await db
+    .insert(chatMisses)
+    .values([
+      {
+        id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        messageId: "m1",
+        conversationId: "c1",
+        clusterId: big,
+        query: "salary?",
+        reason: "floor",
+        topScore: 0.2,
+        createdAt: now,
+      },
+      {
+        id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        messageId: "m2",
+        conversationId: "c1",
+        clusterId: big,
+        query: "his pay?",
+        reason: "fallback",
+        topScore: null,
+        createdAt: now,
+      },
+      {
+        id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        messageId: "m3",
+        conversationId: "c2",
+        clusterId: small,
+        query: "relocate?",
+        reason: "clarify",
+        topScore: null,
+        createdAt: now,
+      },
+    ])
+    .execute();
   return { big, small };
 }
 

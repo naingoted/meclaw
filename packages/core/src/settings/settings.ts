@@ -11,8 +11,8 @@ export const AgentConfigSchema = z.object({
   prompt: z.string(),
   /** Triage only: route-to-answer confidence gate (0–1). Other agents omit it. */
   confidence: z.number().min(0).max(1).optional(),
-  framework: z.string().optional(),       // reserved seam: CrewAI/AutoGen/BeeAI
-  tools: z.array(z.string()).optional(),  // reserved seam: tools / MCP refs
+  framework: z.string().optional(), // reserved seam: CrewAI/AutoGen/BeeAI
+  tools: z.array(z.string()).optional(), // reserved seam: tools / MCP refs
 });
 
 export const SettingsSchema = z.object({
@@ -28,7 +28,7 @@ export const SettingsSchema = z.object({
     scoreFloor: z.number().min(0).max(1).default(0.35),
     /** Max cosine distance for a miss to fold into an existing gap cluster. */
     clusterRadius: z.number().min(0).max(2).default(0.15),
-    retriever: z.string().optional(),     // reserved seam: Advanced RAG; default 'vector'
+    retriever: z.string().optional(), // reserved seam: Advanced RAG; default 'vector'
   }),
   public: z.object({
     greeting: z.string(),
@@ -48,16 +48,45 @@ export function defaultSettings(): SettingsValue {
   const draft = process.env.DRAFT_MODEL ?? "qwen3.6-plus";
   return {
     agents: {
-      triage:    { model: triage, thinking: false, confidence: 0.5, prompt: "You are a triage router for a chatbot answering questions about Thet." },
-      knowledge: { model: draft,  thinking: false, prompt: "You answer in a warm third-person voice about Thet, grounded in the provided context." },
-      scheduler: { model: draft,  thinking: false, prompt: "The visitor wants to schedule a call with Thet. Use the booking link in the context." },
-      contact:   { model: draft,  thinking: false, prompt: "The visitor wants Thet's contact details. Use the contact info in the context." },
+      triage: {
+        model: triage,
+        thinking: false,
+        confidence: 0.5,
+        prompt: "You are a triage router for a chatbot answering questions about Thet.",
+      },
+      knowledge: {
+        model: draft,
+        thinking: false,
+        prompt:
+          "You answer in a warm third-person voice about Thet, grounded in the provided context.",
+      },
+      scheduler: {
+        model: draft,
+        thinking: false,
+        prompt:
+          "The visitor wants to schedule a call with Thet. Use the booking link in the context.",
+      },
+      contact: {
+        model: draft,
+        thinking: false,
+        prompt: "The visitor wants Thet's contact details. Use the contact info in the context.",
+      },
     },
     shared: { persona: "" },
-    rag: { topK: Number(process.env.RAG_TOP_K ?? 4), scoreThreshold: 0, tinyCorpusThreshold: 8000, scoreFloor: 0.35, clusterRadius: 0.15 },
+    rag: {
+      topK: Number(process.env.RAG_TOP_K ?? 4),
+      scoreThreshold: 0,
+      tinyCorpusThreshold: 8000,
+      scoreFloor: 0.35,
+      clusterRadius: 0.15,
+    },
     public: {
       greeting: "Hi! I'm meclaw, Thet's personal bot.",
-      suggestions: ["What's Thet's tech stack?", "Walk me through a recent project", "How do I get in touch?"],
+      suggestions: [
+        "What's Thet's tech stack?",
+        "Walk me through a recent project",
+        "How do I get in touch?",
+      ],
       calUrl: process.env.NEXT_PUBLIC_CAL_URL ?? "",
       githubUrl: process.env.NEXT_PUBLIC_GITHUB_URL ?? "",
       contactEmail: "naingoted@gmail.com",
@@ -66,9 +95,7 @@ export function defaultSettings(): SettingsValue {
 }
 
 function toSettingsVersion(updatedAt: Date | string): string {
-  return updatedAt instanceof Date
-    ? updatedAt.toISOString()
-    : new Date(updatedAt).toISOString();
+  return updatedAt instanceof Date ? updatedAt.toISOString() : new Date(updatedAt).toISOString();
 }
 
 async function readSettingsRows(db: Db) {
@@ -98,12 +125,20 @@ export async function getSettings(db: Db): Promise<SettingsValue> {
   let version: string;
 
   if (rows[0]) {
-    value = SettingsSchema.parse({ agents: rows[0].agents, shared: rows[0].shared, rag: rows[0].rag, public: rows[0].public });
+    value = SettingsSchema.parse({
+      agents: rows[0].agents,
+      shared: rows[0].shared,
+      rag: rows[0].rag,
+      public: rows[0].public,
+    });
     version = toSettingsVersion(rows[0].updatedAt);
   } else {
     value = defaultSettings();
     const now = new Date();
-    await db.insert(settings).values({ id: 1, ...value, updatedAt: now }).execute();
+    await db
+      .insert(settings)
+      .values({ id: 1, ...value, updatedAt: now })
+      .execute();
     version = now.toISOString();
   }
 
@@ -111,12 +146,17 @@ export async function getSettings(db: Db): Promise<SettingsValue> {
   return value;
 }
 
-export async function updateSettings(db: Db, next: SettingsValue, actorIp: string): Promise<SettingsValue> {
+export async function updateSettings(
+  db: Db,
+  next: SettingsValue,
+  actorIp: string,
+): Promise<SettingsValue> {
   const parsed = SettingsSchema.parse(next);
   const before = await getSettings(db);
   const updatedAt = new Date();
   const updatedAtIso = updatedAt.toISOString();
-  await db.insert(settings)
+  await db
+    .insert(settings)
     .values({ id: 1, ...parsed, updatedAt })
     .onConflictDoUpdate({
       target: settings.id,
@@ -126,7 +166,14 @@ export async function updateSettings(db: Db, next: SettingsValue, actorIp: strin
       },
     })
     .execute();
-  await logAudit(db, { action: "config.update", entityType: "settings", entityId: "1", summary: "updated config", meta: { before, after: parsed }, actorIp });
+  await logAudit(db, {
+    action: "config.update",
+    entityType: "settings",
+    entityId: "1",
+    summary: "updated config",
+    meta: { before, after: parsed },
+    actorIp,
+  });
   configCache.clear();
   return parsed;
 }

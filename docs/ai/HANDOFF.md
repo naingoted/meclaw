@@ -40,7 +40,7 @@ ANTHROPIC_MODEL=qwen3.6-plus
 
 ## Build order (milestones)
 
-Status: **All milestones (M0–M6) + Phase 1 RAG + Phase 3 (sidecar) + Phase 5 (deploy) complete.** 
+Status: **All milestones (M0–M6) + Phase 1 RAG + Phase 3 (sidecar) + Phase 5 (deploy) complete. Pre-commit/CI hardening is now in place, with Node 22.12+ as the project baseline.** 
 **Plan C (monorepo restructure + infra/) complete:** workspace = `apps/*` + `packages/*` + `services/ai` + `infra/`; root flat app/shims removed; turbo orchestration + four Docker images (chat, admin, ai, ops) + subdomain Caddy routing. All docs updated. Ready for VPS deploy.
 **Spec B (RAG telemetry + eval harness) complete — merged to `main` (`f93e0fc`), dev stack refreshed.** `retrieval_events` table (migration 0007) live in Postgres; chat flush path persists one row per knowledge turn. Eval harness (`services/ai/app/eval/*`): generate → collect → score (custom + Ragas) → report; `uv run -m app.eval.run --set eval/interview.yaml --report out/` produces `report.json` + `report.md`, `--ci` enforces regression thresholds. Gates: Python **165 passed**, `pnpm verify` green, migration applied. **Owner to-do (DoD §10):** expand `interview.yaml` to ≥50 cases; run live smoke (needs gateway + Ollama + Postgres); browser-verify a `retrieval_events` row writes on a real knowledge turn.
 

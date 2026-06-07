@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const nav = vi.hoisted(() => ({
   replace: vi.fn(),
@@ -25,10 +25,19 @@ const SETTINGS = {
     contact: { model: "contact-only-model", thinking: false, prompt: "contact prompt" },
   },
   shared: { persona: "warm" },
-  rag: { topK: 4, scoreThreshold: 0.1, tinyCorpusThreshold: 8000, scoreFloor: 0.35, clusterRadius: 0.15 },
+  rag: {
+    topK: 4,
+    scoreThreshold: 0.1,
+    tinyCorpusThreshold: 8000,
+    scoreFloor: 0.35,
+    clusterRadius: 0.15,
+  },
   public: {
-    greeting: "Hi", suggestions: ["a", "b"], calUrl: "https://cal.com/x",
-    githubUrl: "https://github.com/x", contactEmail: "owner@example.com",
+    greeting: "Hi",
+    suggestions: ["a", "b"],
+    calUrl: "https://cal.com/x",
+    githubUrl: "https://github.com/x",
+    contactEmail: "owner@example.com",
   },
 };
 

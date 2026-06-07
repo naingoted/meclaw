@@ -146,11 +146,20 @@
 }
 
 @keyframes shimmer {
-  0% { background-position: -200px 0; }
-  100% { background-position: calc(200px + 100%) 0; }
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: calc(200px + 100%) 0;
+  }
 }
 .shimmer {
-  background-image: linear-gradient(90deg, var(--muted) 0, color-mix(in oklch, var(--muted), var(--foreground) 14%) 40px, var(--muted) 80px);
+  background-image: linear-gradient(
+    90deg,
+    var(--muted) 0,
+    color-mix(in oklch, var(--muted), var(--foreground) 14%) 40px,
+    var(--muted) 80px
+  );
   background-size: 300px 100%;
   background-repeat: no-repeat;
   animation: shimmer 1.1s linear infinite;

@@ -1,9 +1,15 @@
 import { eq } from "drizzle-orm";
-import { afterEach, describe, it, expect, vi } from "vitest";
-import { makeTestDb } from "../db/test-db";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { settings } from "../db/schema";
+import { makeTestDb } from "../db/test-db";
 import { configCache } from "./config-cache";
-import { defaultSettings, getSettings, getSettingsVersion, SettingsSchema, updateSettings } from "./settings";
+import {
+  defaultSettings,
+  getSettings,
+  getSettingsVersion,
+  SettingsSchema,
+  updateSettings,
+} from "./settings";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -18,7 +24,8 @@ describe("settings rag tunables", () => {
 
   it("SettingsSchema backfills missing tunables on parse (legacy rows)", () => {
     const legacy = {
-      agents: {}, shared: { persona: "" },
+      agents: {},
+      shared: { persona: "" },
       rag: { topK: 4, scoreThreshold: 0, tinyCorpusThreshold: 8000 },
       public: { greeting: "", suggestions: [], calUrl: "", githubUrl: "" },
     };
@@ -46,7 +53,8 @@ describe("settings new wired fields", () => {
 
   it("backfills contactEmail on legacy rows missing it", () => {
     const legacy = {
-      agents: {}, shared: { persona: "" },
+      agents: {},
+      shared: { persona: "" },
       rag: { topK: 4, scoreThreshold: 0, tinyCorpusThreshold: 8000 },
       public: { greeting: "", suggestions: [], calUrl: "", githubUrl: "" },
     };

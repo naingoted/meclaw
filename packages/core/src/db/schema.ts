@@ -1,5 +1,18 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, timestamp, jsonb, integer, index, check, vector, uuid, doublePrecision, uniqueIndex, boolean } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  check,
+  doublePrecision,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+  vector,
+} from "drizzle-orm/pg-core";
 
 /**
  * Database schema for meclaw persistence (Postgres).
@@ -11,9 +24,7 @@ export const conversations = pgTable("conversations", {
   /** Unique conversation ID (UUID v4, app-generated) */
   id: text("id").primaryKey(),
   /** When the conversation started */
-  createdAt: timestamp("createdAt", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
+  createdAt: timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
   /** Optional visitor metadata (future: locale, fingerprint, etc.) */
   visitorMeta: jsonb("visitorMeta"),
 });
@@ -32,15 +43,10 @@ export const messages = pgTable(
     /** Optional tool calls (only for assistant messages) */
     toolCalls: jsonb("toolCalls"),
     /** When the message was created */
-    createdAt: timestamp("createdAt", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    createdAt: timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    check(
-      "messages_role_check",
-      sql`${table.role} in ('user', 'assistant', 'tool')`,
-    ),
+    check("messages_role_check", sql`${table.role} in ('user', 'assistant', 'tool')`),
     index("idx_messages_conversationId").on(table.conversationId),
   ],
 );
@@ -63,10 +69,7 @@ export const ragChunks = pgTable(
   },
   (t) => [
     index("idx_rag_chunks_source").on(t.source),
-    index("idx_rag_chunks_embedding").using(
-      "hnsw",
-      t.embedding.op("vector_cosine_ops"),
-    ),
+    index("idx_rag_chunks_embedding").using("hnsw", t.embedding.op("vector_cosine_ops")),
   ],
 );
 
@@ -86,15 +89,10 @@ export const leads = pgTable(
     /** Which offer the visitor responded to: provided|edge_case|connect_intent|repeated_dead_end */
     trigger: text("trigger").notNull(),
     /** When the lead was captured */
-    createdAt: timestamp("createdAt", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    createdAt: timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    check(
-      "leads_contact_check",
-      sql`${table.email} is not null or ${table.phone} is not null`,
-    ),
+    check("leads_contact_check", sql`${table.email} is not null or ${table.phone} is not null`),
     index("idx_leads_conversationId").on(table.conversationId),
   ],
 );
@@ -108,8 +106,12 @@ export const documents = pgTable("documents", {
   category: text("category"),
   // Lifecycle origin: 'manual' (Documents page / legacy), 'seed' (content import),
   // 'gap' (created by answering a gap cluster). Type-only enum → plain text + default in SQL.
-  origin: text("origin", { enum: ["manual", "seed", "gap"] }).notNull().default("manual"),
-  status: text("status", { enum: ["draft", "ready", "error"] }).notNull().default("draft"),
+  origin: text("origin", { enum: ["manual", "seed", "gap"] })
+    .notNull()
+    .default("manual"),
+  status: text("status", { enum: ["draft", "ready", "error"] })
+    .notNull()
+    .default("draft"),
   contentHash: text("contentHash").notNull(),
   createdAt: timestamp("createdAt", { withTimezone: true }).notNull(),
   updatedAt: timestamp("updatedAt", { withTimezone: true }).notNull(),
@@ -130,8 +132,8 @@ export const ingestionJobs = pgTable("ingestion_jobs", {
 
 export const settings = pgTable("settings", {
   id: integer("id").primaryKey().default(1),
-  agents: jsonb("agents").notNull(),   // Record<agentKey, AgentConfig> — extensible map
-  shared: jsonb("shared").notNull(),   // { persona }
+  agents: jsonb("agents").notNull(), // Record<agentKey, AgentConfig> — extensible map
+  shared: jsonb("shared").notNull(), // { persona }
   rag: jsonb("rag").notNull(),
   public: jsonb("public").notNull(),
   updatedAt: timestamp("updatedAt", { withTimezone: true }).notNull(),
@@ -163,7 +165,9 @@ export const gapClusters = pgTable(
     /** running centroid of member miss embeddings */
     centroid: vector("centroid", { dimensions: 768 }).notNull(),
     count: integer("count").notNull().default(0),
-    status: text("status", { enum: ["new", "resolved", "ignored"] }).notNull().default("new"),
+    status: text("status", { enum: ["new", "resolved", "ignored"] })
+      .notNull()
+      .default("new"),
     /** representative query (first miss) */
     exemplarQuery: text("exemplarQuery"),
     /** link to documents.id (no hard FK, matches schema style) */
@@ -294,8 +298,5 @@ export const agentSteps = pgTable(
     durationMs: integer("durationMs"),
     createdAt: timestamp("createdAt", { withTimezone: true }).notNull(),
   },
-  (t) => [
-    index("idx_agent_steps_runId").on(t.runId),
-    index("idx_agent_steps_role").on(t.role),
-  ],
+  (t) => [index("idx_agent_steps_runId").on(t.runId), index("idx_agent_steps_role").on(t.role)],
 );

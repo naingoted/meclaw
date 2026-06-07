@@ -1,6 +1,6 @@
-import type { Metadata } from "next";
-import { JetBrains_Mono, Hanken_Grotesk } from "next/font/google";
 import { ThemeProvider } from "@meclaw/ui";
+import type { Metadata } from "next";
+import { Hanken_Grotesk, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
 const mono = JetBrains_Mono({ variable: "--font-jetbrains-mono", subsets: ["latin"] });

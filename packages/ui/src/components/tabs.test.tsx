@@ -1,6 +1,6 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { describe, it, expect } from "vitest";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "./tabs";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "./tabs";
 
 function renderTabs() {
   return render(

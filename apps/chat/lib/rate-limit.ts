@@ -94,14 +94,8 @@ export function createRateLimiter({
 
 // Singleton rate limiter for the chat route.
 // Configuration: env override support for testing/deployment flexibility.
-const RATE_LIMIT_MAX_REQUESTS = parseInt(
-  process.env.RATE_LIMIT_MAX_REQUESTS || "20",
-  10
-);
-const RATE_LIMIT_WINDOW_MS = parseInt(
-  process.env.RATE_LIMIT_WINDOW_MS || "60000",
-  10
-); // 60 seconds
+const RATE_LIMIT_MAX_REQUESTS = parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || "20", 10);
+const RATE_LIMIT_WINDOW_MS = parseInt(process.env.RATE_LIMIT_WINDOW_MS || "60000", 10); // 60 seconds
 
 export const chatRateLimiter = createRateLimiter({
   maxRequests: RATE_LIMIT_MAX_REQUESTS,

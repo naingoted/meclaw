@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ownerContact, scheduleCall, showResume, howThisWorks } from "./static-tools";
+import { howThisWorks, ownerContact, scheduleCall, showResume } from "./static-tools";
 
 describe("static tools", () => {
   it("ownerContact returns email + github from env", () => {

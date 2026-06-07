@@ -5,7 +5,12 @@ import { toolsForScope } from "./scope";
 // Minimal fake deps; registry must not touch the DB at registration time.
 const deps = {
   embedder: { embed: async () => [0] },
-  store: { ensureCollection: async () => {}, upsert: async () => {}, deleteBySource: async () => {}, search: async () => [] },
+  store: {
+    ensureCollection: async () => {},
+    upsert: async () => {},
+    deleteBySource: async () => {},
+    search: async () => [],
+  },
   sql: (async () => []) as never,
   tableExists: async () => false,
   env: { MCP_ALLOW_PII: false, MCP_ROW_CAP: 100 } as never,

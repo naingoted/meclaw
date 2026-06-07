@@ -1,23 +1,38 @@
 "use client";
+import { Button, cn, ThemeToggle } from "@meclaw/ui";
+import {
+  FileText,
+  Inbox,
+  LayoutDashboard,
+  ListChecks,
+  LogOut,
+  ScrollText,
+  SlidersHorizontal,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, ListChecks, SlidersHorizontal, LayoutDashboard, ScrollText, LogOut, Inbox } from "lucide-react";
-import { Button, ThemeToggle, cn } from "@meclaw/ui";
 import { signOutAction } from "@/app/admin/actions";
 
 const GROUPS = [
-  { label: "Knowledge", items: [
-    { label: "Documents", href: "/admin/documents", Icon: FileText },
-    { label: "Ingestion & Jobs", href: "/admin/jobs", Icon: ListChecks },
-    { label: "Gaps", href: "/admin/gaps", Icon: Inbox },
-  ] },
-  { label: "Configuration", items: [
-    { label: "Config", href: "/admin/config", Icon: SlidersHorizontal },
-  ] },
-  { label: "Activity", items: [
-    { label: "Dashboard", href: "/admin", Icon: LayoutDashboard },
-    { label: "Audit log", href: "/admin/audit", Icon: ScrollText },
-  ] },
+  {
+    label: "Knowledge",
+    items: [
+      { label: "Documents", href: "/admin/documents", Icon: FileText },
+      { label: "Ingestion & Jobs", href: "/admin/jobs", Icon: ListChecks },
+      { label: "Gaps", href: "/admin/gaps", Icon: Inbox },
+    ],
+  },
+  {
+    label: "Configuration",
+    items: [{ label: "Config", href: "/admin/config", Icon: SlidersHorizontal }],
+  },
+  {
+    label: "Activity",
+    items: [
+      { label: "Dashboard", href: "/admin", Icon: LayoutDashboard },
+      { label: "Audit log", href: "/admin/audit", Icon: ScrollText },
+    ],
+  },
 ] as const;
 
 export function AdminSidebar() {
@@ -31,7 +46,9 @@ export function AdminSidebar() {
       <div className="flex-1">
         {GROUPS.map((g) => (
           <div key={g.label} className="mb-5">
-            <div className="mb-1.5 px-2 text-[10px] uppercase tracking-wider text-muted-foreground">{g.label}</div>
+            <div className="mb-1.5 px-2 text-[10px] uppercase tracking-wider text-muted-foreground">
+              {g.label}
+            </div>
             {g.items.map(({ label, href, Icon }) => {
               const active = href === "/admin" ? pathname === "/admin" : pathname.startsWith(href);
               return (
@@ -54,7 +71,12 @@ export function AdminSidebar() {
       </div>
 
       <div className="mt-auto space-y-3 border-t border-border pt-3">
-        <Link href="/" className="block rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Back to chat</Link>
+        <Link
+          href="/"
+          className="block rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          Back to chat
+        </Link>
         <div className="flex items-center justify-between">
           <form action={signOutAction}>
             <Button type="submit" variant="ghost-danger" size="sm" className="gap-2 px-2">

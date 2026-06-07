@@ -1,5 +1,5 @@
-import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
+import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   plugins: [react()],
@@ -16,11 +16,7 @@ export default defineConfig({
     hookTimeout: 30000,
     setupFiles: ["./vitest.setup.ts"],
     include: ["**/*.{test,spec}.{ts,tsx}"],
-    exclude: [
-      "**/node_modules/**",
-      "**/.next/**",
-      "**/dist/**",
-    ],
+    exclude: ["**/node_modules/**", "**/.next/**", "**/dist/**"],
     // Istanbul coverage for `fallow health --coverage`; inert without --coverage.
     coverage: {
       provider: "istanbul",

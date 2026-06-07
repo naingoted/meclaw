@@ -1,10 +1,10 @@
-import { createServer } from "node:http";
 import { randomUUID } from "node:crypto";
+import { createServer } from "node:http";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { buildServer } from "../registry";
+import { checkBearer } from "../auth";
 import { buildDeps } from "../deps";
 import { parseMcpEnv } from "../env";
-import { checkBearer } from "../auth";
+import { buildServer } from "../registry";
 
 const env = parseMcpEnv();
 const scope = process.env.MCP_SCOPE === "operator" ? "operator" : "public";

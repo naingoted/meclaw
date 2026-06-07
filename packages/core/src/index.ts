@@ -1,3 +1,3 @@
+export { contentDir, loadKnowledge } from "./content";
 export * from "./db";
-export { loadKnowledge, contentDir } from "./content";
 export * from "./settings";

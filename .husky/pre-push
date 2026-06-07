@@ -1,0 +1,4 @@
+#!/bin/sh
+# Full gate before code leaves the machine. Heavy; runs only on push.
+# Never bypass with --no-verify.
+turbo run lint typecheck test || exit 1

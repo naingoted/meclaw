@@ -1,5 +1,5 @@
 import type { Db } from "@meclaw/core/db/types";
-import { listDocuments, isDirty } from "./documents";
+import { isDirty, listDocuments } from "./documents";
 import { listJobs } from "./ingest-runner";
 
 export interface StatsResult {

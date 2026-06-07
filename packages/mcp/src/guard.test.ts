@@ -7,9 +7,7 @@ describe("assertReadOnly", () => {
   });
 
   it("accepts a WITH ... SELECT (CTE)", () => {
-    expect(() =>
-      assertReadOnly("WITH x AS (SELECT 1) SELECT * FROM x"),
-    ).not.toThrow();
+    expect(() => assertReadOnly("WITH x AS (SELECT 1) SELECT * FROM x")).not.toThrow();
   });
 
   it("rejects INSERT/UPDATE/DELETE/DDL", () => {

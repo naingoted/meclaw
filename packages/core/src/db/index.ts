@@ -1,9 +1,9 @@
-import { drizzle } from "drizzle-orm/postgres-js";
-import { and, eq, or } from "drizzle-orm";
-import postgres from "postgres";
 import { randomUUID } from "node:crypto";
-import * as schema from "./schema";
+import { and, eq, or } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
 import { parseDbEnv } from "./env";
+import * as schema from "./schema";
 
 /**
  * Database connection + persistence for meclaw (Postgres via postgres-js).
@@ -81,9 +81,7 @@ export async function saveTurn(
       conversationId,
       role: assistantMessage.role,
       content: assistantMessage.content,
-      toolCalls: assistantMessage.toolCalls
-        ? JSON.parse(assistantMessage.toolCalls)
-        : null,
+      toolCalls: assistantMessage.toolCalls ? JSON.parse(assistantMessage.toolCalls) : null,
       createdAt: now,
     });
   });

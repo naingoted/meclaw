@@ -1,9 +1,9 @@
-import { describe, it, expect } from "vitest";
+import { documents, ingestionJobs } from "@meclaw/core/db/schema";
 import { makeTestDb } from "@meclaw/core/db/test-db";
-import { createDocument } from "./documents";
-import { enqueueSingle, enqueueAllDirty, runNextJob, resetOrphanedJobs } from "./ingest-runner";
-import { ingestionJobs, documents } from "@meclaw/core/db/schema";
 import { eq } from "drizzle-orm";
+import { describe, expect, it } from "vitest";
+import { createDocument } from "./documents";
+import { enqueueAllDirty, enqueueSingle, resetOrphanedJobs, runNextJob } from "./ingest-runner";
 
 describe("ingestion runner", () => {
   it("runs a queued single job to success: sets chunksWritten, lastIngestedAt, status=ready", async () => {
@@ -23,7 +23,11 @@ describe("ingestion runner", () => {
     const { db } = await makeTestDb();
     const doc = await createDocument(db, { title: "A", body: "x" }, "ip");
     await enqueueSingle(db, doc.id, "ip");
-    await runNextJob(db, { ingestFn: async () => { throw new Error("ollama down"); } });
+    await runNextJob(db, {
+      ingestFn: async () => {
+        throw new Error("ollama down");
+      },
+    });
     const j = (await db.select().from(ingestionJobs))[0];
     const d = (await db.select().from(documents).where(eq(documents.id, doc.id)))[0];
     expect(j.status).toBe("failed");
@@ -35,7 +39,11 @@ describe("ingestion runner", () => {
     const { db } = await makeTestDb();
     await createDocument(db, { title: "dirty1", body: "a" }, "ip"); // never ingested → dirty
     const clean = await createDocument(db, { title: "clean", body: "b" }, "ip");
-    await db.update(documents).set({ lastIngestedAt: new Date(Date.now() + 1000), status: "ready" }).where(eq(documents.id, clean.id)).execute();
+    await db
+      .update(documents)
+      .set({ lastIngestedAt: new Date(Date.now() + 1000), status: "ready" })
+      .where(eq(documents.id, clean.id))
+      .execute();
     const jobs = await enqueueAllDirty(db, "ip");
     expect(jobs).toHaveLength(1);
   });
@@ -44,7 +52,11 @@ describe("ingestion runner", () => {
     const { db } = await makeTestDb();
     const doc = await createDocument(db, { title: "A", body: "x" }, "ip");
     const job = await enqueueSingle(db, doc.id, "ip");
-    await db.update(ingestionJobs).set({ status: "running" }).where(eq(ingestionJobs.id, job.id)).execute();
+    await db
+      .update(ingestionJobs)
+      .set({ status: "running" })
+      .where(eq(ingestionJobs.id, job.id))
+      .execute();
     await resetOrphanedJobs(db);
     const j = (await db.select().from(ingestionJobs))[0];
     expect(j.status).toBe("failed");
@@ -56,7 +68,10 @@ describe("ingestion runner", () => {
     await enqueueSingle(db, doc.id, "ip");
     let seenOrigin: string | undefined;
     await runNextJob(db, {
-      ingestFn: async (d) => { seenOrigin = d.origin; return { chunks: 1 }; },
+      ingestFn: async (d) => {
+        seenOrigin = d.origin;
+        return { chunks: 1 };
+      },
     });
     expect(seenOrigin).toBe("gap");
   });
@@ -67,7 +82,10 @@ describe("ingestion runner", () => {
     await enqueueSingle(db, doc.id, "ip");
     let seenOrigin: string | undefined;
     await runNextJob(db, {
-      ingestFn: async (d) => { seenOrigin = d.origin; return { chunks: 1 }; },
+      ingestFn: async (d) => {
+        seenOrigin = d.origin;
+        return { chunks: 1 };
+      },
     });
     expect(seenOrigin).toBe("manual");
   });

@@ -60,10 +60,7 @@ function overlapTail(text: string, overlap: number): string {
   return spaceIdx === -1 ? "" : tail.slice(spaceIdx + 1);
 }
 
-export function chunkKnowledgeDocs(
-  docs: KnowledgeDoc[],
-  options: ChunkOptions,
-): RagChunk[] {
+export function chunkKnowledgeDocs(docs: KnowledgeDoc[], options: ChunkOptions): RagChunk[] {
   const { chunkSize, overlap } = options;
 
   if (chunkSize <= 0) {
@@ -103,9 +100,7 @@ export function chunkKnowledgeDocs(
         texts.push(current);
         const tail = overlapTail(current, overlap);
         current =
-          tail.length > 0 && tail.length + 1 + unit.length <= chunkSize
-            ? `${tail} ${unit}`
-            : unit;
+          tail.length > 0 && tail.length + 1 + unit.length <= chunkSize ? `${tail} ${unit}` : unit;
       }
     }
 

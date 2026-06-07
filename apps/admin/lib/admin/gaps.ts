@@ -1,7 +1,7 @@
-import { desc, eq, inArray, sql } from "drizzle-orm";
-import { gapClusters, chatMisses } from "@meclaw/core/db/schema";
+import { chatMisses, gapClusters } from "@meclaw/core/db/schema";
 import type { Db } from "@meclaw/core/db/types";
 import { logAudit } from "@meclaw/core/settings";
+import { desc, eq, inArray, sql } from "drizzle-orm";
 
 export type GapClusterRow = typeof gapClusters.$inferSelect;
 export type ChatMissRow = typeof chatMisses.$inferSelect;
@@ -70,14 +70,25 @@ export async function getCluster(
 }
 
 /** Close the loop: mark resolved + link the curated document. */
-export async function resolveCluster(db: Db, id: string, documentId: string, actorIp: string): Promise<void> {
+export async function resolveCluster(
+  db: Db,
+  id: string,
+  documentId: string,
+  actorIp: string,
+): Promise<void> {
   const now = new Date();
   await db
     .update(gapClusters)
     .set({ status: "resolved", resolvedDocumentId: documentId, resolvedAt: now, updatedAt: now })
     .where(eq(gapClusters.id, id))
     .execute();
-  await logAudit(db, { action: "gap.resolve", entityType: "gap", entityId: id, summary: `resolved gap → document ${documentId}`, actorIp });
+  await logAudit(db, {
+    action: "gap.resolve",
+    entityType: "gap",
+    entityId: id,
+    summary: `resolved gap → document ${documentId}`,
+    actorIp,
+  });
 }
 
 /** Hide a cluster from the default view without curating content. */
@@ -87,7 +98,13 @@ export async function ignoreCluster(db: Db, id: string, actorIp: string): Promis
     .set({ status: "ignored", updatedAt: new Date() })
     .where(eq(gapClusters.id, id))
     .execute();
-  await logAudit(db, { action: "gap.ignore", entityType: "gap", entityId: id, summary: `ignored gap ${id}`, actorIp });
+  await logAudit(db, {
+    action: "gap.ignore",
+    entityType: "gap",
+    entityId: id,
+    summary: `ignored gap ${id}`,
+    actorIp,
+  });
 }
 
 /** Export all misses as CSV (both tables are plain relational → trivially exportable). */
@@ -110,7 +127,9 @@ export async function exportMissesCsv(db: Db): Promise<string> {
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   const lines = rows.map((r) =>
-    [r.clusterId, r.query, r.reason, r.topScore ?? "", r.conversationId, r.createdAt.toISOString()].map(esc).join(","),
+    [r.clusterId, r.query, r.reason, r.topScore ?? "", r.conversationId, r.createdAt.toISOString()]
+      .map(esc)
+      .join(","),
   );
   return [header, ...lines].join("\n");
 }

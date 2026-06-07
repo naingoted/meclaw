@@ -1,19 +1,24 @@
 import { render, screen } from "@testing-library/react";
-import { describe, it, expect } from "vitest";
-import { Button } from "./button";
+import { describe, expect, it } from "vitest";
 import { Badge } from "./badge";
-import { Spinner } from "./spinner";
-import { Skeleton } from "./skeleton";
-import { StatusPill } from "./status-pill";
-import { StatTile } from "./stat-tile";
-import { PageHeader } from "./page-header";
+import { Button } from "./button";
 import { EmptyState } from "./empty-state";
+import { PageHeader } from "./page-header";
+import { Skeleton } from "./skeleton";
+import { Spinner } from "./spinner";
+import { StatTile } from "./stat-tile";
+import { StatusPill } from "./status-pill";
 import { ThemeProvider, ThemeToggle } from "./theme";
-import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "./tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./tooltip";
 
 describe("ui primitives", () => {
   it("renders a button and a badge", () => {
-    render(<><Button>Go</Button><Badge>ready</Badge></>);
+    render(
+      <>
+        <Button>Go</Button>
+        <Badge>ready</Badge>
+      </>,
+    );
     expect(screen.getByText("Go")).toBeTruthy();
     expect(screen.getByText("ready")).toBeTruthy();
   });

@@ -6,6 +6,9 @@ let done = false;
 export async function adminBoot() {
   if (done) return;
   done = true;
-  try { await resetOrphanedJobs(await initDb()); }
-  catch (e) { console.warn("[admin] boot reset skipped:", e instanceof Error ? e.message : e); }
+  try {
+    await resetOrphanedJobs(await initDb());
+  } catch (e) {
+    console.warn("[admin] boot reset skipped:", e instanceof Error ? e.message : e);
+  }
 }

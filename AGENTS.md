@@ -35,3 +35,14 @@ pnpm test       # vitest run
 - **TDD:** write a failing Vitest test before feature logic (persona builder, content loader, tools, route). Mock the provider in tests — no live gateway calls.
 - **Provider-agnostic:** all LLM wiring goes through `lib/ai/provider.ts`. Swapping models (qwen → OpenAI/Ollama) = edit that file only.
 - **Milestones are sequential**; each must render in the browser before moving on. Update the Status line in `docs/ai/HANDOFF.md` as you finish each.
+
+## Commit gate
+
+Hooks enforce quality automatically. Write code that passes on the first commit:
+
+- **Format before committing:** run `pnpm format`. Biome is the formatter (not Prettier/ESLint). Commits auto-format staged JS/TS/JSON/CSS files, but pre-formatting avoids surprise restages.
+- **Commit messages:** Conventional Commits (`feat:`, `fix:`, `chore:`, `docs:`, `style:`, `ci:`, `test:`, `refactor:`). `commit-msg` runs commitlint.
+- **No secrets:** secretlint scans staged files. Never stage real keys/tokens or `.env*` (only `*.env.example` and `*.env.*.example` placeholders).
+- **What blocks where:** pre-commit = guard + format/organize + secretlint + incremental `fallow audit` against the branch base (fast, staged-only). pre-push = whole-repo `lint typecheck test`. CI = quality gate (`test`, `verify`, `format:check`, fallow coverage report) + security gate (secretlint, commitlint range, `pnpm audit`, semgrep).
+- **Runtime baseline:** use Node `22.12+` (`.nvmrc` pins `22.12.0`) with `pnpm@10.32.1`.
+- **Never `--no-verify`.** Fix the finding (extract a function for complexity, organize imports, correct the message). Bypassing defeats the gate.

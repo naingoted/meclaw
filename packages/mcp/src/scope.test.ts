@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SCOPES, toolsForScope, type Scope } from "./scope";
+import { SCOPES, type Scope, toolsForScope } from "./scope";
 
 describe("scope", () => {
   it("public scope excludes raw SQL, schema, and telemetry tools", () => {

@@ -1,7 +1,7 @@
 import { PGlite } from "@electric-sql/pglite";
 import { vector } from "@electric-sql/pglite/vector";
-import { drizzle } from "drizzle-orm/pglite";
 import { sql } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/pglite";
 import * as schema from "./schema";
 
 /**
@@ -155,6 +155,8 @@ export async function makeTestDb() {
       "createdAt" timestamptz NOT NULL
     );
   `);
-  await db.execute(sql`CREATE UNIQUE INDEX uq_retrieval_events_messageId ON retrieval_events ("messageId");`);
+  await db.execute(
+    sql`CREATE UNIQUE INDEX uq_retrieval_events_messageId ON retrieval_events ("messageId");`,
+  );
   return { db, client };
 }

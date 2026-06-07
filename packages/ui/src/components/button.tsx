@@ -1,5 +1,5 @@
-import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
+import * as React from "react";
 import { cn } from "../utils";
 import { Spinner } from "./spinner";
 
@@ -26,7 +26,15 @@ export interface ButtonProps
   loading?: boolean;
 }
 
-export function Button({ className, variant, size, loading, disabled, children, ...props }: ButtonProps) {
+export function Button({
+  className,
+  variant,
+  size,
+  loading,
+  disabled,
+  children,
+  ...props
+}: ButtonProps) {
   return (
     <button
       className={cn(buttonVariants({ variant, size }), className)}

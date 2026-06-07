@@ -1,6 +1,6 @@
-import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
 import { TooltipProvider } from "@meclaw/ui";
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
 import { FieldLabel } from "./field-label";
 
 describe("FieldLabel", () => {
@@ -11,8 +11,6 @@ describe("FieldLabel", () => {
       </TooltipProvider>,
     );
     expect(screen.getByText("Top-K")).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /Top-K help/i }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Top-K help/i })).toBeInTheDocument();
   });
 });

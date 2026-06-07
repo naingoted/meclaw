@@ -1,15 +1,18 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/admin/request", () => ({ db: async () => ({}) }));
 vi.mock("@/lib/admin/corpus", () => ({
   getCorpusState: vi.fn(async () => ({
-    version: 7, documents: 6, chunks: 19,
-    lastIngestedAt: "2026-06-02T18:00:00.000Z", embedModel: "nomic-embed-text",
+    version: 7,
+    documents: 6,
+    chunks: 19,
+    lastIngestedAt: "2026-06-02T18:00:00.000Z",
+    embedModel: "nomic-embed-text",
   })),
 }));
 
-import { GET } from "./route";
 import { getCorpusState } from "@/lib/admin/corpus";
+import { GET } from "./route";
 
 describe("corpus API", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -22,7 +25,9 @@ describe("corpus API", () => {
   });
 
   it("GET degrades to version:null when getCorpusState throws", async () => {
-    (getCorpusState as unknown as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("db down"));
+    (getCorpusState as unknown as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new Error("db down"),
+    );
     const res = await GET();
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({

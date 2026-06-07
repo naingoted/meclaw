@@ -1,5 +1,5 @@
+import { getSettings, SettingsSchema, updateSettings } from "@meclaw/core/settings";
 import { clientIp, db } from "@/lib/admin/request";
-import { getSettings, updateSettings, SettingsSchema } from "@meclaw/core/settings";
 
 export async function GET() {
   // access enforced by middleware.ts (Auth.js)

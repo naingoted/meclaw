@@ -38,8 +38,22 @@ describe.skipIf(!DATABASE_URL)("PgVectorStore (integration, real Postgres)", () 
       const b = Array.from({ length: 768 }, (_, i) => (i === 1 ? 1 : 0));
 
       await store.upsert([
-        { id: "about:0", source: "about.md", title: "About", text: "Aaa", ordinal: 0, embedding: a },
-        { id: "about:1", source: "about.md", title: "About", text: "Bbb", ordinal: 1, embedding: b },
+        {
+          id: "about:0",
+          source: "about.md",
+          title: "About",
+          text: "Aaa",
+          ordinal: 0,
+          embedding: a,
+        },
+        {
+          id: "about:1",
+          source: "about.md",
+          title: "About",
+          text: "Bbb",
+          ordinal: 1,
+          embedding: b,
+        },
       ]);
 
       const hits = await store.search(a, 2);

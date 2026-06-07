@@ -1,9 +1,18 @@
 "use client";
-import { Button, PageHeader, StatTile, Skeleton, relativeTime } from "@meclaw/ui";
+import { Button, PageHeader, relativeTime, Skeleton, StatTile } from "@meclaw/ui";
 import * as React from "react";
 
 type Stats = { documents: number; dirty: number; lastIngest: string | null };
-type Activity = { id: string; ts: string; action: string; entityType: string; entityId: string | null; summary: string; meta: unknown | null; actorIp: string | null };
+type Activity = {
+  id: string;
+  ts: string;
+  action: string;
+  entityType: string;
+  entityId: string | null;
+  summary: string;
+  meta: unknown | null;
+  actorIp: string | null;
+};
 type DashboardData = { stats: Stats; activity: Activity[] };
 
 export function DashboardClient() {
@@ -15,7 +24,11 @@ export function DashboardClient() {
     setData(json);
   }, []);
 
-  React.useEffect(() => { void (async () => { await load(); })(); }, [load]);
+  React.useEffect(() => {
+    void (async () => {
+      await load();
+    })();
+  }, [load]);
 
   async function reingestAll() {
     setReingesting(true);
@@ -43,17 +56,28 @@ export function DashboardClient() {
 
       {!data ? (
         <div className="grid grid-cols-3 gap-3">
-          <Skeleton className="h-20" /><Skeleton className="h-20" /><Skeleton className="h-20" />
+          <Skeleton className="h-20" />
+          <Skeleton className="h-20" />
+          <Skeleton className="h-20" />
         </div>
       ) : (
         <>
           <div className="grid grid-cols-3 gap-3">
             <StatTile label="Documents" value={data.stats.documents} />
-            <StatTile label="Dirty docs" value={data.stats.dirty} tone={data.stats.dirty > 0 ? "warning" : "neutral"} />
-            <StatTile label="Last ingest" value={data.stats.lastIngest ? relativeTime(data.stats.lastIngest) : "—"} />
+            <StatTile
+              label="Dirty docs"
+              value={data.stats.dirty}
+              tone={data.stats.dirty > 0 ? "warning" : "neutral"}
+            />
+            <StatTile
+              label="Last ingest"
+              value={data.stats.lastIngest ? relativeTime(data.stats.lastIngest) : "—"}
+            />
           </div>
 
-          <h2 className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Recent activity</h2>
+          <h2 className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Recent activity
+          </h2>
           {data.activity.length === 0 ? (
             <p className="text-sm text-muted-foreground">No activity yet.</p>
           ) : (
@@ -61,7 +85,9 @@ export function DashboardClient() {
               {data.activity.map((a) => (
                 <li key={a.id} className="flex items-center justify-between gap-3 px-3 py-2">
                   <span className="text-foreground">{a.summary}</span>
-                  <span className="shrink-0 font-mono text-xs text-muted-foreground">{relativeTime(a.ts)}</span>
+                  <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                    {relativeTime(a.ts)}
+                  </span>
                 </li>
               ))}
             </ul>

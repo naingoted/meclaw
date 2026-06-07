@@ -1,6 +1,5 @@
-import { describe, expect, it } from "vitest";
-
 import type { KnowledgeDoc } from "@meclaw/core/content";
+import { describe, expect, it } from "vitest";
 
 import { chunkKnowledgeDocs } from "./chunk";
 
@@ -83,7 +82,13 @@ describe("chunkKnowledgeDocs", () => {
     ];
 
     expect(chunkKnowledgeDocs(docs, { chunkSize: 100, overlap: 20 })).toEqual([
-      { id: "notes.md:0", source: "notes.md", title: "Notes", text: "First line Second line", ordinal: 0 },
+      {
+        id: "notes.md:0",
+        source: "notes.md",
+        title: "Notes",
+        text: "First line Second line",
+        ordinal: 0,
+      },
     ]);
   });
 
@@ -94,7 +99,11 @@ describe("chunkKnowledgeDocs", () => {
 
   it("never breaks a word across chunks", () => {
     const docs: KnowledgeDoc[] = [
-      { slug: "a.md", title: "A", body: "supercalifragilistic expialidocious antidisestablishment" },
+      {
+        slug: "a.md",
+        title: "A",
+        body: "supercalifragilistic expialidocious antidisestablishment",
+      },
     ];
     const chunks = chunkKnowledgeDocs(docs, { chunkSize: 25, overlap: 6 });
 

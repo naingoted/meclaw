@@ -18,19 +18,13 @@ describe.skipIf(!DATABASE_URL)("migrations (real Postgres)", () => {
           AND table_name IN ('conversations', 'messages', 'rag_chunks')
         ORDER BY table_name
       `;
-      expect(tables.map((t) => t.table_name)).toEqual([
-        "conversations",
-        "messages",
-        "rag_chunks",
-      ]);
+      expect(tables.map((t) => t.table_name)).toEqual(["conversations", "messages", "rag_chunks"]);
 
       const msgCols = await sql<{ column_name: string; data_type: string }[]>`
         SELECT column_name, data_type FROM information_schema.columns
         WHERE table_name = 'messages'
       `;
-      const byName = Object.fromEntries(
-        msgCols.map((c) => [c.column_name, c.data_type]),
-      );
+      const byName = Object.fromEntries(msgCols.map((c) => [c.column_name, c.data_type]));
       expect(byName["toolCalls"]).toBe("jsonb");
       expect(byName["createdAt"]).toBe("timestamp with time zone");
 

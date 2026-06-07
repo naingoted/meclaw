@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { authorizeCredentials } from "./lib/admin/auth-utils";
 import { hashPassword } from "./lib/admin/password";
 

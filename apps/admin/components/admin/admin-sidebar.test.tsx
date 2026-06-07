@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 vi.mock("next/navigation", () => ({ usePathname: () => "/admin/documents" }));
 vi.mock("@/app/admin/actions", () => ({ signOutAction: vi.fn() }));
@@ -16,7 +16,9 @@ describe("AdminSidebar", () => {
     expect(screen.getByRole("button", { name: /sign out/i })).toBeTruthy();
     expect(screen.getByRole("button", { name: /toggle theme/i })).toBeTruthy();
     // active link carries aria-current
-    expect(screen.getByRole("link", { name: "Documents" }).getAttribute("aria-current")).toBe("page");
+    expect(screen.getByRole("link", { name: "Documents" }).getAttribute("aria-current")).toBe(
+      "page",
+    );
   });
 
   it("sign-out uses a contrast-safe danger hover, not a vanishing one", () => {

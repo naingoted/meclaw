@@ -1,4 +1,4 @@
-export * from "./settings";
+export * from "./audit";
 export { configCache } from "./config-cache";
 export { configSnapshot } from "./config-snapshot";
-export * from "./audit";
+export * from "./settings";

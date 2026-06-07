@@ -14,17 +14,28 @@ export function relativeTime(value: Date | string | number, now: number = Date.n
 
 export function statusTone(status: string): StatusTone {
   switch (status) {
-    case "running": return "running";
+    case "running":
+      return "running";
     case "succeeded":
-    case "ready": return "success";
+    case "ready":
+      return "success";
     case "failed":
-    case "error": return "danger";
-    case "dirty": return "warning";
-    default: return "neutral";
+    case "error":
+      return "danger";
+    case "dirty":
+      return "warning";
+    default:
+      return "neutral";
   }
 }
 
-export type StatusCounts = { dirty: number; queued: number; running: number; succeeded: number; failed: number };
+export type StatusCounts = {
+  dirty: number;
+  queued: number;
+  running: number;
+  succeeded: number;
+  failed: number;
+};
 
 export function deriveStatusCounts(jobs: { status: string }[], dirty = 0): StatusCounts {
   const counts: StatusCounts = { dirty, queued: 0, running: 0, succeeded: 0, failed: 0 };

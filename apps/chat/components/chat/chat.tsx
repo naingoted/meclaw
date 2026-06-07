@@ -1,10 +1,10 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
+import { Button, cn } from "@meclaw/ui";
+import { Bot } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
-import { Bot } from "lucide-react";
-import { Button, cn } from "@meclaw/ui";
 import { ConfigRefreshPoller } from "./config-refresh-poller";
 
 type SourceMetadata = {
@@ -82,7 +82,9 @@ function extractSources(message: ChatMessageLike): RenderedSource[] {
       readString(typedSource.path) ??
       readString(typedSource.slug);
     const location =
-      readString(typedSource.path) ?? readString(typedSource.slug) ?? readString(typedSource.source);
+      readString(typedSource.path) ??
+      readString(typedSource.slug) ??
+      readString(typedSource.source);
     const score = readScore(typedSource.score);
 
     if (!title && !location) {
@@ -104,7 +106,7 @@ function extractRoute(message: ChatMessageLike): string | undefined {
     return undefined;
   }
   const metadata = isRecord(message.metadata) ? message.metadata : null;
-  return metadata ? readString(metadata.route) ?? readString(metadata.intent) : undefined;
+  return metadata ? (readString(metadata.route) ?? readString(metadata.intent)) : undefined;
 }
 
 const KNOWLEDGE_ROUTES = new Set(["tech", "project", "general"]);
@@ -156,10 +158,7 @@ export function hasRenderedText(message: MessageWithParts): boolean {
  * sent until the first assistant token arrives. Once the assistant message has
  * text, the streamed answer replaces the indicator.
  */
-export function shouldShowThinking(
-  status: string,
-  messages: MessageWithParts[],
-): boolean {
+export function shouldShowThinking(status: string, messages: MessageWithParts[]): boolean {
   if (status === "submitted") return true;
   if (status !== "streaming") return false;
   const last = messages[messages.length - 1];
@@ -202,11 +201,7 @@ export function LiveTrace({ steps }: { steps: string[] }) {
             {steps.map((step, i) => {
               const active = i === steps.length - 1;
               return (
-                <li
-                  key={`${step}-${i}`}
-                  data-active={active}
-                  className="flex items-center gap-2"
-                >
+                <li key={`${step}-${i}`} data-active={active} className="flex items-center gap-2">
                   {active ? (
                     <StepDots />
                   ) : (
@@ -240,7 +235,8 @@ function SourcesPanel({
     <div className="w-full max-w-[85%] rounded-xl border border-border bg-background px-3 py-2 text-xs text-muted-foreground">
       {label ? (
         <p className="font-mono text-xs text-muted-foreground">
-          {label}{typeof corpusVersion === "number" ? ` · corpus v${corpusVersion}` : ""}
+          {label}
+          {typeof corpusVersion === "number" ? ` · corpus v${corpusVersion}` : ""}
         </p>
       ) : null}
       <div className="flex items-center justify-between gap-2">
@@ -273,9 +269,7 @@ function SourcesPanel({
 function ThinkingTrace({ steps }: { steps: string[] }) {
   return (
     <details className="w-full max-w-[85%] rounded-xl border border-border bg-background px-3 py-2 text-xs text-muted-foreground">
-      <summary className="cursor-pointer font-medium text-foreground">
-        How I answered
-      </summary>
+      <summary className="cursor-pointer font-medium text-foreground">How I answered</summary>
       <ol className="mt-2 space-y-1">
         {steps.map((step, i) => (
           <li key={`${step}-${i}`} className="flex items-center gap-2">
@@ -382,10 +376,7 @@ export function Chat({
           return (
             <div
               key={message.id}
-              className={cn(
-                "flex",
-                message.role === "user" ? "justify-end" : "justify-start",
-              )}
+              className={cn("flex", message.role === "user" ? "justify-end" : "justify-start")}
             >
               {message.role === "assistant" ? (
                 <>
@@ -449,7 +440,11 @@ export function Chat({
           placeholder="Say something…"
           className="flex-1 rounded-sm border border-input bg-card px-3 py-2 font-mono text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
         />
-        <Button type="submit" loading={isStreaming} disabled={isStreaming || input.trim().length === 0}>
+        <Button
+          type="submit"
+          loading={isStreaming}
+          disabled={isStreaming || input.trim().length === 0}
+        >
           Send
         </Button>
       </form>

@@ -1,6 +1,5 @@
-import { renderHook, act } from "@testing-library/react";
-import { describe, it, expect, beforeEach } from "vitest";
-import { vi } from "vitest";
+import { act, renderHook } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const nav = vi.hoisted(() => ({
   replace: vi.fn(),
@@ -44,9 +43,6 @@ describe("useUrlState", () => {
     nav.search = new URLSearchParams("keep=1");
     const { result } = renderHook(() => useUrlState("tab", "agents", ALLOWED));
     act(() => result.current[1]("public"));
-    expect(nav.replace).toHaveBeenCalledWith(
-      "/admin/config?keep=1&tab=public",
-      { scroll: false },
-    );
+    expect(nav.replace).toHaveBeenCalledWith("/admin/config?keep=1&tab=public", { scroll: false });
   });
 });

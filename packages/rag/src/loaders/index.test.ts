@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync, copyFileSync, mkdirSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -13,10 +13,7 @@ describe("loadIngestDocs", () => {
     mkdirSync(join(dir, "knowledge"), { recursive: true });
     writeFileSync(join(dir, "knowledge", "career.md"), "# Career\n\nWorked places.");
     // reuse the committed PDF fixture as a stand-in résumé
-    copyFileSync(
-      join(__dirname, "__fixtures__", "sample.pdf"),
-      join(dir, "resume.pdf"),
-    );
+    copyFileSync(join(__dirname, "__fixtures__", "sample.pdf"), join(dir, "resume.pdf"));
 
     const docs = await loadIngestDocs(dir);
     const slugs = docs.map((d) => d.slug);

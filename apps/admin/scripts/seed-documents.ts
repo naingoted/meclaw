@@ -1,7 +1,7 @@
-import { loadKnowledge, type KnowledgeDoc } from "@meclaw/core/content";
-import { listDocuments, createDocument } from "../lib/admin/documents";
-import { contentHash } from "../lib/admin/hash";
+import { type KnowledgeDoc, loadKnowledge } from "@meclaw/core/content";
 import type { Db } from "@meclaw/core/db/types";
+import { createDocument, listDocuments } from "../lib/admin/documents";
+import { contentHash } from "../lib/admin/hash";
 
 type SeedOptions = { loadDocs?: () => KnowledgeDoc[] };
 
@@ -13,7 +13,11 @@ export async function seedDocuments(db: Db, opts: SeedOptions = {}): Promise<{ i
   for (const doc of docs) {
     if (existing.has(contentHash(doc.body))) continue;
     const category = doc.slug.includes("/") ? doc.slug.split("/")[0] : null;
-    await createDocument(db, { title: doc.title, body: doc.body, category: category ?? undefined, origin: "seed" }, "seed");
+    await createDocument(
+      db,
+      { title: doc.title, body: doc.body, category: category ?? undefined, origin: "seed" },
+      "seed",
+    );
     imported++;
   }
   return { imported };

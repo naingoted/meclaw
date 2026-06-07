@@ -1,6 +1,6 @@
+import type { EmbeddingClient, VectorStoreClient } from "@meclaw/rag";
 import { describe, expect, it } from "vitest";
 import { searchCorpus } from "./search-corpus";
-import type { EmbeddingClient, VectorStoreClient } from "@meclaw/rag";
 
 const embedder: EmbeddingClient = { embed: async () => [0.1, 0.2, 0.3] };
 const store = {

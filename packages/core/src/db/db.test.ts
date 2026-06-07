@@ -1,14 +1,8 @@
-import { describe, expect, it } from "vitest";
-import {
-  saveTurn,
-  saveLead,
-  saveMiss,
-  saveRetrievalEvent,
-  type PersistentMessage,
-} from "./index";
-import { makeTestDb } from "./test-db";
-import { messages, chatMisses, gapClusters, retrievalEvents } from "./schema";
 import { eq } from "drizzle-orm";
+import { describe, expect, it } from "vitest";
+import { type PersistentMessage, saveLead, saveMiss, saveRetrievalEvent, saveTurn } from "./index";
+import { chatMisses, gapClusters, messages, retrievalEvents } from "./schema";
+import { makeTestDb } from "./test-db";
 
 /**
  * saveTurn persistence — mocked tests (no DB needed).
@@ -37,14 +31,11 @@ function makeMockDb() {
 describe("saveTurn (mocked)", () => {
   it("returns a UUID conversationId", async () => {
     const { db } = makeMockDb();
-    const id = await saveTurn(
-      db as never,
-      [{ role: "user", content: "Hi" }],
-      { role: "assistant", content: "Hello" },
-    );
-    expect(id).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    );
+    const id = await saveTurn(db as never, [{ role: "user", content: "Hi" }], {
+      role: "assistant",
+      content: "Hello",
+    });
+    expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
   });
 
   it("inserts conversation + last user msg + assistant msg (in order)", async () => {
@@ -198,10 +189,7 @@ describe("saveMiss + assistant messageId", () => {
       "conv-1",
       "assistant-msg-1",
     );
-    const rows = await db
-      .select()
-      .from(messages)
-      .where(eq(messages.role, "assistant"));
+    const rows = await db.select().from(messages).where(eq(messages.role, "assistant"));
     expect(rows[0].id).toBe("assistant-msg-1");
   });
 
@@ -231,14 +219,8 @@ describe("saveMiss + assistant messageId", () => {
       reason: "floor" as const,
       topScore: 0.2,
     };
-    await saveMiss(
-      db as never,
-      input,
-    );
-    await saveMiss(
-      db as never,
-      input,
-    ); // duplicate — must not insert a second row
+    await saveMiss(db as never, input);
+    await saveMiss(db as never, input); // duplicate — must not insert a second row
 
     const rows = await db.select().from(chatMisses);
     expect(rows).toHaveLength(1);
@@ -272,10 +254,7 @@ describe("saveMiss + assistant messageId", () => {
       reason: "answer_gap",
       topScore: 0.42,
     });
-    const rows = await db
-      .select()
-      .from(chatMisses)
-      .where(eq(chatMisses.messageId, "m-ag"));
+    const rows = await db.select().from(chatMisses).where(eq(chatMisses.messageId, "m-ag"));
     expect(rows[0].reason).toBe("answer_gap");
   });
 });
@@ -302,7 +281,9 @@ describe("saveRetrievalEvent", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].intent).toBe("tech");
     expect(rows[0].grounded).toBe(true);
-    expect(rows[0].chunks).toEqual([{ id: "about:0", source: "about.md", score: 0.62, kept: true }]);
+    expect(rows[0].chunks).toEqual([
+      { id: "about:0", source: "about.md", score: 0.62, kept: true },
+    ]);
   });
 
   it("persists a miss event with null topScore and grounded=false", async () => {

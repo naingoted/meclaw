@@ -86,6 +86,9 @@ jobs:
       - name: Verify JS workspace
         run: pnpm verify
 
+      - name: Format check (biome)
+        run: pnpm format:check
+
       - name: Fallow audit
         run: |
           set -euo pipefail

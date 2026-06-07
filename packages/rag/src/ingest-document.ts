@@ -1,6 +1,6 @@
 import { chunkKnowledgeDocs } from "./chunk";
 import { embedderFromEnv, storeFromEnv } from "./config";
-import type { EmbeddingClient, VectorStoreClient, RagChunk } from "./types";
+import type { EmbeddingClient, RagChunk, VectorStoreClient } from "./types";
 
 export type IngestDocumentInput = { id: string; title: string; body: string; origin: string };
 export type IngestDocumentOptions = {

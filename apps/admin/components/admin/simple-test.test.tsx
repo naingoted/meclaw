@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
 const nav = vi.hoisted(() => ({
   replace: vi.fn(),
@@ -29,10 +29,10 @@ describe("useUrlState simple", () => {
     nav.replace.mockClear();
     nav.search = new URLSearchParams();
     render(<TestComponent />);
-    
+
     expect(screen.getByText("Current: a")).toBeInTheDocument();
     fireEvent.click(screen.getByText("Click me"));
-    
+
     console.log("nav.replace was called:", nav.replace.mock.calls.length, "times");
     console.log("with:", nav.replace.mock.calls);
     expect(nav.replace).toHaveBeenCalled();
