@@ -16,6 +16,7 @@ Personal AI-twin chatbot (single user). Public chat page; an AI answers about th
 - **How it fits together:** `docs/ai/architecture.md`.
 - **Local setup:** `docs/ai/setup.md`.
 - **Code style / rules:** `docs/ai/conventions.md`.
+- **Deploy + prod debugging:** `docs/ai/deploy.md` — Dokploy-on-AWS from-scratch provisioning, post-deploy one-shots, and a debugging runbook (container-naming, panel TLS, login reset). Read before touching production.
 
 ## Stack
 
