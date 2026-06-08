@@ -6,16 +6,16 @@ const HISTORY_LIMIT = 100;
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
-  const token = url.searchParams.get("token");
+  const embedToken = url.searchParams.get("embedToken");
   const conversationId = url.searchParams.get("conversationId");
   const resumeToken = url.searchParams.get("resumeToken");
 
-  if (!token || !conversationId || !resumeToken) {
+  if (!embedToken || !conversationId || !resumeToken) {
     return Response.json({ error: "missing required parameters" }, { status: 400 });
   }
 
   const db = await getChatDb();
-  const client = await resolveEmbedClient(db, token);
+  const client = await resolveEmbedClient(db, embedToken);
   if (!client) {
     return Response.json({ error: "embed not authorized" }, { status: 403 });
   }

@@ -51,20 +51,20 @@ describe("GET /api/chat/history", () => {
   });
 
   it("returns 400 when required params are missing", async () => {
-    const res = await GET(makeReq("token=pk_a"));
+    const res = await GET(makeReq("embedToken=pk_a"));
     expect(res.status).toBe(400);
   });
 
   it("returns 403 for unknown/revoked token", async () => {
     vi.mocked(resolveEmbedClient).mockResolvedValue(null);
-    const res = await GET(makeReq("token=pk_x&conversationId=c-known&resumeToken=rt"));
+    const res = await GET(makeReq("embedToken=pk_x&conversationId=c-known&resumeToken=rt"));
     expect(res.status).toBe(403);
   });
 
   it("returns 403 when origin is not in allowlist", async () => {
     vi.mocked(resolveEmbedClient).mockResolvedValue(client);
     vi.mocked(isAllowedOrigin).mockReturnValue(false);
-    const res = await GET(makeReq("token=pk_a&conversationId=c-known&resumeToken=rt"));
+    const res = await GET(makeReq("embedToken=pk_a&conversationId=c-known&resumeToken=rt"));
     expect(res.status).toBe(403);
   });
 
@@ -72,7 +72,7 @@ describe("GET /api/chat/history", () => {
     vi.mocked(resolveEmbedClient).mockResolvedValue(client);
     vi.mocked(isAllowedOrigin).mockReturnValue(true);
     vi.mocked(verifyResumeToken).mockReturnValue(false);
-    const res = await GET(makeReq("token=pk_a&conversationId=c-known&resumeToken=bad"));
+    const res = await GET(makeReq("embedToken=pk_a&conversationId=c-known&resumeToken=bad"));
     expect(res.status).toBe(401);
   });
 
@@ -80,7 +80,7 @@ describe("GET /api/chat/history", () => {
     vi.mocked(resolveEmbedClient).mockResolvedValue(client);
     vi.mocked(isAllowedOrigin).mockReturnValue(true);
     vi.mocked(verifyResumeToken).mockReturnValue(true);
-    const res = await GET(makeReq("token=pk_a&conversationId=c-known&resumeToken=rt"));
+    const res = await GET(makeReq("embedToken=pk_a&conversationId=c-known&resumeToken=rt"));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body).toEqual({
@@ -89,6 +89,14 @@ describe("GET /api/chat/history", () => {
         { id: "m1", role: "user", content: "hello" },
         { id: "m2", role: "assistant", content: "hi" },
       ],
+    });
+    // Verify the HMAC check was invoked with the right binding — a regression
+    // that skipped the check or passed the wrong embedClientId would still
+    // return 200 (mock returns true) but this assertion would catch it.
+    expect(verifyResumeToken).toHaveBeenCalledWith({
+      token: "rt",
+      conversationId: "c-known",
+      embedClientId: "e1",
     });
   });
 });
