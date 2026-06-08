@@ -52,6 +52,14 @@ def sse_data_status(label: str, stage: str) -> str:
     )
 
 
+def sse_data_report(report: dict | None, status: str) -> str:
+    """A non-transient `data-report` part carrying the final BriefingReport (or
+    null on failure) plus the run status. Consumed by the admin client's SSE
+    reader (Spec C §9). Distinct from chat's text parts — this is a structured
+    payload, not a token stream."""
+    return _frame({"type": "data-report", "data": {"report": report, "status": status}})
+
+
 def sse_finish(message_metadata: dict | None = None) -> str:
     part: dict = {"type": "finish"}
     if message_metadata is not None:

@@ -11,6 +11,7 @@ describe("AdminSidebar", () => {
     render(<AdminSidebar />);
     expect(screen.getByText("Knowledge")).toBeTruthy();
     expect(screen.getByText("Documents")).toBeTruthy();
+    expect(screen.getByText("Briefings")).toBeTruthy();
     expect(screen.getByText("Audit log")).toBeTruthy();
     expect(screen.getByText("Back to chat")).toBeTruthy();
     expect(screen.getByRole("button", { name: /sign out/i })).toBeTruthy();

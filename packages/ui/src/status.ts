@@ -16,12 +16,14 @@ export function statusTone(status: string): StatusTone {
   switch (status) {
     case "running":
       return "running";
+    case "done":
     case "succeeded":
     case "ready":
       return "success";
+    case "degraded":
     case "failed":
     case "error":
-      return "danger";
+      return status === "degraded" ? "warning" : "danger";
     case "dirty":
       return "warning";
     default:

@@ -151,7 +151,8 @@ def build_research_graph(deps: ResearchDeps):
 
 
 class _Compiled:
-    """Thin wrapper to apply the budget-derived recursion_limit on invoke."""
+    """Thin wrapper to apply the budget-derived recursion_limit on invoke and
+    stream."""
 
     def __init__(self, compiled, recursion_limit: int):
         self._compiled = compiled
@@ -159,3 +160,12 @@ class _Compiled:
 
     def invoke(self, state: ResearchState) -> ResearchState:
         return self._compiled.invoke(state, {"recursion_limit": self._limit})
+
+    def stream(self, state: ResearchState, *, stream_mode: str = "updates"):
+        """Passthrough to the compiled graph's streaming API, applying the same
+        budget-derived recursion_limit as invoke(). Yields per-node update dicts
+        ({node_name: returned_delta}). Used by C-2's SSE runner; the headless
+        invoke() path is unchanged."""
+        yield from self._compiled.stream(
+            state, {"recursion_limit": self._limit}, stream_mode=stream_mode
+        )

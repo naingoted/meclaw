@@ -57,7 +57,7 @@ def build_research_deps() -> ResearchDeps:
     )
 
 
-def _eval_records(state: dict) -> list[dict]:
+def eval_records(state: dict) -> list[dict]:
     """Ragas-scorable triples from resolved subtasks (Spec B soft dep)."""
     records = []
     for sub in state.get("subtasks", []):
@@ -75,6 +75,48 @@ def _eval_records(state: dict) -> list[dict]:
                 }
             )
     return records
+
+
+def persist_steps(writer: RunWriter, run_id: str, state: dict) -> None:
+    """Write per-subtask researcher/validate steps, the synthesizer step, and the
+    finishing UPDATE for one completed run. Shared by the headless runner
+    (run_research) and the C-2 streaming runner. Step rows mirror Spec C §8."""
+    seq = 1
+    for sub in state.get("subtasks", []):
+        writer.add_step(
+            run_id,
+            seq=seq,
+            role="researcher",
+            input={"query": sub.get("query"), "source": sub.get("source")},
+            output=sub.get("note"),
+            tool_calls=[{"name": "*", "resultDigest": "see note.sources"}],
+            retry_index=sub.get("retry_count"),
+        )
+        seq += 1
+        writer.add_step(
+            run_id,
+            seq=seq,
+            role="validate",
+            input={"query": sub.get("query")},
+            output={"status": sub.get("status")},
+            verdict=sub.get("verdict"),
+            score=sub.get("score"),
+            retry_index=sub.get("retry_count"),
+        )
+        seq += 1
+    writer.add_step(run_id, seq=seq, role="synthesizer", output=state.get("report"))
+    writer.finish_run(
+        run_id,
+        status=state.get("status", "done"),
+        report=state.get("report"),
+        eval_records=eval_records(state),
+        totals={
+            "subtasks": len(state.get("subtasks", [])),
+            "retries": state.get("retries", 0),
+            "toolCalls": state.get("tool_calls", 0),
+            "tokens": 0,
+        },
+    )
 
 
 def run_research(
@@ -103,43 +145,7 @@ def run_research(
         writer.fail_run(run_id, str(exc))
         return {"status": "error", "report": None, "error": str(exc)}
 
-    seq = 1
-    for sub in state.get("subtasks", []):
-        writer.add_step(
-            run_id,
-            seq=seq,
-            role="researcher",
-            input={"query": sub.get("query"), "source": sub.get("source")},
-            output=sub.get("note"),
-            tool_calls=[{"name": "*", "resultDigest": "see note.sources"}],
-            retry_index=sub.get("retry_count"),
-        )
-        seq += 1
-        writer.add_step(
-            run_id,
-            seq=seq,
-            role="validate",
-            input={"query": sub.get("query")},
-            output={"status": sub.get("status")},
-            verdict=sub.get("verdict"),
-            score=sub.get("score"),
-            retry_index=sub.get("retry_count"),
-        )
-        seq += 1
-
-    writer.add_step(run_id, seq=seq, role="synthesizer", output=state.get("report"))
-    writer.finish_run(
-        run_id,
-        status=state.get("status", "done"),
-        report=state.get("report"),
-        eval_records=_eval_records(state),
-        totals={
-            "subtasks": len(state.get("subtasks", [])),
-            "retries": state.get("retries", 0),
-            "toolCalls": state.get("tool_calls", 0),
-            "tokens": 0,  # token accounting not threaded in C-1 (best-effort; see Spec C §8)
-        },
-    )
+    persist_steps(writer, run_id, state)
     return state
 
 

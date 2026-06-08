@@ -163,3 +163,14 @@
   background-repeat: no-repeat;
   animation: shimmer 1.1s linear infinite;
 }
+
+@keyframes briefing-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   ListChecks,
   LogOut,
+  Radar,
   ScrollText,
   SlidersHorizontal,
 } from "lucide-react";
@@ -21,6 +22,10 @@ const GROUPS = [
       { label: "Ingestion & Jobs", href: "/admin/jobs", Icon: ListChecks },
       { label: "Gaps", href: "/admin/gaps", Icon: Inbox },
     ],
+  },
+  {
+    label: "Research",
+    items: [{ label: "Briefings", href: "/admin/research", Icon: Radar }],
   },
   {
     label: "Configuration",

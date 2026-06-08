@@ -18,8 +18,10 @@ describe("relativeTime", () => {
 describe("statusTone", () => {
   it("maps statuses to tones", () => {
     expect(statusTone("running")).toBe("running");
+    expect(statusTone("done")).toBe("success");
     expect(statusTone("succeeded")).toBe("success");
     expect(statusTone("ready")).toBe("success");
+    expect(statusTone("degraded")).toBe("warning");
     expect(statusTone("failed")).toBe("danger");
     expect(statusTone("error")).toBe("danger");
     expect(statusTone("dirty")).toBe("warning");

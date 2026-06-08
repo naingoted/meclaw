@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 
-from app.research.graph import ResearchBudget, ResearchDeps, build_research_graph
+from app.research.graph import ResearchBudget, ResearchDeps, _Compiled, build_research_graph
 
 
 def _subtask(id_, source="owner_corpus"):
@@ -22,7 +22,16 @@ class _Spy:
     synth_notes: list = field(default_factory=list)
 
 
-def _deps(spy, *, plan, validate_seq, budget=None):
+class _StreamSpyCompiled:
+    def __init__(self):
+        self.calls = []
+
+    def stream(self, state, config, stream_mode="updates"):
+        self.calls.append((state, config, stream_mode))
+        yield {"plan": {"status": "ok"}}
+
+
+def _deps(spy, *, plan, validate_seq, budget=None, note_sources=None):
     seq = list(validate_seq)
 
     def plan_fn(_request):
@@ -30,7 +39,11 @@ def _deps(spy, *, plan, validate_seq, budget=None):
 
     def research_fn(subtask):
         spy.research_calls.append(subtask["query"])
-        return {"text": "note for " + subtask["query"], "sources": [], "tool_calls": 1}
+        return {
+            "text": "note for " + subtask["query"],
+            "sources": note_sources or [],
+            "tool_calls": 1,
+        }
 
     def replan_fn(subtask, reason):
         spy.replan_calls.append((subtask["id"], reason))
@@ -111,27 +124,60 @@ def test_two_subtasks_one_good_one_unresolved_is_degraded():
     assert spy.synth_notes == ["note for q-a"]
 
 
+def test_compiled_graph_streams_node_updates():
+    spy = _Spy()
+    deps = _deps(spy, plan=[_subtask("a")], validate_seq=[{"verdict": "good", "score": 0.9}])
+    nodes = [
+        next(iter(chunk.keys()))
+        for chunk in build_research_graph(deps).stream({"request": {"company": "Acme"}})
+    ]
+    assert nodes[0] == "plan"
+    assert "synthesize" in nodes
+
+
+def test_compiled_stream_forwards_state_config_and_stream_mode():
+    compiled = _StreamSpyCompiled()
+    wrapper = _Compiled(compiled, 123)
+
+    chunks = list(wrapper.stream({"request": {"company": "Acme"}}, stream_mode="values"))
+
+    assert chunks == [{"plan": {"status": "ok"}}]
+    assert compiled.calls == [
+        ({"request": {"company": "Acme"}}, {"recursion_limit": 123}, "values")
+    ]
+
+
 def test_run_research_persists_and_returns_report(monkeypatch):
     from app.research import run as run_mod
 
-    steps = []
+    calls = {"steps": [], "finish": None}
 
     class _Writer:
         def start_run(self, request, model_set, use_case="briefing"):
-            steps.append(("start", request))
+            calls["start"] = request
             return "run-xyz"
 
         def add_step(self, run_id, **kw):
-            steps.append(("step", kw["role"]))
+            calls["steps"].append(kw)
 
         def finish_run(self, run_id, *, status, report, eval_records, totals):
-            steps.append(("finish", status))
+            calls["finish"] = {
+                "status": status,
+                "report": report,
+                "eval_records": eval_records,
+                "totals": totals,
+            }
 
         def fail_run(self, run_id, error):
-            steps.append(("fail", error))
+            calls["fail"] = error
 
     spy = _Spy()
-    deps = _deps(spy, plan=[_subtask("a")], validate_seq=[{"verdict": "good", "score": 0.9}])
+    deps = _deps(
+        spy,
+        plan=[_subtask("a")],
+        validate_seq=[{"verdict": "good", "score": 0.9}],
+        note_sources=[{"source": "content/acme.md"}],
+    )
 
     result = run_mod.run_research(
         {"company": "Acme", "role": "Backend"},
@@ -141,7 +187,28 @@ def test_run_research_persists_and_returns_report(monkeypatch):
     )
     assert result["status"] == "done"
     assert result["report"]["summary"] == "done"
-    assert ("start", {"company": "Acme", "role": "Backend"}) in steps
-    assert ("finish", "done") in steps
-    assert any(s == ("step", "planner") for s in steps)
-    assert any(s == ("step", "synthesizer") for s in steps)
+    assert calls["start"] == {"company": "Acme", "role": "Backend"}
+    assert [step["role"] for step in calls["steps"]] == [
+        "planner",
+        "researcher",
+        "validate",
+        "synthesizer",
+    ]
+    assert calls["finish"] == {
+        "status": "done",
+        "report": result["report"],
+        "eval_records": [
+            {
+                "question": "q-a",
+                "contexts": ["content/acme.md"],
+                "answer": "note for q-a",
+            }
+        ],
+        "totals": {
+            "subtasks": 1,
+            "retries": 0,
+            "toolCalls": 1,
+            "tokens": 0,
+        },
+    }
+    assert "fail" not in calls
