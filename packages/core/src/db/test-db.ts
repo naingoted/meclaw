@@ -153,6 +153,17 @@ const SCHEMA_DDL: string[] = [
   'CREATE INDEX "idx_agent_runs_startedAt" ON agent_runs ("startedAt");',
   'CREATE INDEX "idx_agent_steps_runId" ON agent_steps ("runId");',
   "CREATE INDEX idx_agent_steps_role ON agent_steps (role);",
+  `CREATE TABLE embed_clients (
+    id uuid PRIMARY KEY,
+    "publicToken" text NOT NULL,
+    name text NOT NULL,
+    "allowedOrigins" text[] NOT NULL DEFAULT '{}',
+    "rateLimitPerMin" integer,
+    "createdAt" timestamptz NOT NULL,
+    "revokedAt" timestamptz
+  );`,
+  'CREATE UNIQUE INDEX uq_embed_clients_publicToken ON embed_clients ("publicToken");',
+  'CREATE INDEX idx_embed_clients_revokedAt ON embed_clients ("revokedAt");',
 ];
 
 /**
