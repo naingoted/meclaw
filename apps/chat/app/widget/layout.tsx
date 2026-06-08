@@ -6,8 +6,8 @@ export const metadata: Metadata = {
 
 export default function WidgetLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body style={{ margin: 0, padding: 0, background: "transparent" }}>{children}</body>
-    </html>
+    <div style={{ margin: 0, padding: 0, background: "transparent", height: "100vh" }}>
+      {children}
+    </div>
   );
 }
