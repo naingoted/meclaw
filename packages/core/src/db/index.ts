@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, eq, or } from "drizzle-orm";
+import { and, desc, eq, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { parseDbEnv } from "./env";
@@ -215,4 +215,50 @@ export async function saveRetrievalEvent(
     })
     .onConflictDoNothing({ target: schema.retrievalEvents.messageId })
     .execute();
+}
+
+export type ConversationMessageRow = {
+  id: string;
+  role: "user" | "assistant" | "tool";
+  content: string;
+  createdAt: Date;
+};
+
+/**
+ * Read the most recent `limit` messages for a conversation, oldest-first.
+ * Used by the widget's resume-hydration path (`GET /api/chat/history`).
+ * Returns [] for an unknown conversationId (no throw).
+ */
+export async function listConversationMessages(
+  db: Awaited<ReturnType<typeof initDb>>,
+  conversationId: string,
+  limit: number,
+): Promise<ConversationMessageRow[]> {
+  // Raw SQL query to ensure proper ordering: oldest first, user before assistant within same timestamp
+  // Uses LIMIT with subquery to get the most recent N messages
+  const result = await db.execute(sql`
+    SELECT id, role, content, "createdAt"
+    FROM (
+      SELECT id, role, content, "createdAt"
+      FROM messages
+      WHERE "conversationId" = ${conversationId}
+      ORDER BY "createdAt" desc, case when role = 'user' then 0 else 1 end, id desc
+      LIMIT ${limit}
+    ) sub
+    ORDER BY "createdAt" asc, case when role = 'user' then 0 else 1 end, id asc
+  `);
+
+  const rows = result.rows as Array<{
+    id: string;
+    role: string;
+    content: string;
+    createdAt: Date;
+  }>;
+
+  return rows.map((r) => ({
+    id: r.id,
+    role: r.role as "user" | "assistant" | "tool",
+    content: r.content,
+    createdAt: r.createdAt,
+  }));
 }
