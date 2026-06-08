@@ -13,6 +13,9 @@ import {
 import { configSnapshot } from "@meclaw/core/settings";
 import { createUIMessageStream, createUIMessageStreamResponse, type UIMessage } from "ai";
 import { detectInjection } from "@/lib/ai/guardrails";
+import { getChatDb, isAllowedOrigin, resolveEmbedClient } from "@/lib/embed/auth";
+import { embedClientRateLimiter } from "@/lib/embed/rate-limit";
+import { signResumeToken } from "@/lib/embed/resume";
 import { notifyLead } from "@/lib/notify";
 import { chatRateLimiter } from "@/lib/rate-limit";
 
@@ -58,11 +61,13 @@ async function getDb(): Promise<Awaited<ReturnType<typeof initDb>>> {
 /**
  * Tee the upstream SSE stream: pass bytes through unchanged while accumulating
  * assistant `text-delta` content. On flush, persist best-effort (never throws).
+ * When embedClientId is provided, also emit a resume token SSE event.
  */
 function teeForPersistence(
   upstreamBody: ReadableStream<Uint8Array>,
   messages: UIMessage[],
   conversationId: string,
+  embedClientId: string | null,
 ): ReadableStream<Uint8Array> {
   const decoder = new TextDecoder();
   let assistantText = "";
@@ -178,6 +183,19 @@ function teeForPersistence(
             ...capturedRetrieval,
           });
         }
+        // Emit resume token for embed clients (sync HMAC call)
+        if (embedClientId) {
+          try {
+            const token = signResumeToken({ conversationId, embedClientId });
+            const event = `data: ${JSON.stringify({
+              type: "data-resume-token",
+              data: { conversationId, token },
+            })}\n\n`;
+            controller.enqueue(new TextEncoder().encode(event));
+          } catch (err) {
+            console.error("[db] Failed to sign resume token:", err);
+          }
+        }
       } catch (error) {
         // Best-effort: persistence failures (DB down, bad DATABASE_URL, etc.)
         // are logged and never break the stream.
@@ -190,6 +208,7 @@ function teeForPersistence(
   return upstreamBody.pipeThrough(transform);
 }
 
+// fallow-ignore-next-line complexity — route handler with multiple sequential guards (rate-limit, embed auth, injection)
 export async function POST(req: Request) {
   // Guard 1: Rate limit — check BEFORE parsing body
   const clientIp = getClientIp(req);
@@ -217,6 +236,29 @@ export async function POST(req: Request) {
   } catch (e) {
     console.error("[chat] Failed to parse JSON:", e);
     return Response.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  // --- Embed gate (token + Origin + per-client rate limit) ---
+  const embedTokenRaw = typeof body?.embedToken === "string" ? body.embedToken : null;
+  let embedClientId: string | null = null;
+  if (embedTokenRaw) {
+    const db = await getChatDb();
+    const client = await resolveEmbedClient(db, embedTokenRaw);
+    if (!client) {
+      return Response.json({ error: "embed not authorized" }, { status: 403 });
+    }
+    const origin = req.headers.get("origin");
+    if (!isAllowedOrigin(client, origin)) {
+      return Response.json({ error: "origin not allowed" }, { status: 403 });
+    }
+    const embedRate = embedClientRateLimiter.check(client.publicToken, client.rateLimitPerMin);
+    if (!embedRate.allowed) {
+      return Response.json(
+        { error: "Too many requests for this embed. Please try again later." },
+        { status: 429, headers: { "Retry-After": String(embedRate.retryAfter) } },
+      );
+    }
+    embedClientId = client.id;
   }
 
   const messages: UIMessage[] = (body?.messages as UIMessage[]) || [];
@@ -275,7 +317,7 @@ export async function POST(req: Request) {
   }
 
   // Pipe the SSE bytes straight back to the browser. Persistence tee added in Task 12.
-  return new Response(teeForPersistence(upstream.body, messages, conversationId), {
+  return new Response(teeForPersistence(upstream.body, messages, conversationId, embedClientId), {
     status: 200,
     headers: {
       "content-type": upstream.headers.get("content-type") ?? "text/event-stream",
