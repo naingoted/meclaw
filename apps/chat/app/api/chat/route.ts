@@ -142,7 +142,7 @@ function teeForPersistence(
         accumulateDelta(line);
       }
     },
-    async flush() {
+    async flush(controller) {
       // Flush any trailing multi-byte UTF-8 sequences from the decoder
       buffered += decoder.decode();
       const trimmed = buffered.trim();
