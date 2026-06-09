@@ -55,13 +55,11 @@ export function ResearchClient() {
   );
 }
 
-// fallow-ignore-next-line complexity
-function NewBriefing({ onSettled }: { onSettled: () => void }) {
+function useNewBriefingForm(run: ReturnType<typeof useResearchRun>, onSettled: () => void) {
   const [company, setCompany] = React.useState("");
   const [role, setRole] = React.useState("");
   const [jd, setJd] = React.useState("");
   const [submittedTarget, setSubmittedTarget] = React.useState<ResearchTarget | null>(null);
-  const run = useResearchRun();
   const prevPhase = React.useRef(run.phase);
 
   React.useEffect(() => {
@@ -99,6 +97,26 @@ function NewBriefing({ onSettled }: { onSettled: () => void }) {
     run.reset();
   }
 
+  return {
+    company,
+    role,
+    jd,
+    setCompany,
+    setRole,
+    setJd,
+    submittedTarget,
+    showReset,
+    canSubmit,
+    showTrace,
+    onSubmit,
+    onReset,
+  };
+}
+
+function NewBriefing({ onSettled }: { onSettled: () => void }) {
+  const run = useResearchRun();
+  const form = useNewBriefingForm(run, onSettled);
+
   return (
     <section className="space-y-4 rounded-xl border border-border bg-card/80 p-4 shadow-sm">
       <div className="space-y-1">
@@ -108,26 +126,26 @@ function NewBriefing({ onSettled }: { onSettled: () => void }) {
         </p>
       </div>
 
-      <form className="space-y-4" onSubmit={onSubmit}>
+      <form className="space-y-4" onSubmit={form.onSubmit}>
         <BriefingFormFields
-          company={company}
-          role={role}
-          jd={jd}
-          onCompanyChange={setCompany}
-          onRoleChange={setRole}
-          onJdChange={setJd}
+          company={form.company}
+          role={form.role}
+          jd={form.jd}
+          onCompanyChange={form.setCompany}
+          onRoleChange={form.setRole}
+          onJdChange={form.setJd}
         />
 
         <div className="flex flex-wrap items-center gap-3">
           <Button
             type="submit"
-            disabled={!canSubmit || run.phase === "running"}
+            disabled={!form.canSubmit || run.phase === "running"}
             loading={run.phase === "running"}
           >
             Run briefing
           </Button>
-          {showReset ? (
-            <Button type="button" variant="ghost" onClick={onReset}>
+          {form.showReset ? (
+            <Button type="button" variant="ghost" onClick={form.onReset}>
               New briefing
             </Button>
           ) : null}
@@ -140,15 +158,15 @@ function NewBriefing({ onSettled }: { onSettled: () => void }) {
         </p>
       ) : null}
 
-      {showTrace ? (
+      {form.showTrace ? (
         <ResearchTrace steps={run.steps} running={run.phase === "running"} status={run.status} />
       ) : null}
 
-      {run.report && submittedTarget ? (
+      {run.report && form.submittedTarget ? (
         <BriefingReportView
           report={run.report}
           status={run.status ?? "done"}
-          target={submittedTarget}
+          target={form.submittedTarget}
         />
       ) : null}
     </section>

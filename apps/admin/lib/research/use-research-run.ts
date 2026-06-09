@@ -150,7 +150,6 @@ export function useResearchRun() {
     [applyEvent],
   );
 
-  // fallow-ignore-next-line complexity
   const start = React.useCallback(
     async (request: ResearchRequest) => {
       stopActiveRun();
@@ -171,16 +170,15 @@ export function useResearchRun() {
         return;
       }
 
-      if (runId !== runIdRef.current || !response.ok || !response.body) {
-        if (runId === runIdRef.current && (!response.ok || !response.body)) {
-          const message = await readErrorBody(response);
-          setState((current) => ({ ...current, phase: "error", error: message }));
-        }
+      if (runId !== runIdRef.current) return;
+
+      if (!response.ok || !response.body) {
+        const message = await readErrorBody(response);
+        setState((current) => ({ ...current, phase: "error", error: message }));
         return;
       }
 
       await consumeStream(response.body, runId, runIdRef, readerRef, foldFrames, setState);
-
       if (abortRef.current === controller) abortRef.current = null;
     },
     [foldFrames, stopActiveRun],

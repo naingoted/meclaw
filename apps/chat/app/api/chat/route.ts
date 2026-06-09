@@ -76,62 +76,99 @@ function teeForPersistence(
   let capturedMiss: Omit<MissInput, "messageId" | "conversationId" | "query"> | null = null;
   let capturedRetrieval: Omit<RetrievalEventInput, "messageId" | "conversationId"> | null = null;
 
+  type SsePart = {
+    type?: string;
+    delta?: string;
+    messageMetadata?: {
+      lead?: Omit<LeadInput, "conversationId">;
+      miss?: {
+        reason: "floor" | "fallback" | "clarify" | "answer_gap";
+        topScore: number | null;
+        clusterId: string;
+      };
+      retrieval?: {
+        query: string;
+        intent: string;
+        grounded: boolean;
+        stuffed: boolean;
+        top_score: number | null;
+        answer_used: boolean;
+        chunks: { id: string; source: string; score: number; kept: boolean }[];
+      } | null;
+    };
+  };
+
+  const captureMetadata = (meta: SsePart["messageMetadata"]) => {
+    const lead = meta?.lead;
+    if (lead && (lead.email || lead.phone)) capturedLead = lead;
+    const miss = meta?.miss;
+    if (miss?.clusterId)
+      capturedMiss = { reason: miss.reason, topScore: miss.topScore, clusterId: miss.clusterId };
+    const retrieval = meta?.retrieval;
+    if (retrieval)
+      capturedRetrieval = {
+        query: retrieval.query,
+        intent: retrieval.intent,
+        grounded: retrieval.grounded,
+        stuffed: retrieval.stuffed,
+        topScore: retrieval.top_score,
+        answerUsed: retrieval.answer_used,
+        chunks: retrieval.chunks,
+      };
+  };
+
   // Shared logic: parse a single SSE line and accumulate text-delta content
-  // fallow-ignore-next-line complexity
   const accumulateDelta = (line: string) => {
     const trimmed = line.trim();
     if (!trimmed.startsWith("data:")) return;
     const payload = trimmed.slice("data:".length).trim();
     if (payload === "[DONE]" || payload.length === 0) return;
     try {
-      const part = JSON.parse(payload) as {
-        type?: string;
-        delta?: string;
-        messageMetadata?: {
-          lead?: Omit<LeadInput, "conversationId">;
-          miss?: {
-            reason: "floor" | "fallback" | "clarify" | "answer_gap";
-            topScore: number | null;
-            clusterId: string;
-          };
-          retrieval?: {
-            query: string;
-            intent: string;
-            grounded: boolean;
-            stuffed: boolean;
-            top_score: number | null;
-            answer_used: boolean;
-            chunks: { id: string; source: string; score: number; kept: boolean }[];
-          } | null;
-        };
-      };
-      if (part.type === "text-delta" && typeof part.delta === "string") {
-        assistantText += part.delta;
-      }
-      const lead = part.messageMetadata?.lead;
-      if (lead && (lead.email || lead.phone)) {
-        capturedLead = lead;
-      }
-      const miss = part.messageMetadata?.miss;
-      if (miss && miss.clusterId) {
-        capturedMiss = { reason: miss.reason, topScore: miss.topScore, clusterId: miss.clusterId };
-      }
-      const retrieval = part.messageMetadata?.retrieval;
-      if (retrieval) {
-        capturedRetrieval = {
-          query: retrieval.query,
-          intent: retrieval.intent,
-          grounded: retrieval.grounded,
-          stuffed: retrieval.stuffed,
-          topScore: retrieval.top_score,
-          answerUsed: retrieval.answer_used,
-          chunks: retrieval.chunks,
-        };
-      }
+      const part = JSON.parse(payload) as SsePart;
+      if (part.type === "text-delta" && typeof part.delta === "string") assistantText += part.delta;
+      captureMetadata(part.messageMetadata);
     } catch {
       // ignore non-JSON keep-alive lines
     }
   };
+
+  async function persistConversation(controller: TransformStreamDefaultController<Uint8Array>) {
+    const userMessages: PersistentMessage[] = messages
+      .filter((m) => m.role === "user")
+      .map((m) => ({ role: "user" as const, content: extractTextContent(m) }));
+    const assistantMessage: PersistentMessage = { role: "assistant", content: assistantText };
+    const assistantMessageId = randomUUID();
+    const db = await getDb();
+    await saveTurn(db, userMessages, assistantMessage, conversationId, assistantMessageId);
+    if (capturedLead) {
+      await saveLead(db, { conversationId, ...capturedLead });
+      await notifyLead(capturedLead);
+    }
+    if (capturedMiss) {
+      await saveMiss(db, {
+        messageId: assistantMessageId,
+        conversationId,
+        query: userMessages.at(-1)?.content ?? "",
+        ...capturedMiss,
+      });
+    }
+    if (capturedRetrieval) {
+      await saveRetrievalEvent(db, {
+        messageId: assistantMessageId,
+        conversationId,
+        ...capturedRetrieval,
+      });
+    }
+    if (embedClientId) {
+      try {
+        const token = signResumeToken({ conversationId, embedClientId });
+        const event = `data: ${JSON.stringify({ type: "data-resume-token", data: { conversationId, token } })}\n\n`;
+        controller.enqueue(new TextEncoder().encode(event));
+      } catch (err) {
+        console.error("[db] Failed to sign resume token:", err);
+      }
+    }
+  }
 
   const transform = new TransformStream<Uint8Array, Uint8Array>({
     transform(chunk, controller) {
@@ -143,61 +180,16 @@ function teeForPersistence(
         accumulateDelta(line);
       }
     },
-    // fallow-ignore-next-line complexity
     async flush(controller) {
       // Flush any trailing multi-byte UTF-8 sequences from the decoder
       buffered += decoder.decode();
       const trimmed = buffered.trim();
       if (trimmed.startsWith("data:")) {
         const payload = trimmed.slice("data:".length).trim();
-        if (payload !== "[DONE]" && payload.length > 0) {
-          accumulateDelta(buffered);
-        }
+        if (payload !== "[DONE]" && payload.length > 0) accumulateDelta(buffered);
       }
-
       try {
-        const userMessages: PersistentMessage[] = messages
-          .filter((m) => m.role === "user")
-          .map((m) => ({ role: "user" as const, content: extractTextContent(m) }));
-        const assistantMessage: PersistentMessage = {
-          role: "assistant",
-          content: assistantText,
-        };
-        const assistantMessageId = randomUUID();
-        const db = await getDb();
-        await saveTurn(db, userMessages, assistantMessage, conversationId, assistantMessageId);
-        if (capturedLead) {
-          await saveLead(db, { conversationId, ...capturedLead });
-          await notifyLead(capturedLead);
-        }
-        if (capturedMiss) {
-          await saveMiss(db, {
-            messageId: assistantMessageId,
-            conversationId,
-            query: userMessages.at(-1)?.content ?? "",
-            ...capturedMiss,
-          });
-        }
-        if (capturedRetrieval) {
-          await saveRetrievalEvent(db, {
-            messageId: assistantMessageId,
-            conversationId,
-            ...capturedRetrieval,
-          });
-        }
-        // Emit resume token for embed clients (sync HMAC call)
-        if (embedClientId) {
-          try {
-            const token = signResumeToken({ conversationId, embedClientId });
-            const event = `data: ${JSON.stringify({
-              type: "data-resume-token",
-              data: { conversationId, token },
-            })}\n\n`;
-            controller.enqueue(new TextEncoder().encode(event));
-          } catch (err) {
-            console.error("[db] Failed to sign resume token:", err);
-          }
-        }
+        await persistConversation(controller);
       } catch (error) {
         // Best-effort: persistence failures (DB down, bad DATABASE_URL, etc.)
         // are logged and never break the stream.

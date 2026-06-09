@@ -137,6 +137,21 @@ function handleResumeTokenEvent(
   }
 }
 
+function parseSource(source: unknown): RenderedSource | null {
+  if (!isRecord(source)) return null;
+  const s = source as SourceMetadata;
+  const title =
+    readString(s.title) ?? readString(s.source) ?? readString(s.path) ?? readString(s.slug);
+  const location = readString(s.path) ?? readString(s.slug) ?? readString(s.source);
+  const score = readScore(s.score);
+  if (!title && !location) return null;
+  return {
+    title: title ?? location ?? "Source",
+    location: location ?? "Unknown source",
+    ...(score ? { score } : {}),
+  };
+}
+
 function extractSources(message: ChatMessageLike): RenderedSource[] {
   if (process.env.NODE_ENV === "production" || message.role !== "assistant") {
     return [];
@@ -149,35 +164,9 @@ function extractSources(message: ChatMessageLike): RenderedSource[] {
     return [];
   }
 
-  // fallow-ignore-next-line complexity
   return rawSources.flatMap((source): RenderedSource[] => {
-    if (!isRecord(source)) {
-      return [];
-    }
-
-    const typedSource = source as SourceMetadata;
-    const title =
-      readString(typedSource.title) ??
-      readString(typedSource.source) ??
-      readString(typedSource.path) ??
-      readString(typedSource.slug);
-    const location =
-      readString(typedSource.path) ??
-      readString(typedSource.slug) ??
-      readString(typedSource.source);
-    const score = readScore(typedSource.score);
-
-    if (!title && !location) {
-      return [];
-    }
-
-    return [
-      {
-        title: title ?? location ?? "Source",
-        location: location ?? "Unknown source",
-        ...(score ? { score } : {}),
-      },
-    ];
+    const parsed = parseSource(source);
+    return parsed ? [parsed] : [];
   });
 }
 
