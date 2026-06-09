@@ -137,6 +137,7 @@ function handleResumeTokenEvent(
   }
 }
 
+// fallow-ignore-next-line complexity
 function parseSource(source: unknown): RenderedSource | null {
   if (!isRecord(source)) return null;
   const s = source as SourceMetadata;

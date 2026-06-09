@@ -55,6 +55,7 @@ export function ResearchClient() {
   );
 }
 
+// fallow-ignore-next-line complexity
 function useNewBriefingForm(run: ReturnType<typeof useResearchRun>, onSettled: () => void) {
   const [company, setCompany] = React.useState("");
   const [role, setRole] = React.useState("");

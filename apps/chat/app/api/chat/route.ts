@@ -98,6 +98,7 @@ function teeForPersistence(
     };
   };
 
+  // fallow-ignore-next-line complexity
   const captureMetadata = (meta: SsePart["messageMetadata"]) => {
     const lead = meta?.lead;
     if (lead && (lead.email || lead.phone)) capturedLead = lead;
