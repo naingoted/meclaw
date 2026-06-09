@@ -8,7 +8,7 @@ const Body = z.object({
   rateLimitPerMin: z.number().int().positive().max(10_000).nullable().default(null),
 });
 
-export async function GET() {
+export async function GET(_req: Request) {
   return Response.json(await listEmbedClients(await db()));
 }
 

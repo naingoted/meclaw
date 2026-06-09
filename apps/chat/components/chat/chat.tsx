@@ -410,7 +410,6 @@ export function Chat({
   }, [messages]);
 
   // Fetch history on mount in embed mode when a resume entry exists.
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally mount-only; historyFetchedRef prevents re-fetch without triggering cleanup
   useEffect(() => {
     if (mode !== "embed" || !embedToken || historyFetchedRef.current) return;
     const entry = readResumeEntry(embedToken);

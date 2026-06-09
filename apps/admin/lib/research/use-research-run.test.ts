@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   INITIAL_RESEARCH_STATE,
+  type ResearchRequest,
   type ResearchRunState,
   reduceEvent,
   useResearchRun,
@@ -132,7 +133,10 @@ function createStreamingReport(status: string = "done") {
   ]);
 }
 
-async function startAndWait(hook: ReturnType<typeof renderHook>, payload = { company: "Acme" }) {
+async function startAndWait(
+  hook: { result: { current: ReturnType<typeof useResearchRun> } },
+  payload: ResearchRequest = { company: "Acme" },
+) {
   await act(async () => {
     await hook.result.current.start(payload);
   });

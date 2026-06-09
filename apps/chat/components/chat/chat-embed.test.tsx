@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Configurable mock state for useChat — hoisted to module scope
-let mockState: {
+const mockState: {
   messages: unknown[];
   sendMessage: ReturnType<typeof vi.fn>;
   status: "ready" | "submitted" | "streaming" | "error";

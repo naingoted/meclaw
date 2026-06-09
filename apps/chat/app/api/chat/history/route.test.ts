@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@meclaw/core/db", () => ({
   initDb: vi.fn(async () => ({})),
-  listConversationMessages: vi.fn(async (_db: unknown, convId: string, _limit: number) => {
+  listConversationMessages: vi.fn(async (_db: unknown, convId: string) => {
     if (convId === "c-known") {
       return [
         { id: "m1", role: "user", content: "hello", createdAt: new Date(1) },
