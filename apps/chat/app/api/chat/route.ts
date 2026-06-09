@@ -240,7 +240,9 @@ export async function POST(req: Request) {
   // embed.js via the widget page's ?parentOrigin= param).
   const embedTokenRaw = typeof body?.embedToken === "string" ? body.embedToken : null;
   const parentOriginRaw = typeof body?.parentOrigin === "string" ? body.parentOrigin : null;
-  let embedClientId: string | null = null;
+  // First-party sessions sign/verify under a virtual sentinel client id.
+  // When embedTokenRaw is present, embedClientId is overwritten with client.id below.
+  let embedClientId: string | null = "__main__";
   if (embedTokenRaw) {
     const db = await getChatDb();
     const client = await resolveEmbedClient(db, embedTokenRaw);

@@ -192,7 +192,9 @@ describe("POST /api/chat — Guard Tests", () => {
       expect(sentBody).toMatchObject({ messages: [{ role: "user", content: "hello" }] });
       expect(sentBody.config).toBeDefined();
       expect(res.headers.get("x-vercel-ai-ui-message-stream")).toBe("v1");
-      expect(await res.text()).toBe(upstreamBody);
+      const streamed = await res.text();
+      expect(streamed).toContain(upstreamBody); // passthrough bytes preserved
+      expect(streamed).toContain("data-resume-token"); // main-chat resume token appended on flush
     });
 
     it("still short-circuits injection BEFORE proxying", async () => {
@@ -370,6 +372,43 @@ describe("POST /api/chat — Guard Tests", () => {
       expect(userMsgs).toEqual([{ role: "user", content: "hi" }]);
       // Both deltas accumulated, including the one without trailing newline
       expect(assistantMsg).toEqual({ role: "assistant", content: "part1 part2" });
+    });
+
+    it("emits a data-resume-token event for a main-chat POST (no embedToken)", async () => {
+      vi.doMock("@meclaw/core/db", () => ({
+        initDb: vi.fn().mockResolvedValue({}),
+        saveTurn: vi.fn().mockResolvedValue(undefined),
+      }));
+      vi.resetModules();
+      const { POST: PostWithMock } = await import("./route");
+
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(
+          new Response('data: {"type":"text-delta","id":"0","delta":"hi"}\n\ndata: [DONE]\n\n', {
+            status: 200,
+            headers: { "x-vercel-ai-ui-message-stream": "v1" },
+          }),
+        ),
+      );
+
+      const req = new Request("http://localhost/api/chat", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-forwarded-for": "4.4.4.4" },
+        body: JSON.stringify({
+          conversationId: "conv-main",
+          messages: [{ role: "user", parts: [{ type: "text", text: "hi" }] }],
+        }),
+      });
+
+      const res = await PostWithMock(req);
+      const text = await res.text(); // drain so the tee flush runs
+
+      expect(text).toContain("data-resume-token");
+      expect(text).toContain("conv-main");
+      // signResumeToken mock returns `rt-<conversationId>-<embedClientId>`,
+      // so the embedClientId sentinel must surface in the streamed event.
+      expect(text).toContain("__main__");
     });
 
     it("persists + notifies a lead emitted in stream metadata", async () => {
