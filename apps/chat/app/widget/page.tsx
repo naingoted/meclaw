@@ -29,15 +29,14 @@ export default async function WidgetPage({ searchParams }: Props) {
     );
   }
 
-  // TODO(Task 9): Chat component needs mode and embedToken props
-  // For now, pass them as any to make tests pass until Task 9 adds the prop types
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
       <Chat
         greeting="Hello! I'm the embed widget."
         suggestions={["What can you help me with?", "Tell me more"]}
         initialConfigVersion="0"
-        {...({ mode: "embed", embedToken } as any)}
+        mode="embed"
+        embedToken={embedToken}
       />
     </div>
   );
