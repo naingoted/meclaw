@@ -4,6 +4,32 @@ import { verifyResumeToken } from "@/lib/embed/resume";
 
 const HISTORY_LIMIT = 100;
 
+/**
+ * First-party (main chat) history. Same-origin requests carry no embedToken;
+ * the resume token is bound to the virtual "__main__" sentinel client id.
+ * No embed-client lookup and no parent-origin check — both are embed-only concerns.
+ */
+async function firstPartyHistory(
+  conversationId: string | null,
+  resumeToken: string | null,
+): Promise<Response> {
+  if (!conversationId || !resumeToken) {
+    return Response.json({ error: "missing required parameters" }, { status: 400 });
+  }
+  const hmacOk = verifyResumeToken({
+    token: resumeToken,
+    conversationId,
+    embedClientId: "__main__",
+  });
+  if (!hmacOk) {
+    return Response.json({ error: "invalid resume token" }, { status: 401 });
+  }
+  const db = await getChatDb();
+  const rows = await listConversationMessages(db, conversationId, HISTORY_LIMIT);
+  const messages = rows.map((r) => ({ id: r.id, role: r.role, content: r.content }));
+  return Response.json({ conversationId, messages });
+}
+
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const embedToken = url.searchParams.get("embedToken");
@@ -11,7 +37,13 @@ export async function GET(req: Request) {
   const resumeToken = url.searchParams.get("resumeToken");
   const parentOrigin = url.searchParams.get("parentOrigin");
 
-  if (!embedToken || !conversationId || !resumeToken) {
+  // First-party (main chat) path: same-origin, no embedToken.
+  if (!embedToken) {
+    return firstPartyHistory(conversationId, resumeToken);
+  }
+
+  // Embed path: requires conversationId + resumeToken too.
+  if (!conversationId || !resumeToken) {
     return Response.json({ error: "missing required parameters" }, { status: 400 });
   }
 

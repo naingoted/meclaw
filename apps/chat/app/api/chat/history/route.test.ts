@@ -99,4 +99,43 @@ describe("GET /api/chat/history", () => {
       embedClientId: "e1",
     });
   });
+
+  describe("first-party (main chat) path — no embedToken", () => {
+    it("returns 200 + messages for a valid HMAC under the __main__ sentinel", async () => {
+      vi.mocked(verifyResumeToken).mockReturnValue(true);
+
+      const res = await GET(makeReq("conversationId=c-known&resumeToken=rt", null));
+
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({
+        conversationId: "c-known",
+        messages: [
+          { id: "m1", role: "user", content: "hello" },
+          { id: "m2", role: "assistant", content: "hi" },
+        ],
+      });
+      // HMAC must be checked against the virtual sentinel, not an embed client id.
+      expect(verifyResumeToken).toHaveBeenCalledWith({
+        token: "rt",
+        conversationId: "c-known",
+        embedClientId: "__main__",
+      });
+      // No embed-client resolution on the first-party path.
+      expect(resolveEmbedClient).not.toHaveBeenCalled();
+    });
+
+    it("returns 401 when the resume token fails HMAC", async () => {
+      vi.mocked(verifyResumeToken).mockReturnValue(false);
+
+      const res = await GET(makeReq("conversationId=c-known&resumeToken=bad", null));
+
+      expect(res.status).toBe(401);
+    });
+
+    it("returns 400 when conversationId or resumeToken is missing", async () => {
+      const res = await GET(makeReq("resumeToken=rt", null));
+
+      expect(res.status).toBe(400);
+    });
+  });
 });
