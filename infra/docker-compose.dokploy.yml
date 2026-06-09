@@ -25,7 +25,13 @@ services:
     volumes:
       - ../content:/app/content:ro
     networks: [internal, dokploy-network]
-    depends_on: [ai, postgres]
+    depends_on:
+      ai:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
     labels:
       - traefik.enable=true
       - traefik.docker.network=dokploy-network
@@ -46,7 +52,11 @@ services:
     env_file: .env
     expose: ["3000"]
     networks: [internal, dokploy-network]
-    depends_on: [postgres]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
     labels:
       - traefik.enable=true
       - traefik.docker.network=dokploy-network
@@ -66,7 +76,13 @@ services:
     env_file: .env
     expose: ["8000"]
     networks: [internal]
-    depends_on: [postgres, ollama]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+      migrations:
+        condition: service_completed_successfully
 
   ollama:
     image: ollama/ollama:0.3.14
@@ -91,6 +107,22 @@ services:
       timeout: 5s
       retries: 5
     volumes: ["pgdata:/var/lib/postgresql/data"]
+
+  # One-shot DB migrator. Runs on every deploy BEFORE chat/admin/ai start
+  # (they gate on service_completed_successfully). Reuses the ops image but has
+  # NO profile, so a plain `up -d` runs it. Idempotent — drizzle skips applied
+  # migrations via __drizzle_migrations. restart "no" so it exits and stays
+  # exited; a failed migrate (exit!=0) blocks dependents → deploy fails loudly
+  # instead of serving against an unmigrated DB.
+  migrations:
+    image: ghcr.io/${GHCR_OWNER}/meclaw-ops:${IMAGE_TAG:-latest}
+    restart: "no"
+    env_file: .env
+    command: ["pnpm", "--filter", "@meclaw/core", "db:migrate"]
+    networks: [internal]
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   ops:
     image: ghcr.io/${GHCR_OWNER}/meclaw-ops:${IMAGE_TAG:-latest}
