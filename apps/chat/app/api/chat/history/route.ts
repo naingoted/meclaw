@@ -9,6 +9,7 @@ export async function GET(req: Request) {
   const embedToken = url.searchParams.get("embedToken");
   const conversationId = url.searchParams.get("conversationId");
   const resumeToken = url.searchParams.get("resumeToken");
+  const parentOrigin = url.searchParams.get("parentOrigin");
 
   if (!embedToken || !conversationId || !resumeToken) {
     return Response.json({ error: "missing required parameters" }, { status: 400 });
@@ -20,9 +21,12 @@ export async function GET(req: Request) {
     return Response.json({ error: "embed not authorized" }, { status: 403 });
   }
 
-  const origin = req.headers.get("origin");
-  if (!isAllowedOrigin(client, origin)) {
-    return Response.json({ error: "origin not allowed" }, { status: 403 });
+  // The iframe's fetch() is same-origin (chat-app origin), so the browser's
+  // Origin header identifies the iframe, not the embedding parent. The parent
+  // origin is forwarded explicitly via the ?parentOrigin= query param (set by
+  // the Chat component from embed.js's iframe URL).
+  if (!isAllowedOrigin(client, parentOrigin)) {
+    return Response.json({ error: "parent origin not allowed" }, { status: 403 });
   }
 
   const hmacOk = verifyResumeToken({

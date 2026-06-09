@@ -238,8 +238,13 @@ export async function POST(req: Request) {
     return Response.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  // --- Embed gate (token + Origin + per-client rate limit) ---
+  // --- Embed gate (token + parent origin + per-client rate limit) ---
+  // The iframe's fetch() is same-origin (chat-app origin), so the browser's
+  // Origin header identifies the iframe, not the embedding parent. The parent
+  // origin is therefore forwarded explicitly in the request body (set by
+  // embed.js via the widget page's ?parentOrigin= param).
   const embedTokenRaw = typeof body?.embedToken === "string" ? body.embedToken : null;
+  const parentOriginRaw = typeof body?.parentOrigin === "string" ? body.parentOrigin : null;
   let embedClientId: string | null = null;
   if (embedTokenRaw) {
     const db = await getChatDb();
@@ -247,9 +252,8 @@ export async function POST(req: Request) {
     if (!client) {
       return Response.json({ error: "embed not authorized" }, { status: 403 });
     }
-    const origin = req.headers.get("origin");
-    if (!isAllowedOrigin(client, origin)) {
-      return Response.json({ error: "origin not allowed" }, { status: 403 });
+    if (!isAllowedOrigin(client, parentOriginRaw)) {
+      return Response.json({ error: "parent origin not allowed" }, { status: 403 });
     }
     const embedRate = embedClientRateLimiter.check(client.publicToken, client.rateLimitPerMin);
     if (!embedRate.allowed) {

@@ -37,10 +37,10 @@ const client = {
   revokedAt: null,
 };
 
-function makeReq(search: string, origin = "https://acme.com") {
-  return new Request(`http://localhost:3000/api/chat/history?${search}`, {
-    headers: { origin },
-  });
+function makeReq(search: string, parentOrigin: string | null = "https://acme.com") {
+  const qs =
+    parentOrigin === null ? search : `${search}&parentOrigin=${encodeURIComponent(parentOrigin)}`;
+  return new Request(`http://localhost:3000/api/chat/history?${qs}`);
 }
 
 describe("GET /api/chat/history", () => {
@@ -61,7 +61,7 @@ describe("GET /api/chat/history", () => {
     expect(res.status).toBe(403);
   });
 
-  it("returns 403 when origin is not in allowlist", async () => {
+  it("returns 403 when parentOrigin is not in allowlist", async () => {
     vi.mocked(resolveEmbedClient).mockResolvedValue(client);
     vi.mocked(isAllowedOrigin).mockReturnValue(false);
     const res = await GET(makeReq("embedToken=pk_a&conversationId=c-known&resumeToken=rt"));

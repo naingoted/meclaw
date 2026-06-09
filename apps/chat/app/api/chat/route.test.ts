@@ -544,11 +544,15 @@ describe("POST /api/chat — Guard Tests", () => {
 describe("POST /api/chat embed mode", () => {
   const baseBody = { messages: [{ role: "user", content: "hi" }], conversationId: "c-embed" };
 
-  function makeReq(body: unknown, origin = "https://acme.com") {
+  function makeReq(body: unknown, parentOrigin: string | null = "https://acme.com") {
+    const bodyWithParent =
+      parentOrigin === null
+        ? (body as Record<string, unknown>)
+        : { ...(body as Record<string, unknown>), parentOrigin };
     return new Request("http://localhost:3000/api/chat", {
       method: "POST",
-      headers: { "content-type": "application/json", origin },
-      body: JSON.stringify(body),
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(bodyWithParent),
     });
   }
 
@@ -578,7 +582,7 @@ describe("POST /api/chat embed mode", () => {
     expect(res.status).toBe(403);
   });
 
-  it("rejects when Origin is not in allowlist with 403", async () => {
+  it("rejects when parentOrigin is not in allowlist with 403", async () => {
     vi.mocked(resolveEmbedClient).mockResolvedValue({
       id: "e1",
       publicToken: "pk_a",
@@ -613,7 +617,7 @@ describe("POST /api/chat embed mode", () => {
     expect(embedClientRateLimiter.check).toHaveBeenCalledWith("pk_a", 5);
   });
 
-  it("passes through when token + origin + rate-limit are OK", async () => {
+  it("passes through when token + parentOrigin + rate-limit are OK", async () => {
     vi.mocked(resolveEmbedClient).mockResolvedValue({
       id: "e1",
       publicToken: "pk_a",

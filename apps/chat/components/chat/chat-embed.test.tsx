@@ -167,7 +167,7 @@ describe("Chat component — embed mode resume integration", () => {
     vi.unstubAllEnvs();
   });
 
-  it("embedToken is passed in sendMessage body when mode=embed", () => {
+  it("embedToken and parentOrigin are passed in sendMessage body when mode=embed", () => {
     const mockSend = vi.fn();
     mockState.sendMessage = mockSend;
     mockState.messages = [];
@@ -175,6 +175,7 @@ describe("Chat component — embed mode resume integration", () => {
 
     // Pre-populate localStorage with a resume entry to skip history fetch
     const embedToken = "pk_embed";
+    const parentOrigin = "https://acme.com";
     const entry = { conversationId: "conv-resumed", resumeToken: "rt-resumed" };
     localStorage.setItem(`meclaw:resume:${embedToken}`, JSON.stringify(entry));
 
@@ -197,6 +198,7 @@ describe("Chat component — embed mode resume integration", () => {
         initialConfigVersion="0"
         mode="embed"
         embedToken={embedToken}
+        parentOrigin={parentOrigin}
       />,
     );
 
@@ -208,10 +210,12 @@ describe("Chat component — embed mode resume integration", () => {
     const [, options] = mockSend.mock.calls[0];
     expect(options?.body?.conversationId).toBe("conv-resumed");
     expect(options?.body?.embedToken).toBe(embedToken);
+    expect(options?.body?.parentOrigin).toBe(parentOrigin);
   });
 
   it("history fetch clears localStorage entry on failure", async () => {
     const embedToken = "pk_fail";
+    const parentOrigin = "https://acme.com";
     const entry = { conversationId: "conv-fail", resumeToken: "rt-fail" };
     localStorage.setItem(`meclaw:resume:${embedToken}`, JSON.stringify(entry));
 
@@ -230,6 +234,7 @@ describe("Chat component — embed mode resume integration", () => {
         initialConfigVersion="0"
         mode="embed"
         embedToken={embedToken}
+        parentOrigin={parentOrigin}
       />,
     );
 
@@ -254,6 +259,7 @@ describe("Chat component — embed mode resume integration", () => {
 
   it("history fetch populates messages on success", async () => {
     const embedToken = "pk_success";
+    const parentOrigin = "https://acme.com";
     const entry = { conversationId: "conv-ok", resumeToken: "rt-ok" };
     localStorage.setItem(`meclaw:resume:${embedToken}`, JSON.stringify(entry));
 
@@ -281,6 +287,7 @@ describe("Chat component — embed mode resume integration", () => {
         initialConfigVersion="0"
         mode="embed"
         embedToken={embedToken}
+        parentOrigin={parentOrigin}
       />,
     );
 

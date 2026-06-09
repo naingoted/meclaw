@@ -367,12 +367,15 @@ export function Chat({
   initialConfigVersion,
   mode = "normal",
   embedToken,
+  parentOrigin,
 }: {
   greeting: string;
   suggestions: string[];
   initialConfigVersion: string;
   mode?: "normal" | "embed";
   embedToken?: string;
+  /** Parent embedding site's origin (e.g. "https://acme.com"). Required in embed mode. */
+  parentOrigin?: string;
 }) {
   // `liveSteps` accumulates the backend's transient `data-status` labels into an
   // ordered checklist ("Routing…" → "Searching…" → "Writing…") shown live during
@@ -417,7 +420,13 @@ export function Chat({
 
     historyFetchedRef.current = true;
     let cancelled = false;
-    const url = `/api/chat/history?embedToken=${encodeURIComponent(embedToken)}&conversationId=${encodeURIComponent(entry.conversationId)}&resumeToken=${encodeURIComponent(entry.resumeToken)}`;
+    const params = new URLSearchParams({
+      embedToken,
+      conversationId: entry.conversationId,
+      resumeToken: entry.resumeToken,
+    });
+    if (parentOrigin) params.set("parentOrigin", parentOrigin);
+    const url = `/api/chat/history?${params.toString()}`;
 
     fetch(url)
       .then((res) => {
@@ -463,7 +472,12 @@ export function Chat({
     setLiveSteps([]); // reset stale status from a prior turn
     sendMessage(
       { text },
-      { body: { conversationId, ...(mode === "embed" && embedToken ? { embedToken } : {}) } },
+      {
+        body: {
+          conversationId,
+          ...(mode === "embed" && embedToken ? { embedToken, parentOrigin } : {}),
+        },
+      },
     );
     setInput("");
   }
@@ -472,7 +486,12 @@ export function Chat({
     setLiveSteps([]);
     sendMessage(
       { text: chipText },
-      { body: { conversationId, ...(mode === "embed" && embedToken ? { embedToken } : {}) } },
+      {
+        body: {
+          conversationId,
+          ...(mode === "embed" && embedToken ? { embedToken, parentOrigin } : {}),
+        },
+      },
     );
   }
 

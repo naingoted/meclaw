@@ -4,11 +4,11 @@ import { getChatDb, resolveEmbedClient } from "@/lib/embed/auth";
 export const dynamic = "force-dynamic";
 
 type Props = {
-  searchParams: Promise<{ embedToken?: string }>;
+  searchParams: Promise<{ embedToken?: string; parentOrigin?: string }>;
 };
 
 export default async function WidgetPage({ searchParams }: Props) {
-  const { embedToken } = await searchParams;
+  const { embedToken, parentOrigin } = await searchParams;
 
   if (!embedToken) {
     return (
@@ -37,6 +37,7 @@ export default async function WidgetPage({ searchParams }: Props) {
         initialConfigVersion="0"
         mode="embed"
         embedToken={embedToken}
+        parentOrigin={parentOrigin}
       />
     </div>
   );

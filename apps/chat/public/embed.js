@@ -6,7 +6,10 @@
 // What it does:
 //   1. Reads `data-meclaw-token` from its own <script> tag.
 //   2. Injects a floating bubble button in the bottom-right corner.
-//   3. On click, opens an iframe pointing at /widget?embedToken=<token>.
+//   3. On click, opens an iframe at /widget?embedToken=<token>&parentOrigin=<host-origin>.
+//      The parent origin is forwarded explicitly because the iframe's API calls
+//      are same-origin (from the chat app), so the browser's Origin header
+//      would identify the iframe, not this page.
 //   4. Listens for postMessage resize events from the iframe.
 //
 // Idempotent — double-including the script is a no-op. Exposes a tiny
@@ -36,7 +39,18 @@
     console.error("[meclaw] embed.js: could not resolve script origin", e);
     return;
   }
-  var widgetUrl = origin + "/widget?embedToken=" + encodeURIComponent(token);
+  // The iframe's fetch() calls are same-origin from the chat-app origin, so
+  // the browser's Origin header identifies the iframe, NOT this parent page.
+  // We therefore forward the parent origin explicitly so the chat API can
+  // verify it against the embed client's allowlist (defense-in-depth; the
+  // CSP frame-ancestors on /widget is the primary enforcement).
+  var parentOrigin = window.location.origin;
+  var widgetUrl =
+    origin +
+    "/widget?embedToken=" +
+    encodeURIComponent(token) +
+    "&parentOrigin=" +
+    encodeURIComponent(parentOrigin);
 
   // ----- Floating bubble -----
   var bubble = document.createElement("button");
