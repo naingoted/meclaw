@@ -7,6 +7,65 @@ import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { ConfigRefreshPoller } from "./config-refresh-poller";
 
+// --- Embed resume helpers (localStorage) ---
+type ResumeEntry = { conversationId: string; resumeToken: string };
+
+const RESUME_KEY_PREFIX = "meclaw:resume:";
+
+/**
+ * Read a resume entry from localStorage for the given embedToken.
+ * Returns null if no entry exists, localStorage is unavailable, or parsing fails.
+ * Safe to call in SSR (returns null).
+ */
+export function readResumeEntry(embedToken: string): ResumeEntry | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(`${RESUME_KEY_PREFIX}${embedToken}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as unknown;
+    if (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      "conversationId" in parsed &&
+      "resumeToken" in parsed &&
+      typeof (parsed as ResumeEntry).conversationId === "string" &&
+      typeof (parsed as ResumeEntry).resumeToken === "string"
+    ) {
+      return parsed as ResumeEntry;
+    }
+    return null;
+  } catch {
+    // private browsing, quota exceeded, or malformed JSON
+    return null;
+  }
+}
+
+/**
+ * Write a resume entry to localStorage for the given embedToken.
+ * Safe to call in SSR (does nothing).
+ */
+export function writeResumeEntry(embedToken: string, entry: ResumeEntry): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(`${RESUME_KEY_PREFIX}${embedToken}`, JSON.stringify(entry));
+  } catch {
+    // private browsing, quota exceeded — silently ignore
+  }
+}
+
+/**
+ * Clear a resume entry from localStorage for the given embedToken.
+ * Safe to call in SSR (does nothing).
+ */
+export function clearResumeEntry(embedToken: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(`${RESUME_KEY_PREFIX}${embedToken}`);
+  } catch {
+    // private browsing, quota exceeded — silently ignore
+  }
+}
+
 type SourceMetadata = {
   title?: unknown;
   slug?: unknown;
@@ -56,6 +115,26 @@ function readScore(value: unknown): string | undefined {
 export function appendStep(steps: string[], label: string): string[] {
   if (steps.length > 0 && steps[steps.length - 1] === label) return steps;
   return [...steps, label];
+}
+
+/**
+ * Handle data-resume-token SSE events in embed mode.
+ * Extracted to reduce cyclomatic complexity in the onData callback.
+ */
+function handleResumeTokenEvent(
+  part: unknown,
+  mode: "normal" | "embed",
+  embedToken: string | undefined,
+): void {
+  if (mode !== "embed" || !embedToken) return;
+  if (!isRecord(part) || part.type !== "data-resume-token") return;
+  const data = part.data;
+  if (!isRecord(data)) return;
+  const token = readString(data.token);
+  const convId = readString(data.conversationId);
+  if (token && convId) {
+    writeResumeEntry(embedToken, { conversationId: convId, resumeToken: token });
+  }
 }
 
 function extractSources(message: ChatMessageLike): RenderedSource[] {
@@ -286,22 +365,43 @@ export function Chat({
   greeting,
   suggestions,
   initialConfigVersion,
+  mode = "normal",
+  embedToken,
+  parentOrigin,
 }: {
   greeting: string;
   suggestions: string[];
   initialConfigVersion: string;
+  mode?: "normal" | "embed";
+  embedToken?: string;
+  /** Parent embedding site's origin (e.g. "https://acme.com"). Required in embed mode. */
+  parentOrigin?: string;
 }) {
   // `liveSteps` accumulates the backend's transient `data-status` labels into an
   // ordered checklist ("Routing…" → "Searching…" → "Writing…") shown live during
   // the pre-answer gap. The same labels persist per-message via metadata.steps.
   const [liveSteps, setLiveSteps] = useState<string[]>([]);
-  const [conversationId] = useState(() => crypto.randomUUID());
-  const { messages, sendMessage, status } = useChat({
+  // In embed mode, resume from localStorage entry if available; otherwise fresh UUID.
+  // In normal mode, always generate a fresh UUID (unchanged behavior).
+  const [conversationId] = useState(() => {
+    if (mode === "embed" && embedToken) {
+      const entry = readResumeEntry(embedToken);
+      if (entry) return entry.conversationId;
+    }
+    return crypto.randomUUID();
+  });
+  // Track whether we've attempted to fetch history in embed mode (to avoid re-fetching).
+  // Using a ref (not state) so that setting it doesn't trigger a re-render which would
+  // run the effect cleanup and cancel the in-flight fetch.
+  const historyFetchedRef = useRef(false);
+  const { messages, sendMessage, status, setMessages } = useChat({
     onData: (part) => {
       if (part.type === "data-status" && isRecord(part.data)) {
         const label = readString(part.data.label);
         if (label) setLiveSteps((prev) => appendStep(prev, label));
       }
+      // Handle resume token events from embed mode (extracted to reduce complexity)
+      handleResumeTokenEvent(part, mode, embedToken);
     },
   });
   const [input, setInput] = useState("");
@@ -312,6 +412,56 @@ export function Chat({
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // Fetch history on mount in embed mode when a resume entry exists.
+  useEffect(() => {
+    if (mode !== "embed" || !embedToken || historyFetchedRef.current) return;
+    const entry = readResumeEntry(embedToken);
+    if (!entry) return;
+
+    historyFetchedRef.current = true;
+    let cancelled = false;
+    const params = new URLSearchParams({
+      embedToken,
+      conversationId: entry.conversationId,
+      resumeToken: entry.resumeToken,
+    });
+    if (parentOrigin) params.set("parentOrigin", parentOrigin);
+    const url = `/api/chat/history?${params.toString()}`;
+
+    fetch(url)
+      .then((res) => {
+        if (cancelled) return null;
+        if (!res.ok) {
+          // Stale resume token (401), forbidden (403), or other error — clear entry and start fresh.
+          clearResumeEntry(embedToken);
+          return null;
+        }
+        return res.json() as Promise<{
+          conversationId: string;
+          messages: Array<{ id: string; role: "user" | "assistant"; content: string }>;
+        }>;
+      })
+      .then((data) => {
+        if (cancelled || !data) return; // fetch failed or unmounted, already cleared entry
+        // Convert history messages to UIMessage shape for useChat.
+        const uiMessages = data.messages.map((m) => ({
+          id: m.id,
+          role: m.role,
+          parts: [{ type: "text" as const, text: m.content }],
+        }));
+        setMessages(uiMessages);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        // Network error or other failure — clear entry and start fresh.
+        clearResumeEntry(embedToken);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, embedToken, setMessages]);
+
   const isStreaming = status === "submitted" || status === "streaming";
   const showThinking = shouldShowThinking(status, messages as MessageWithParts[]);
 
@@ -320,13 +470,29 @@ export function Chat({
     const text = input.trim();
     if (!text || isStreaming) return;
     setLiveSteps([]); // reset stale status from a prior turn
-    sendMessage({ text }, { body: { conversationId } });
+    sendMessage(
+      { text },
+      {
+        body: {
+          conversationId,
+          ...(mode === "embed" && embedToken ? { embedToken, parentOrigin } : {}),
+        },
+      },
+    );
     setInput("");
   }
 
   function handleChipClick(chipText: string) {
     setLiveSteps([]);
-    sendMessage({ text: chipText }, { body: { conversationId } });
+    sendMessage(
+      { text: chipText },
+      {
+        body: {
+          conversationId,
+          ...(mode === "embed" && embedToken ? { embedToken, parentOrigin } : {}),
+        },
+      },
+    );
   }
 
   return (

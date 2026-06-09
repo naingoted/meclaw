@@ -1,6 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { chatMisses, documents, gapClusters, retrievalEvents, settings } from "./schema";
+import {
+  chatMisses,
+  documents,
+  embedClients,
+  gapClusters,
+  retrievalEvents,
+  settings,
+} from "./schema";
 import { makeTestDb } from "./test-db";
 
 describe("admin schema", () => {
@@ -153,5 +160,17 @@ describe("admin schema", () => {
     await expect(
       db.insert(retrievalEvents).values({ ...row, id: "22222222-2222-4222-8222-222222222222" }),
     ).rejects.toThrow(); // duplicate messageId
+  });
+});
+
+describe("embedClients", () => {
+  it("exposes the expected columns", () => {
+    expect(embedClients.id).toBeDefined();
+    expect(embedClients.publicToken).toBeDefined();
+    expect(embedClients.name).toBeDefined();
+    expect(embedClients.allowedOrigins).toBeDefined();
+    expect(embedClients.rateLimitPerMin).toBeDefined();
+    expect(embedClients.createdAt).toBeDefined();
+    expect(embedClients.revokedAt).toBeDefined();
   });
 });

@@ -300,3 +300,31 @@ export const agentSteps = pgTable(
   },
   (t) => [index("idx_agent_steps_runId").on(t.runId), index("idx_agent_steps_role").on(t.role)],
 );
+
+/**
+ * Embed clients — third-party sites allowed to frame the chat widget.
+ * One row per consumer token. `allowedOrigins` is an exact-match list
+ * (scheme + host + port); enforced at the API layer (Origin header) and
+ * at the browser layer (CSP frame-ancestors on /widget).
+ */
+export const embedClients = pgTable(
+  "embed_clients",
+  {
+    id: uuid("id").primaryKey(),
+    /** Public token issued to the consumer (`pk_...`). Used in embed.js + iframe src. */
+    publicToken: text("publicToken").notNull(),
+    /** Human label (admin-side). */
+    name: text("name").notNull(),
+    /** Exact origins allowed to frame + call the API, e.g. ["https://acme.com"]. */
+    allowedOrigins: text("allowedOrigins").array().notNull().default([]),
+    /** Per-client rate limit override (per minute). Null = use default. */
+    rateLimitPerMin: integer("rateLimitPerMin"),
+    createdAt: timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
+    /** Non-null = revoked. Token + Origin checks reject revoked clients. */
+    revokedAt: timestamp("revokedAt", { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex("uq_embed_clients_publicToken").on(t.publicToken),
+    index("idx_embed_clients_revokedAt").on(t.revokedAt),
+  ],
+);

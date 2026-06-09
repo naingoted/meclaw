@@ -3,6 +3,7 @@ import { Button, cn, ThemeToggle } from "@meclaw/ui";
 import {
   FileText,
   Inbox,
+  KeyRound,
   LayoutDashboard,
   ListChecks,
   LogOut,
@@ -29,7 +30,10 @@ const GROUPS = [
   },
   {
     label: "Configuration",
-    items: [{ label: "Config", href: "/admin/config", Icon: SlidersHorizontal }],
+    items: [
+      { label: "Config", href: "/admin/config", Icon: SlidersHorizontal },
+      { label: "Embed clients", href: "/admin/embed-clients", Icon: KeyRound },
+    ],
   },
   {
     label: "Activity",

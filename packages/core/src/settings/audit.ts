@@ -12,11 +12,14 @@ export type AuditAction =
   | "ingest.succeed"
   | "ingest.fail"
   | "gap.resolve"
-  | "gap.ignore";
+  | "gap.ignore"
+  | "embed_client.create"
+  | "embed_client.update"
+  | "embed_client.revoke";
 
 export type AuditInput = {
   action: AuditAction;
-  entityType: "document" | "settings" | "job" | "gap";
+  entityType: "document" | "settings" | "job" | "gap" | "embed_client";
   entityId?: string;
   summary: string;
   meta?: unknown;

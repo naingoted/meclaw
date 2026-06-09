@@ -64,6 +64,13 @@
       "when": 1780821630864,
       "tag": "0008_sharp_jack_flag",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1780931124703,
+      "tag": "0009_blue_nighthawk",
+      "breakpoints": true
     }
   ]
 }

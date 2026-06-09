@@ -21,8 +21,44 @@ vi.mock("@/lib/rate-limit", () => ({
   },
 }));
 
+vi.mock("@/lib/embed/auth", () => ({
+  resolveEmbedClient: vi.fn(),
+  isAllowedOrigin: vi.fn(() => true),
+  getChatDb: vi.fn(() => Promise.resolve({})),
+}));
+vi.mock("@/lib/embed/resume", () => ({
+  signResumeToken: vi.fn(
+    ({ conversationId, embedClientId }: { conversationId: string; embedClientId: string }) =>
+      `rt-${conversationId}-${embedClientId}`,
+  ),
+}));
+vi.mock("@/lib/embed/rate-limit", () => ({
+  embedClientRateLimiter: { check: vi.fn(() => ({ allowed: true })) },
+}));
+
 // Use real guardrails implementation (not mocked) to test actual injection detection
 // Mocking is done in guardrails.test.ts
+
+import { resolveEmbedClient } from "@/lib/embed/auth";
+import { embedClientRateLimiter } from "@/lib/embed/rate-limit";
+
+/**
+ * Helper to create a mock SSE upstream Response with custom parts.
+ * Eliminates duplication in persistence tee tests.
+ */
+function mockSseUpstream(parts: string[]): Response {
+  return new Response(
+    new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (const part of parts) {
+          controller.enqueue(new TextEncoder().encode(part));
+        }
+        controller.close();
+      },
+    }),
+    { status: 200, headers: { "content-type": "text/event-stream" } },
+  );
+}
 
 describe("POST /api/chat — Guard Tests", () => {
   beforeEach(() => {
@@ -341,16 +377,7 @@ describe("POST /api/chat — Guard Tests", () => {
           lead: { email: "jane@acme.com", triggerQuestion: "salary?", trigger: "edge_case" },
         },
       })}\n\n`;
-      const upstream = new Response(
-        new ReadableStream<Uint8Array>({
-          start(controller) {
-            controller.enqueue(new TextEncoder().encode(leadPart));
-            controller.enqueue(new TextEncoder().encode("data: [DONE]\n\n"));
-            controller.close();
-          },
-        }),
-        { status: 200, headers: { "content-type": "text/event-stream" } },
-      );
+      const upstream = mockSseUpstream([leadPart, "data: [DONE]\n\n"]);
       vi.stubGlobal("fetch", vi.fn().mockResolvedValue(upstream));
 
       const req = new Request("http://localhost/api/chat", {
@@ -389,16 +416,7 @@ describe("POST /api/chat — Guard Tests", () => {
         type: "finish",
         messageMetadata: { miss: { reason: "floor", topScore: 0.21, clusterId: "cluster-9" } },
       })}\n\n`;
-      const upstream = new Response(
-        new ReadableStream<Uint8Array>({
-          start(controller) {
-            controller.enqueue(new TextEncoder().encode(missPart));
-            controller.enqueue(new TextEncoder().encode("data: [DONE]\n\n"));
-            controller.close();
-          },
-        }),
-        { status: 200, headers: { "content-type": "text/event-stream" } },
-      );
+      const upstream = mockSseUpstream([missPart, "data: [DONE]\n\n"]);
       vi.stubGlobal("fetch", vi.fn().mockResolvedValue(upstream));
 
       const req = new Request("http://localhost/api/chat", {
@@ -488,22 +506,11 @@ describe("POST /api/chat — Guard Tests", () => {
         }) +
         "\n\n";
 
-      const upstream = new Response(
-        new ReadableStream<Uint8Array>({
-          start(controller) {
-            controller.enqueue(
-              new TextEncoder().encode('data: {"type":"text-delta","delta":"hi"}\n\n'),
-            );
-            controller.enqueue(new TextEncoder().encode(finishPart));
-            controller.enqueue(new TextEncoder().encode("data: [DONE]\n\n"));
-            controller.close();
-          },
-        }),
-        {
-          status: 200,
-          headers: { "content-type": "text/event-stream" },
-        },
-      );
+      const upstream = mockSseUpstream([
+        'data: {"type":"text-delta","delta":"hi"}\n\n',
+        finishPart,
+        "data: [DONE]\n\n",
+      ]);
 
       vi.stubGlobal("fetch", vi.fn().mockResolvedValue(upstream));
 
@@ -531,5 +538,104 @@ describe("POST /api/chat — Guard Tests", () => {
       expect(arg.conversationId).toBe("conv-1");
       expect(arg.chunks).toEqual([{ id: "about:0", source: "about.md", score: 0.62, kept: true }]);
     });
+  });
+});
+
+describe("POST /api/chat embed mode", () => {
+  const baseBody = { messages: [{ role: "user", content: "hi" }], conversationId: "c-embed" };
+
+  function makeReq(body: unknown, parentOrigin: string | null = "https://acme.com") {
+    const bodyWithParent =
+      parentOrigin === null
+        ? (body as Record<string, unknown>)
+        : { ...(body as Record<string, unknown>), parentOrigin };
+    return new Request("http://localhost:3000/api/chat", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(bodyWithParent),
+    });
+  }
+
+  beforeEach(async () => {
+    vi.mocked(resolveEmbedClient).mockReset();
+    vi.mocked(embedClientRateLimiter.check).mockReset();
+    // Reset isAllowedOrigin to default true (embed gate only fails on explicit false)
+    const { isAllowedOrigin } = await import("@/lib/embed/auth");
+    vi.mocked(isAllowedOrigin).mockReturnValue(true);
+    // mock the upstream AI service fetch
+    globalThis.fetch = vi.fn(
+      async () =>
+        new Response(
+          `data: ${JSON.stringify({ type: "text-delta", delta: "ok" })}\ndata: [DONE]\n\n`,
+          { headers: { "content-type": "text/event-stream" } },
+        ),
+    ) as never;
+    // Re-import POST after mocks are set up
+    vi.resetModules();
+    await import("./route");
+  });
+
+  it("rejects unknown embedToken with 403", async () => {
+    vi.mocked(resolveEmbedClient).mockResolvedValue(null);
+    const { POST } = await import("./route");
+    const res = await POST(makeReq({ ...baseBody, embedToken: "pk_unknown" }));
+    expect(res.status).toBe(403);
+  });
+
+  it("rejects when parentOrigin is not in allowlist with 403", async () => {
+    vi.mocked(resolveEmbedClient).mockResolvedValue({
+      id: "e1",
+      publicToken: "pk_a",
+      name: "A",
+      allowedOrigins: ["https://acme.com"],
+      rateLimitPerMin: null,
+      createdAt: new Date(),
+      revokedAt: null,
+    });
+    const { isAllowedOrigin } = await import("@/lib/embed/auth");
+    vi.mocked(isAllowedOrigin).mockReturnValue(false);
+    const { POST } = await import("./route");
+    const res = await POST(makeReq({ ...baseBody, embedToken: "pk_a" }));
+    expect(res.status).toBe(403);
+  });
+
+  it("applies the per-client rate limiter when embedToken is present", async () => {
+    vi.mocked(resolveEmbedClient).mockResolvedValue({
+      id: "e1",
+      publicToken: "pk_a",
+      name: "A",
+      allowedOrigins: ["https://acme.com"],
+      rateLimitPerMin: 5,
+      createdAt: new Date(),
+      revokedAt: null,
+    });
+    vi.mocked(embedClientRateLimiter.check).mockReturnValue({ allowed: false, retryAfter: 30 });
+    const { POST } = await import("./route");
+    const res = await POST(makeReq({ ...baseBody, embedToken: "pk_a" }));
+    expect(res.status).toBe(429);
+    expect(res.headers.get("retry-after")).toBe("30");
+    expect(embedClientRateLimiter.check).toHaveBeenCalledWith("pk_a", 5);
+  });
+
+  it("passes through when token + parentOrigin + rate-limit are OK", async () => {
+    vi.mocked(resolveEmbedClient).mockResolvedValue({
+      id: "e1",
+      publicToken: "pk_a",
+      name: "A",
+      allowedOrigins: ["https://acme.com"],
+      rateLimitPerMin: null,
+      createdAt: new Date(),
+      revokedAt: null,
+    });
+    const { POST } = await import("./route");
+    const res = await POST(makeReq({ ...baseBody, embedToken: "pk_a" }));
+    expect(res.status).toBe(200);
+  });
+
+  it("skips embed checks when no embedToken is provided (public site path)", async () => {
+    const { POST } = await import("./route");
+    const res = await POST(makeReq(baseBody));
+    expect(res.status).toBe(200);
+    expect(resolveEmbedClient).not.toHaveBeenCalled();
   });
 });

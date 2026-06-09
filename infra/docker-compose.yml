@@ -40,6 +40,9 @@ services:
       # `next dev` runs from the package dir (/app/apps/chat), so anchor the
       # content loader to the repo-root corpus mounted at /app/content.
       MECLAW_CONTENT_DIR: /app/content
+      # Embed widget: HMAC secret for conversation resume tokens + per-client rate limit.
+      RESUME_TOKEN_SECRET: ${RESUME_TOKEN_SECRET:-dev-secret-change-me}
+      EMBED_RATE_LIMIT_PER_MIN: ${EMBED_RATE_LIMIT_PER_MIN:-60}
     volumes:
       - ../:/app
       - /app/node_modules
