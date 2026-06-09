@@ -54,7 +54,11 @@ git push origin v1.2.3
 - `ai` — Python LLM sidecar (:8000). Internal only.
 - `ollama` — embed model host (:11434). Internal only.
 - `postgres` — pgvector/pg16 (:5432). Internal only.
-- `ops` — one-shot migrate + ingest runner (`profiles: ["tools"]`, not started normally).
+- `migrations` — one-shot DB migrator (reuses the ops image, **no profile**). Runs `db:migrate`
+  after postgres is healthy on every `up`; chat/admin/ai gate on its
+  `service_completed_successfully`, so schema is current before the apps boot. Idempotent; a failed
+  migrate blocks dependents → the deploy fails loudly instead of serving an unmigrated DB.
+- `ops` — one-shot ingest runner (`profiles: ["tools"]`, not started normally).
 
 **Networks:** `chat`+`admin` join `internal` **and** the external `dokploy-network` (so Traefik
 can reach them); everything else is `internal` only. Traefik discovers routers from each
@@ -117,13 +121,16 @@ API uses header `x-api-key: <token>` (generate under user settings). Known endpo
 4. **Deploy.** Traefik picks up the labels and issues LE certs for both app hosts.
 
 ### 6. Post-deploy (one-shots via the `ops` profile)
-Run from the deployed code dir on the box (`/etc/dokploy/compose/<appName>/code/infra/`), using the
-Dokploy project prefix:
+Migrations run **automatically** now — the `migrations` service applies pending schema before the
+apps start on every deploy (CI's `compose.deploy` → `up -d` included), so step 1 below is only for
+manual/out-of-band runs. The embed-model pull and corpus ingest are still manual one-shots. Run from
+the deployed code dir on the box (`/etc/dokploy/compose/<appName>/code/infra/`), using the Dokploy
+project prefix:
 ```bash
 APP=<appName>; cd /etc/dokploy/compose/$APP/code/infra
 DC="sudo docker compose -p $APP -f docker-compose.dokploy.yml"
 
-# 1. migrate schema
+# 1. migrate schema (normally automatic via the `migrations` service; manual run is idempotent)
 $DC --profile tools run --rm ops pnpm --filter @meclaw/core db:migrate
 # 2. pull embed model (CPU embedding is slow on t3.large — expect minutes)
 $DC exec ollama ollama pull nomic-embed-text
@@ -227,8 +234,10 @@ sudo docker exec "$PG" psql -U dokploy -d dokploy \
   -c "update account set password='$HASH' where provider_id='credential'; update \"user\" set \"isRegistered\"=true;"
 ```
 
-**admin logs "relation ... does not exist".** Startup race — admin booted before migrations ran. Run
-the migrate one-shot (step 6.1) then `$DC restart admin`.
+**admin logs "relation ... does not exist".** Startup race — admin booted before migrations ran. The
+`migrations` init-service now prevents this on normal deploys (admin gates on its completion). If you
+still hit it (e.g. the `migrations` service was removed or failed), run the migrate one-shot (step
+6.1) then `$DC restart admin`, and check `$DC logs migrations` for why it didn't apply.
 
 **chat throws "Server Action" / stale-client errors.** Usually stale cached clients after a config or
 DB change — `$DC restart chat`.
