@@ -15,25 +15,22 @@ writes the `.env` the compose file reads). Rotate any key ever pasted into chat/
 | Trigger | Jobs |
 |---------|------|
 | `push to main` | `quality` (lint + typecheck + test + fallow audit) |
-| `git tag v*` | `quality → build → migrate` |
+| `git tag v*` | `quality → build → deploy` |
 
-**`build`** — builds and pushes four `amd64` images to GHCR: `meclaw-chat`, `meclaw-admin`, `meclaw-ai`, `meclaw-ops`.
+**`build`** — builds and pushes four `amd64` images to GHCR: `meclaw-chat`, `meclaw-admin`, `meclaw-ai`, `meclaw-ops`, tagged `latest` + the commit SHA.
 
-**`migrate`** — SSHes into the EC2 and runs `pnpm --filter @meclaw/core db:migrate` inside the `ops` container (pulls the exact SHA image just built, uses the Dokploy-managed `.env` for `DATABASE_URL`).
-
-**Deployment trigger** — the Dokploy **GitHub App** (installed on the repo) watches for `v*` tags and redeploys automatically. There is no `curl` webhook step in CI; Dokploy handles it.
-
-> **Race condition note:** CI `migrate` and the Dokploy GitHub App both fire on the same tag push. Dokploy may start pulling/restarting containers before migrations complete. Drizzle migrations are additive so this is low-risk, but be aware on breaking schema changes.
+**`deploy`** — POSTs to the Dokploy webhook (`DOKPLOY_WEBHOOK_URL`) after images land in GHCR. Dokploy pulls fresh `latest` images and restarts containers. The Dokploy GitHub App auto-deploy is **disabled** to avoid deploying stale images before CI finishes.
 
 ### GitHub Actions secrets required
 
 | Secret | Purpose |
 |--------|---------|
-| `SSH_KEY` | Private key to SSH into EC2 |
-| `SSH_HOST` | EC2 hostname / IP |
-| `SSH_USER` | SSH username (e.g. `ubuntu`) |
-| `SSH_PORT` | SSH port |
-| `DOKPLOY_APP_NAME` | Dokploy-assigned compose project prefix (find via `ls /etc/dokploy/compose/` on EC2) |
+| `DOKPLOY_WEBHOOK_URL` | Dokploy deploy webhook — POST to trigger redeploy (find in Dokploy app → Deployments tab) |
+| `DOKPLOY_APP_NAME` | Dokploy-assigned compose project prefix (`compose-parse-solid-state-interface-shk6l5`) |
+| `SSH_KEY` | Private key to SSH into EC2 (manual ops only) |
+| `SSH_HOST` | EC2 hostname / IP (manual ops only) |
+| `SSH_USER` | SSH username (manual ops only) |
+| `SSH_PORT` | SSH port (manual ops only) |
 
 
 ### Release flow
@@ -41,8 +38,7 @@ writes the `.env` the compose file reads). Rotate any key ever pasted into chat/
 ```bash
 git tag v1.2.3
 git push origin v1.2.3
-# → CI: quality → build (GHCR images) → migrate (EC2 DB)
-# → Dokploy GitHub App: detects tag → redeploys containers
+# → CI: quality → build (pushes 4 GHCR images) → deploy (webhook → Dokploy pulls fresh images)
 ```
 
 ## Topology
