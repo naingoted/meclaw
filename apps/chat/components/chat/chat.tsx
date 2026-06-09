@@ -12,6 +12,10 @@ type ResumeEntry = { conversationId: string; resumeToken: string };
 
 const RESUME_KEY_PREFIX = "meclaw:resume:";
 
+// First-party (main chat) sessions store their resume entry under a fixed key
+// and sign/verify against the matching "__main__" sentinel embedClientId.
+export const MAIN_RESUME_KEY = "__main__";
+
 /**
  * Read a resume entry from localStorage for the given embedToken.
  * Returns null if no entry exists, localStorage is unavailable, or parsing fails.
@@ -118,22 +122,24 @@ export function appendStep(steps: string[], label: string): string[] {
 }
 
 /**
- * Handle data-resume-token SSE events in embed mode.
- * Extracted to reduce cyclomatic complexity in the onData callback.
+ * Persist a data-resume-token SSE event to localStorage. Stores under the
+ * embedToken key in embed mode, or under MAIN_RESUME_KEY in normal mode.
+ * Exported for direct unit testing.
  */
-function handleResumeTokenEvent(
+export function handleResumeTokenEvent(
   part: unknown,
   mode: "normal" | "embed",
   embedToken: string | undefined,
 ): void {
-  if (mode !== "embed" || !embedToken) return;
+  const key = mode === "embed" ? embedToken : MAIN_RESUME_KEY;
+  if (!key) return;
   if (!isRecord(part) || part.type !== "data-resume-token") return;
   const data = part.data;
   if (!isRecord(data)) return;
   const token = readString(data.token);
   const convId = readString(data.conversationId);
   if (token && convId) {
-    writeResumeEntry(embedToken, { conversationId: convId, resumeToken: token });
+    writeResumeEntry(key, { conversationId: convId, resumeToken: token });
   }
 }
 
@@ -372,11 +378,12 @@ export function Chat({
   // ordered checklist ("Routing…" → "Searching…" → "Writing…") shown live during
   // the pre-answer gap. The same labels persist per-message via metadata.steps.
   const [liveSteps, setLiveSteps] = useState<string[]>([]);
-  // In embed mode, resume from localStorage entry if available; otherwise fresh UUID.
-  // In normal mode, always generate a fresh UUID (unchanged behavior).
+  // Resume from a stored entry when one exists: embed mode keys on embedToken,
+  // normal mode on MAIN_RESUME_KEY. Otherwise start a fresh conversation.
   const [conversationId] = useState(() => {
-    if (mode === "embed" && embedToken) {
-      const entry = readResumeEntry(embedToken);
+    const key = mode === "embed" ? embedToken : MAIN_RESUME_KEY;
+    if (key) {
+      const entry = readResumeEntry(key);
       if (entry) return entry.conversationId;
     }
     return crypto.randomUUID();

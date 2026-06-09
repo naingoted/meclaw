@@ -5,10 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 let mockState: {
   messages: unknown[];
   sendMessage: ReturnType<typeof vi.fn>;
+  setMessages: ReturnType<typeof vi.fn>;
   status: "ready" | "submitted" | "streaming" | "error";
 } = {
   messages: [],
   sendMessage: vi.fn(),
+  setMessages: vi.fn(),
   status: "ready",
 };
 
@@ -28,9 +30,13 @@ import {
   extractCorpusVersion,
   extractSteps,
   groundingLabel,
+  handleResumeTokenEvent,
   hasRenderedText,
   LiveTrace,
+  MAIN_RESUME_KEY,
+  readResumeEntry,
   shouldShowThinking,
+  writeResumeEntry,
 } from "@/components/chat/chat";
 
 const CHAT_PROPS = {
@@ -143,6 +149,7 @@ describe("Chat component — M4 behavioral tests", () => {
     mockState = {
       messages: [],
       sendMessage: vi.fn(),
+      setMessages: vi.fn(),
       status: "ready",
     };
   });
@@ -597,5 +604,63 @@ describe("ThinkingTrace (persisted How I answered)", () => {
     render(<Chat {...CHAT_PROPS} />);
 
     expect(screen.queryByText("How I answered")).not.toBeInTheDocument();
+  });
+});
+
+describe("Chat main-chat session persistence (normal mode)", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    mockState = {
+      messages: [],
+      sendMessage: vi.fn(),
+      setMessages: vi.fn(),
+      status: "ready",
+    };
+    // The history-fetch effect (Task 4) fires for normal mode once a resume
+    // entry exists; stub fetch so it never hits a real network/undefined fetch.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ conversationId: "x", messages: [] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      ),
+    );
+  });
+
+  afterEach(() => {
+    localStorage.clear();
+    vi.unstubAllGlobals();
+  });
+
+  it("initializes conversationId from localStorage in normal mode", () => {
+    writeResumeEntry(MAIN_RESUME_KEY, {
+      conversationId: "stored-conv-id",
+      resumeToken: "rt-x",
+    });
+    const mockSendMessage = vi.fn();
+    mockState.sendMessage = mockSendMessage;
+
+    render(<Chat {...CHAT_PROPS} />);
+    const input = screen.getByPlaceholderText("Say something…");
+    fireEvent.change(input, { target: { value: "hello" } });
+    fireEvent.submit(input.closest("form")!);
+
+    const [, options] = mockSendMessage.mock.calls[0];
+    expect(options?.body?.conversationId).toBe("stored-conv-id");
+  });
+
+  it("writes a __main__ resume entry on a valid data-resume-token in normal mode", () => {
+    handleResumeTokenEvent(
+      { type: "data-resume-token", data: { token: "rt-1", conversationId: "conv-1" } },
+      "normal",
+      undefined,
+    );
+
+    expect(readResumeEntry(MAIN_RESUME_KEY)).toEqual({
+      conversationId: "conv-1",
+      resumeToken: "rt-1",
+    });
   });
 });
