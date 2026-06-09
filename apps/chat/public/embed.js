@@ -15,7 +15,7 @@
 // Idempotent — double-including the script is a no-op. Exposes a tiny
 // control handle on `window.MeclawWidget` for programmatic open/close/destroy.
 
-// fallow-ignore-next-line complexity, size
+// fallow-ignore-next-line complexity
 (function () {
   "use strict";
 

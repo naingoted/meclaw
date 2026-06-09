@@ -1,3 +1,4 @@
+import { clearCache } from "@meclaw/core/embed-cache";
 import { z } from "zod";
 import { revokeEmbedClient, updateEmbedClient } from "@/lib/admin/embed-clients";
 import { clientIp, db } from "@/lib/admin/request";
@@ -23,11 +24,13 @@ export async function PATCH(req: Request, { params }: Ctx) {
   }
   const { id } = await params;
   const row = await updateEmbedClient(await db(), id, parsed.data, clientIp(req));
+  clearCache(); // Invalidate cache so middleware picks up changes
   return Response.json(row);
 }
 
 export async function DELETE(req: Request, { params }: Ctx) {
   const { id } = await params;
   await revokeEmbedClient(await db(), id, clientIp(req));
+  clearCache(); // Invalidate cache so middleware blocks revoked client
   return new Response(null, { status: 204 });
 }
