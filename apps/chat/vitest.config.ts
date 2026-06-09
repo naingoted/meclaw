@@ -22,5 +22,11 @@ export default defineConfig({
       provider: "istanbul",
       reporter: ["json"],
     },
+    // Inline drizzle-orm and postgres to avoid module resolution issues in jsdom
+    server: {
+      deps: {
+        inline: ["drizzle-orm", "postgres"],
+      },
+    },
   },
 });

@@ -3,7 +3,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mockSaveLead = vi.fn(async () => {});
 const mockNotifyLead = vi.fn(async () => {});
 vi.mock("@meclaw/core/db", () => ({
-  initDb: vi.fn(async () => ({})),
+  initDb: vi.fn(async () => ({
+    select: vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => Promise.resolve([])),
+      })),
+    })),
+    insert: vi.fn(() => ({
+      values: vi.fn(() => ({
+        execute: vi.fn(async () => {}),
+        onConflictDoUpdate: vi.fn(() => ({
+          execute: vi.fn(async () => {}),
+        })),
+      })),
+    })),
+  })),
   saveTurn: vi.fn(async () => {}),
   saveLead: mockSaveLead,
   saveMiss: vi.fn(async () => {}),
@@ -173,9 +187,10 @@ describe("POST /api/chat — Guard Tests", () => {
         "http://ai.test:8000/chat",
         expect.objectContaining({ method: "POST" }),
       );
-      // Body forwarded to Python is the {messages:[{role,content}]} shape.
+      // Body forwarded to Python is the {messages:[{role,content}], config} shape.
       const sentBody = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
-      expect(sentBody).toEqual({ messages: [{ role: "user", content: "hello" }] });
+      expect(sentBody).toMatchObject({ messages: [{ role: "user", content: "hello" }] });
+      expect(sentBody.config).toBeDefined();
       expect(res.headers.get("x-vercel-ai-ui-message-stream")).toBe("v1");
       expect(await res.text()).toBe(upstreamBody);
     });
