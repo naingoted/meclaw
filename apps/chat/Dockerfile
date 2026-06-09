@@ -19,7 +19,10 @@ RUN pnpm install --no-frozen-lockfile
 ##### dev: hot-reload (compose dev only) #####
 FROM deps AS dev
 ENV NEXT_TELEMETRY_DISABLED=1 WATCHPACK_POLLING=true CHOKIDAR_USEPOLLING=true
-RUN chown -R node:node /app
+# Pre-create .next so compose's anonymous volume inherits node ownership.
+# Without this, docker materialises the mount as root-owned and the node
+# user can't write the turbopack dev lockfile / cache.
+RUN mkdir -p /app/apps/chat/.next && chown -R node:node /app
 USER node
 EXPOSE 3000
 CMD ["pnpm", "--filter", "@meclaw/chat", "dev"]
