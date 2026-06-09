@@ -8,8 +8,42 @@ This public guide is the deployment source of truth; internal planning notes are
 **No secrets live in this file** — real values go in the Dokploy app's Environment tab (which
 writes the `.env` the compose file reads). Rotate any key ever pasted into chat/logs.
 
-> Older flow (Caddy + GitHub-Actions SSH deploy) is retired. `.github/workflows/deploy.yml`
-> still builds the four GHCR images; its SSH-deploy job is dead and pending a Dokploy rewire.
+## CI/CD pipeline
+
+`.github/workflows/deploy.yml` has two modes depending on the git ref:
+
+| Trigger | Jobs |
+|---------|------|
+| `push to main` | `quality` (lint + typecheck + test + fallow audit) |
+| `git tag v*` | `quality → build → migrate` |
+
+**`build`** — builds and pushes four `amd64` images to GHCR: `meclaw-chat`, `meclaw-admin`, `meclaw-ai`, `meclaw-ops`.
+
+**`migrate`** — SSHes into the EC2 and runs `pnpm --filter @meclaw/core db:migrate` inside the `ops` container (pulls the exact SHA image just built, uses the Dokploy-managed `.env` for `DATABASE_URL`).
+
+**Deployment trigger** — the Dokploy **GitHub App** (installed on the repo) watches for `v*` tags and redeploys automatically. There is no `curl` webhook step in CI; Dokploy handles it.
+
+> **Race condition note:** CI `migrate` and the Dokploy GitHub App both fire on the same tag push. Dokploy may start pulling/restarting containers before migrations complete. Drizzle migrations are additive so this is low-risk, but be aware on breaking schema changes.
+
+### GitHub Actions secrets required
+
+| Secret | Purpose |
+|--------|---------|
+| `SSH_KEY` | Private key to SSH into EC2 |
+| `SSH_HOST` | EC2 hostname / IP |
+| `SSH_USER` | SSH username (e.g. `ubuntu`) |
+| `SSH_PORT` | SSH port |
+| `DOKPLOY_APP_NAME` | Dokploy-assigned compose project prefix (find via `ls /etc/dokploy/compose/` on EC2) |
+
+
+### Release flow
+
+```bash
+git tag v1.2.3
+git push origin v1.2.3
+# → CI: quality → build (GHCR images) → migrate (EC2 DB)
+# → Dokploy GitHub App: detects tag → redeploys containers
+```
 
 ## Topology
 

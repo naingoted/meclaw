@@ -19,7 +19,7 @@ Personal bot (single user). Public chat page; AI answers about the owner (Thet N
 - **Persistence:** PostgreSQL + Drizzle ORM (`postgres-js`). Local (Docker Compose) + VPS (managed by `infra/docker-compose.prod.yml`). Migrations in `packages/core/drizzle/`, applied at deploy via `ops` image. Migrated from SQLite 2026-05-31.
 - **Admin auth:** single admin (scrypt password hash in env), JWT session (Auth.js v5). No multi-tenant, no OAuth in v1.
 - **UI:** Tailwind 4 + shadcn/ui. Validation: Zod. Tests: Vitest (TDD).
-- **Deploy:** GitHub Actions → four GHCR images (chat, admin, ai, ops) → VPS `infra/docker-compose.prod.yml` + Caddy subdomain routing (apex → chat, admin.* → admin).
+- **Deploy:** `git tag v*` → GitHub Actions builds four GHCR images (chat, admin, ai, ops) + SSHes to EC2 to run DB migrations → Dokploy GitHub App detects tag and redeploys containers. Stack: `infra/docker-compose.dokploy.yml`, Traefik subdomain routing.
 
 ## Environment (names only — NEVER commit values)
 

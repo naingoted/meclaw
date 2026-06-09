@@ -3,6 +3,7 @@ name: Deploy
 on:
   push:
     branches: [main]
+    tags: ['v*']
 
 concurrency:
   group: deploy
@@ -16,6 +17,7 @@ jobs:
 
   build:
     needs: quality
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -97,16 +99,29 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  deploy:
+  migrate:
     needs: build
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger Dokploy redeploy
+      - name: Run DB migrations on EC2
         env:
-          DOKPLOY_TOKEN: ${{ secrets.DOKPLOY_TOKEN }}
-          DOKPLOY_WEBHOOK_URL: ${{ secrets.DOKPLOY_WEBHOOK_URL }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          DOKPLOY_APP_NAME: ${{ secrets.DOKPLOY_APP_NAME }}
+          IMAGE_TAG: ${{ github.sha }}
         run: |
-          curl -sS -f -X POST "$DOKPLOY_WEBHOOK_URL" \
-            -H "Authorization: Bearer $DOKPLOY_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d '{"ref":"refs/heads/main"}'
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh -o StrictHostKeyChecking=no -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" bash << EOF
+            set -e
+            COMPOSE="/etc/dokploy/compose/${DOKPLOY_APP_NAME}/code/infra/docker-compose.dokploy.yml"
+            sudo docker pull "ghcr.io/naingoted/meclaw-ops:${IMAGE_TAG}"
+            sudo env IMAGE_TAG="${IMAGE_TAG}" docker compose \
+              -p "${DOKPLOY_APP_NAME}" -f "\$COMPOSE" \
+              --profile tools run --rm ops \
+              pnpm --filter @meclaw/core db:migrate
+          EOF
