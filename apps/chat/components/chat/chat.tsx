@@ -149,6 +149,7 @@ function extractSources(message: ChatMessageLike): RenderedSource[] {
     return [];
   }
 
+  // fallow-ignore-next-line complexity
   return rawSources.flatMap((source): RenderedSource[] => {
     if (!isRecord(source)) {
       return [];

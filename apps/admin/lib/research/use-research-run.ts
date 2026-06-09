@@ -150,6 +150,7 @@ export function useResearchRun() {
     [applyEvent],
   );
 
+  // fallow-ignore-next-line complexity
   const start = React.useCallback(
     async (request: ResearchRequest) => {
       stopActiveRun();

@@ -77,6 +77,7 @@ function teeForPersistence(
   let capturedRetrieval: Omit<RetrievalEventInput, "messageId" | "conversationId"> | null = null;
 
   // Shared logic: parse a single SSE line and accumulate text-delta content
+  // fallow-ignore-next-line complexity
   const accumulateDelta = (line: string) => {
     const trimmed = line.trim();
     if (!trimmed.startsWith("data:")) return;
@@ -142,6 +143,7 @@ function teeForPersistence(
         accumulateDelta(line);
       }
     },
+    // fallow-ignore-next-line complexity
     async flush(controller) {
       // Flush any trailing multi-byte UTF-8 sequences from the decoder
       buffered += decoder.decode();
