@@ -208,7 +208,7 @@ function teeForPersistence(
   return upstreamBody.pipeThrough(transform);
 }
 
-// fallow-ignore-next-line complexity — route handler with multiple sequential guards (rate-limit, embed auth, injection)
+// fallow-ignore-next-line complexity
 export async function POST(req: Request) {
   // Guard 1: Rate limit — check BEFORE parsing body
   const clientIp = getClientIp(req);
