@@ -476,10 +476,7 @@ export function Chat({
     sendMessage(
       { text },
       {
-        body: {
-          conversationId,
-          ...(mode === "embed" && embedToken ? { embedToken, parentOrigin } : {}),
-        },
+        body: buildRequestBody(),
       },
     );
     setInput("");
@@ -490,12 +487,32 @@ export function Chat({
     sendMessage(
       { text: chipText },
       {
-        body: {
-          conversationId,
-          ...(mode === "embed" && embedToken ? { embedToken, parentOrigin } : {}),
-        },
+        body: buildRequestBody(),
       },
     );
+  }
+
+  /**
+   * Build the request body for a chat POST. Embed mode sends the embedToken + parentOrigin.
+   * Normal mode sends the stored resume token so the server can verify prior access
+   * before minting a new resume token for the continued conversation.
+   */
+  function buildRequestBody(): Record<string, string | undefined> {
+    const body: Record<string, string | undefined> = { conversationId };
+    if (mode === "embed" && embedToken) {
+      body.embedToken = embedToken;
+      body.parentOrigin = parentOrigin;
+    } else {
+      // First-party: include the stored resume token (if any) so the server can
+      // verify we have prior access to this conversation before minting a new one.
+      // New conversations (no stored entry) omit the token — the server will
+      // accept the conversationId as new and mint a fresh token.
+      const entry = readResumeEntry(MAIN_RESUME_KEY);
+      if (entry) {
+        body.resumeToken = entry.resumeToken;
+      }
+    }
+    return body;
   }
 
   return (

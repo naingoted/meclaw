@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import {
   initDb,
   type LeadInput,
+  listConversationMessages,
   type MissInput,
   type PersistentMessage,
   type RetrievalEventInput,
@@ -15,7 +16,7 @@ import { createUIMessageStream, createUIMessageStreamResponse, type UIMessage } 
 import { detectInjection } from "@/lib/ai/guardrails";
 import { getChatDb, isAllowedOrigin, resolveEmbedClient } from "@/lib/embed/auth";
 import { embedClientRateLimiter } from "@/lib/embed/rate-limit";
-import { signResumeToken } from "@/lib/embed/resume";
+import { signResumeToken, verifyResumeToken } from "@/lib/embed/resume";
 import { notifyLead } from "@/lib/notify";
 import { chatRateLimiter } from "@/lib/rate-limit";
 
@@ -262,9 +263,37 @@ export async function POST(req: Request) {
     embedClientId = client.id;
   }
 
+  // First-party continuation gate: if the client supplies a conversationId for a
+  // first-party session and the conversation already has messages in the DB,
+  // they must also present a valid resume token for it. Without this, any caller
+  // could mint a resume token for an arbitrary conversationId by POSTing one turn,
+  // then read its history. New conversations (no messages yet) accept any
+  // client-supplied conversationId — the first response mints the initial token.
+  const resumeTokenRaw = typeof body?.resumeToken === "string" ? body.resumeToken : null;
+  let conversationId = typeof body?.conversationId === "string" ? body.conversationId : null;
+  if (!embedTokenRaw && conversationId) {
+    const db = await getChatDb();
+    const existing = await listConversationMessages(db, conversationId, 1);
+    if (existing.length > 0) {
+      // Conversation already has messages — caller must prove prior access.
+      const hmacOk =
+        !!resumeTokenRaw &&
+        verifyResumeToken({
+          token: resumeTokenRaw,
+          conversationId,
+          embedClientId: "__main__",
+        });
+      if (!hmacOk) {
+        // Can't prove prior access — start a fresh conversation.
+        conversationId = randomUUID();
+      }
+    }
+  }
+  if (!conversationId) {
+    conversationId = randomUUID();
+  }
+
   const messages: UIMessage[] = (body?.messages as UIMessage[]) || [];
-  const conversationId =
-    typeof body?.conversationId === "string" ? body.conversationId : randomUUID();
 
   // Guard 2: Injection detection — check latest user message
   const latestUserMessage = messages

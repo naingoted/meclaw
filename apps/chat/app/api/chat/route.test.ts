@@ -17,10 +17,12 @@ vi.mock("@meclaw/core/db", () => ({
         })),
       })),
     })),
+    execute: vi.fn(async () => ({ rows: [] })),
   })),
   saveTurn: vi.fn(async () => {}),
   saveLead: mockSaveLead,
   saveMiss: vi.fn(async () => {}),
+  listConversationMessages: vi.fn(async () => []),
 }));
 
 vi.mock("@/lib/notify", () => ({
@@ -44,6 +46,17 @@ vi.mock("@/lib/embed/resume", () => ({
   signResumeToken: vi.fn(
     ({ conversationId, embedClientId }: { conversationId: string; embedClientId: string }) =>
       `rt-${conversationId}-${embedClientId}`,
+  ),
+  verifyResumeToken: vi.fn(
+    ({
+      token,
+      conversationId,
+      embedClientId,
+    }: {
+      token: string;
+      conversationId: string;
+      embedClientId: string;
+    }) => token === `rt-${conversationId}-${embedClientId}`,
   ),
 }));
 vi.mock("@/lib/embed/rate-limit", () => ({
@@ -378,6 +391,7 @@ describe("POST /api/chat — Guard Tests", () => {
       vi.doMock("@meclaw/core/db", () => ({
         initDb: vi.fn().mockResolvedValue({}),
         saveTurn: vi.fn().mockResolvedValue(undefined),
+        listConversationMessages: vi.fn().mockResolvedValue([]),
       }));
       vi.resetModules();
       const { POST: PostWithMock } = await import("./route");
@@ -411,6 +425,102 @@ describe("POST /api/chat — Guard Tests", () => {
       expect(text).toContain("__main__");
     });
 
+    it("rejects a first-party POST with an existing conversationId but no valid resume token", async () => {
+      // Regression test for the adversarial review finding: a caller who knows
+      // an existing conversationId must NOT be able to mint a resume token for
+      // it by POSTing one turn. The DB shows messages already exist, and the
+      // request has no valid resume token — the server must replace the
+      // supplied conversationId with a fresh one.
+      const saveTurnMock = vi.fn().mockResolvedValue(undefined);
+      vi.doMock("@meclaw/core/db", () => ({
+        initDb: vi.fn().mockResolvedValue({}),
+        saveTurn: saveTurnMock,
+        listConversationMessages: vi
+          .fn()
+          .mockResolvedValue([
+            { id: "existing-msg", role: "user", content: "prior turn", createdAt: new Date() },
+          ]),
+      }));
+      vi.resetModules();
+      const { POST: PostWithMock } = await import("./route");
+
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(
+          new Response('data: {"type":"text-delta","id":"0","delta":"hi"}\n\ndata: [DONE]\n\n', {
+            status: 200,
+            headers: { "x-vercel-ai-ui-message-stream": "v1" },
+          }),
+        ),
+      );
+
+      const req = new Request("http://localhost/api/chat", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-forwarded-for": "7.7.7.7" },
+        body: JSON.stringify({
+          conversationId: "victim-conv-id",
+          messages: [{ role: "user", parts: [{ type: "text", text: "hi" }] }],
+        }),
+      });
+
+      const res = await PostWithMock(req);
+      const text = await res.text();
+
+      // The token must NOT be minted for the attacker-supplied conversationId.
+      expect(text).not.toContain("victim-conv-id");
+      // saveTurn must have been called with a DIFFERENT conversationId (server-generated).
+      const [, , , savedConvId] = saveTurnMock.mock.calls[0];
+      expect(savedConvId).not.toBe("victim-conv-id");
+      expect(savedConvId).toMatch(/^[0-9a-f-]{36}$/i);
+    });
+
+    it("accepts a first-party POST with an existing conversationId when a valid resume token is provided", async () => {
+      // The flip side: a legitimate client continuing an existing conversation
+      // sends the stored resume token. The server verifies it and accepts the
+      // conversationId, minting a fresh token for the next turn.
+      const saveTurnMock = vi.fn().mockResolvedValue(undefined);
+      vi.doMock("@meclaw/core/db", () => ({
+        initDb: vi.fn().mockResolvedValue({}),
+        saveTurn: saveTurnMock,
+        listConversationMessages: vi
+          .fn()
+          .mockResolvedValue([
+            { id: "existing-msg", role: "user", content: "prior turn", createdAt: new Date() },
+          ]),
+      }));
+      vi.resetModules();
+      const { POST: PostWithMock } = await import("./route");
+
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(
+          new Response('data: {"type":"text-delta","id":"0","delta":"hi"}\n\ndata: [DONE]\n\n', {
+            status: 200,
+            headers: { "x-vercel-ai-ui-message-stream": "v1" },
+          }),
+        ),
+      );
+
+      // The mock verifyResumeToken accepts `rt-<convId>-<clientId>` as valid.
+      const req = new Request("http://localhost/api/chat", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-forwarded-for": "7.7.7.8" },
+        body: JSON.stringify({
+          conversationId: "my-conv-id",
+          resumeToken: "rt-my-conv-id-__main__",
+          messages: [{ role: "user", parts: [{ type: "text", text: "hi" }] }],
+        }),
+      });
+
+      const res = await PostWithMock(req);
+      const text = await res.text();
+
+      // The token IS minted for the legitimate client's conversationId.
+      expect(text).toContain("my-conv-id");
+      const [, , , savedConvId] = saveTurnMock.mock.calls[0];
+      expect(savedConvId).toBe("my-conv-id");
+    });
+
     it("persists + notifies a lead emitted in stream metadata", async () => {
       const saveLead = vi.fn().mockResolvedValue(undefined);
       const notifyLead = vi.fn().mockResolvedValue(undefined);
@@ -418,6 +528,7 @@ describe("POST /api/chat — Guard Tests", () => {
         initDb: vi.fn().mockResolvedValue({}),
         saveTurn: vi.fn().mockResolvedValue(undefined),
         saveLead,
+        listConversationMessages: vi.fn().mockResolvedValue([]),
       }));
       vi.doMock("@/lib/notify", () => ({
         notifyLead,
@@ -462,6 +573,7 @@ describe("POST /api/chat — Guard Tests", () => {
         saveTurn,
         saveMiss,
         saveLead: vi.fn().mockResolvedValue(undefined),
+        listConversationMessages: vi.fn().mockResolvedValue([]),
       }));
       vi.resetModules();
       const { POST: PostWithMock } = await import("./route");
@@ -507,6 +619,7 @@ describe("POST /api/chat — Guard Tests", () => {
         saveTurn,
         saveMiss,
         saveLead: vi.fn().mockResolvedValue(undefined),
+        listConversationMessages: vi.fn().mockResolvedValue([]),
       }));
       vi.resetModules();
       const { POST: PostWithMock } = await import("./route");
@@ -538,6 +651,7 @@ describe("POST /api/chat — Guard Tests", () => {
         saveLead: vi.fn().mockResolvedValue(undefined),
         saveMiss: vi.fn().mockResolvedValue(undefined),
         saveRetrievalEvent,
+        listConversationMessages: vi.fn().mockResolvedValue([]),
       }));
       vi.resetModules();
       const { POST: PostWithMock } = await import("./route");
@@ -616,6 +730,32 @@ describe("POST /api/chat embed mode", () => {
     // Reset isAllowedOrigin to default true (embed gate only fails on explicit false)
     const { isAllowedOrigin } = await import("@/lib/embed/auth");
     vi.mocked(isAllowedOrigin).mockReturnValue(true);
+    // Restore the core/db mock (persistence tee tests doUnmock it in afterEach).
+    // Embed mode tests need listConversationMessages to return [] so the
+    // first-party continuation gate (triggered by baseBody's conversationId
+    // when embedToken is absent) treats every request as a new conversation.
+    vi.doMock("@meclaw/core/db", () => ({
+      initDb: vi.fn(async () => ({
+        select: vi.fn(() => ({
+          from: vi.fn(() => ({
+            where: vi.fn(() => Promise.resolve([])),
+          })),
+        })),
+        insert: vi.fn(() => ({
+          values: vi.fn(() => ({
+            execute: vi.fn(async () => {}),
+            onConflictDoUpdate: vi.fn(() => ({
+              execute: vi.fn(async () => {}),
+            })),
+          })),
+        })),
+        execute: vi.fn(async () => ({ rows: [] })),
+      })),
+      saveTurn: vi.fn(async () => {}),
+      saveLead: vi.fn(async () => {}),
+      saveMiss: vi.fn(async () => {}),
+      listConversationMessages: vi.fn(async () => []),
+    }));
     // mock the upstream AI service fetch
     globalThis.fetch = vi.fn(
       async () =>
