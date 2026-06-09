@@ -19,14 +19,17 @@ writes the `.env` the compose file reads). Rotate any key ever pasted into chat/
 
 **`build`** — builds and pushes four `amd64` images to GHCR: `meclaw-chat`, `meclaw-admin`, `meclaw-ai`, `meclaw-ops`, tagged `latest` + the commit SHA.
 
-**`deploy`** — POSTs to the Dokploy webhook (`DOKPLOY_WEBHOOK_URL`) after images land in GHCR. Dokploy pulls fresh `latest` images and restarts containers. The Dokploy GitHub App auto-deploy is **disabled** to avoid deploying stale images before CI finishes.
+**`deploy`** — calls the Dokploy REST API `POST /api/compose.deploy` (auth `x-api-key`, body `{"composeId"}`) after images land in GHCR. Dokploy pulls fresh `latest` images and restarts containers. The job **fails on any non-200** so a broken deploy can't pass silently.
+
+**Why the API, not a webhook or the GitHub App:** Dokploy's compose **auto-deploy is OFF** on purpose (a push to `main` rebuilds nothing — images only build on tags — so auto-deploy would ship stale `latest`). But that same `autoDeploy` flag *also* gates Dokploy's generic deploy webhook (`/api/deploy/compose/<token>` returns `400 "Automatic deployments are disabled"` when it's off). The REST API deploy endpoint bypasses that gate, so CI deploys explicitly only after the `build` job has pushed fresh images — no race, no stale ship.
 
 ### GitHub Actions secrets required
 
 | Secret | Purpose |
 |--------|---------|
-| `DOKPLOY_WEBHOOK_URL` | Dokploy deploy webhook — POST to trigger redeploy (find in Dokploy app → Deployments tab) |
-| `DOKPLOY_APP_NAME` | Dokploy-assigned compose project prefix (`compose-parse-solid-state-interface-shk6l5`) |
+| `DOKPLOY_API_TOKEN` | Dokploy API key (`x-api-key`) — mint in panel → Settings → Profile → API/CLI Keys. Revocable. |
+| `DOKPLOY_COMPOSE_ID` | Dokploy compose service id (`UdfZAh1jHD092knNc-jZi`) — body of the deploy call |
+| `DOKPLOY_APP_NAME` | Dokploy-assigned compose project prefix (`compose-parse-solid-state-interface-shk6l5`) — used by manual `docker compose -p` ops |
 | `SSH_KEY` | Private key to SSH into EC2 (manual ops only) |
 | `SSH_HOST` | EC2 hostname / IP (manual ops only) |
 | `SSH_USER` | SSH username (manual ops only) |
@@ -38,7 +41,7 @@ writes the `.env` the compose file reads). Rotate any key ever pasted into chat/
 ```bash
 git tag v1.2.3
 git push origin v1.2.3
-# → CI: quality → build (pushes 4 GHCR images) → deploy (webhook → Dokploy pulls fresh images)
+# → CI: quality → build (pushes 4 GHCR images) → deploy (API compose.deploy → Dokploy pulls fresh images)
 ```
 
 ## Topology
