@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Configurable mock state for useChat
@@ -27,6 +27,7 @@ vi.mock("@/components/chat/config-refresh-poller", () => ({
 import {
   appendStep,
   Chat,
+  clearResumeEntry,
   extractCorpusVersion,
   extractSteps,
   groundingLabel,
@@ -662,5 +663,61 @@ describe("Chat main-chat session persistence (normal mode)", () => {
       conversationId: "conv-1",
       resumeToken: "rt-1",
     });
+  });
+});
+
+describe("Chat main-chat history restore (normal mode)", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    mockState = {
+      messages: [],
+      sendMessage: vi.fn(),
+      setMessages: vi.fn(),
+      status: "ready",
+    };
+  });
+
+  afterEach(() => {
+    localStorage.clear();
+    vi.unstubAllGlobals();
+  });
+
+  it("fetches history (no embedToken) and calls setMessages in normal mode", async () => {
+    writeResumeEntry(MAIN_RESUME_KEY, { conversationId: "conv-1", resumeToken: "rt-1" });
+    const setMessages = vi.fn();
+    mockState.setMessages = setMessages;
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          conversationId: "conv-1",
+          messages: [{ id: "m1", role: "user", content: "hello" }],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Chat {...CHAT_PROPS} />);
+
+    await waitFor(() => expect(setMessages).toHaveBeenCalled());
+
+    const calledUrl = fetchMock.mock.calls[0][0] as string;
+    expect(calledUrl).toContain("/api/chat/history?");
+    expect(calledUrl).toContain("conversationId=conv-1");
+    expect(calledUrl).toContain("resumeToken=rt-1");
+    expect(calledUrl).not.toContain("embedToken");
+    expect(setMessages).toHaveBeenCalledWith([
+      { id: "m1", role: "user", parts: [{ type: "text", text: "hello" }] },
+    ]);
+  });
+
+  it("clears the __main__ resume entry when history fetch returns 401", async () => {
+    writeResumeEntry(MAIN_RESUME_KEY, { conversationId: "conv-1", resumeToken: "stale" });
+    mockState.setMessages = vi.fn();
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("", { status: 401 })));
+
+    render(<Chat {...CHAT_PROPS} />);
+
+    await waitFor(() => expect(readResumeEntry(MAIN_RESUME_KEY)).toBeNull());
   });
 });

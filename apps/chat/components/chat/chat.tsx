@@ -410,20 +410,25 @@ export function Chat({
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Fetch history on mount in embed mode when a resume entry exists.
+  // Fetch history on mount when a resume entry exists. Embed mode keys on
+  // embedToken (and forwards embedToken + parentOrigin); normal mode keys on
+  // MAIN_RESUME_KEY (same-origin, no embed params).
   useEffect(() => {
-    if (mode !== "embed" || !embedToken || historyFetchedRef.current) return;
-    const entry = readResumeEntry(embedToken);
+    const key = mode === "embed" ? embedToken : MAIN_RESUME_KEY;
+    if (!key || historyFetchedRef.current) return;
+    const entry = readResumeEntry(key);
     if (!entry) return;
 
     historyFetchedRef.current = true;
     let cancelled = false;
     const params = new URLSearchParams({
-      embedToken,
       conversationId: entry.conversationId,
       resumeToken: entry.resumeToken,
     });
-    if (parentOrigin) params.set("parentOrigin", parentOrigin);
+    if (mode === "embed" && embedToken) {
+      params.set("embedToken", embedToken);
+      if (parentOrigin) params.set("parentOrigin", parentOrigin);
+    }
     const url = `/api/chat/history?${params.toString()}`;
 
     fetch(url)
@@ -431,7 +436,7 @@ export function Chat({
         if (cancelled) return null;
         if (!res.ok) {
           // Stale resume token (401), forbidden (403), or other error — clear entry and start fresh.
-          clearResumeEntry(embedToken);
+          clearResumeEntry(key);
           return null;
         }
         return res.json() as Promise<{
@@ -452,13 +457,13 @@ export function Chat({
       .catch(() => {
         if (cancelled) return;
         // Network error or other failure — clear entry and start fresh.
-        clearResumeEntry(embedToken);
+        clearResumeEntry(key);
       });
 
     return () => {
       cancelled = true;
     };
-  }, [mode, embedToken, setMessages]);
+  }, [mode, embedToken, parentOrigin, setMessages]);
 
   const isStreaming = status === "submitted" || status === "streaming";
   const showThinking = shouldShowThinking(status, messages as MessageWithParts[]);
