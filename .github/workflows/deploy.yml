@@ -46,6 +46,7 @@ jobs:
           push: true
           build-args: |
             GIT_SHA=${{ github.sha }}
+            MECLAW_VERSION=${{ github.ref_name }}
           tags: |
             ghcr.io/${{ steps.owner.outputs.lc }}/meclaw-chat:latest
             ghcr.io/${{ steps.owner.outputs.lc }}/meclaw-chat:${{ github.sha }}

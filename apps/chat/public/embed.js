@@ -19,8 +19,21 @@
 (function () {
   "use strict";
 
+  // Build identity — placeholders are replaced with the git tag + commit at
+  // image build time (see apps/chat/Dockerfile). Unreplaced => local "dev".
+  var MECLAW_VERSION = "__MECLAW_VERSION__";
+  var MECLAW_SHA = "__MECLAW_SHA__";
+  function buildIdent() {
+    var v = MECLAW_VERSION.indexOf("__") === 0 ? "dev" : MECLAW_VERSION;
+    var s = MECLAW_SHA.indexOf("__") === 0 ? "dev" : MECLAW_SHA.slice(0, 7);
+    return { version: v, sha: s, label: v + "+" + s };
+  }
+
   if (typeof window === "undefined") return;
   if (window.MeclawWidget) return;
+
+  var ident = buildIdent();
+  console.info("[meclaw] embed loaded v" + ident.version + " (" + ident.sha + ")");
 
   var scripts = document.getElementsByTagName("script");
   var thisScript = scripts[scripts.length - 1];
@@ -145,6 +158,7 @@
   document.body.appendChild(bubble);
 
   window.MeclawWidget = {
+    version: ident.label,
     open: function () {
       if (!open) toggle();
     },

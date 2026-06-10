@@ -45,4 +45,19 @@ describe("WidgetPage", () => {
     render(page);
     expect(screen.getByTestId("chat")).toBeInTheDocument();
   });
+
+  it("stamps the build version so the deployed widget is identifiable", async () => {
+    vi.mocked(resolveEmbedClient).mockResolvedValue({
+      id: "e1",
+      publicToken: "pk_good",
+      name: "Test",
+      allowedOrigins: ["https://example.com"],
+      rateLimitPerMin: null,
+      createdAt: new Date(),
+      revokedAt: null,
+    });
+    const page = await WidgetPage({ searchParams: Promise.resolve({ embedToken: "pk_good" }) });
+    render(page);
+    expect(screen.getByTestId("widget-version")).toHaveTextContent(/meclaw/i);
+  });
 });

@@ -1,5 +1,6 @@
 import { Chat } from "@/components/chat/chat";
 import { getChatDb, resolveEmbedClient } from "@/lib/embed/auth";
+import { VERSION_LABEL } from "@/lib/version";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +40,21 @@ export default async function WidgetPage({ searchParams }: Props) {
         embedToken={embedToken}
         parentOrigin={parentOrigin}
       />
+      <div
+        data-testid="widget-version"
+        style={{
+          position: "fixed",
+          right: 8,
+          bottom: 4,
+          fontSize: 10,
+          fontFamily: "monospace",
+          opacity: 0.4,
+          pointerEvents: "none",
+          userSelect: "none",
+        }}
+      >
+        {VERSION_LABEL}
+      </div>
     </div>
   );
 }

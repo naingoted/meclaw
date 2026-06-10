@@ -38,11 +38,22 @@ RUN pnpm --filter @meclaw/chat build
 FROM node:22-bookworm-slim AS runner
 WORKDIR /app
 ARG GIT_SHA=dev
+ARG MECLAW_VERSION=dev
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
 ENV GIT_SHA=$GIT_SHA
+ENV MECLAW_VERSION=$MECLAW_VERSION
 RUN groupadd --system --gid 1001 nodejs && useradd --system --uid 1001 --gid nodejs nextjs
 COPY --from=builder --chown=nextjs:nodejs /app/apps/chat/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/chat/.next/static ./apps/chat/.next/static
+# Next standalone does NOT bundle public/ — copy it so /embed.js (the widget
+# loader) and other static assets actually serve instead of 404ing.
+COPY --from=builder --chown=nextjs:nodejs /app/apps/chat/public ./apps/chat/public
+# Stamp the build identity into the static loader so the deployed widget version
+# is identifiable from the browser (console + window.MeclawWidget.version).
+RUN sed -i \
+  -e "s|__MECLAW_VERSION__|${MECLAW_VERSION}|g" \
+  -e "s|__MECLAW_SHA__|${GIT_SHA}|g" \
+  ./apps/chat/public/embed.js
 USER nextjs
 EXPOSE 3000
 CMD ["node", "apps/chat/server.js"]
