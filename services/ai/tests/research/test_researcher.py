@@ -19,11 +19,16 @@ def _tool(name, result):
 def test_runs_tools_then_finalizes_note():
     caller = _ScriptedCaller(
         [
-            Proposal(calls=[ToolCall(name="search_corpus", args={"query": "stack"})], content=""),
+            Proposal(
+                calls=[ToolCall(name="search_corpus", args={"query": "stack"})],
+                content="",
+            ),
             Proposal(calls=[], content="Thet built the LangGraph sidecar."),
         ]
     )
-    tools = [_tool("search_corpus", {"results": [{"source": "about.md", "score": 0.7}]})]
+    tools = [
+        _tool("search_corpus", {"results": [{"source": "about.md", "score": 0.7}]})
+    ]
     note = make_researcher(caller, tools, max_steps=4)(
         {"id": "s1", "query": "stack", "source": "owner_corpus"}
     )
@@ -34,7 +39,10 @@ def test_runs_tools_then_finalizes_note():
 
 def test_loop_guard_stops_at_max_steps_even_if_model_keeps_calling():
     caller = _ScriptedCaller(
-        [Proposal(calls=[ToolCall(name="search_corpus")], content="") for _ in range(10)]
+        [
+            Proposal(calls=[ToolCall(name="search_corpus")], content="")
+            for _ in range(10)
+        ]
     )
     tools = [_tool("search_corpus", {"results": []})]
     note = make_researcher(caller, tools, max_steps=3)(

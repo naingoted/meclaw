@@ -123,7 +123,9 @@ def resolve_config(payload: dict | None) -> RuntimeConfig:
     triage_confidence = float(os.getenv("TRIAGE_CONFIDENCE_THRESHOLD", "0.5"))
     if isinstance(agents, dict):
         triage_cfg = agents.get("triage", {})
-        if isinstance(triage_cfg, dict) and isinstance(triage_cfg.get("confidence"), (int, float)):
+        if isinstance(triage_cfg, dict) and isinstance(
+            triage_cfg.get("confidence"), (int, float)
+        ):
             triage_confidence = float(triage_cfg["confidence"])
 
     # public.* — only non-empty strings override the working defaults, so a blank

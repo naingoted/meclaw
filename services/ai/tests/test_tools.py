@@ -37,4 +37,6 @@ def test_contact_info_omits_blank_github():
 
 
 def test_schedule_call_uses_supplied_url():
-    assert schedule_call(url="https://cal.com/custom") == {"url": "https://cal.com/custom"}
+    assert schedule_call(url="https://cal.com/custom") == {
+        "url": "https://cal.com/custom"
+    }

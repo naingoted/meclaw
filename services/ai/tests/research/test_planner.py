@@ -18,7 +18,9 @@ def test_planner_decomposes_into_typed_subtasks():
         '{"query": "Thet backend experience", "source": "owner_corpus"},'
         '{"query": "Acme Corp tech stack", "source": "web"}]}'
     )
-    subtasks = make_planner(model, max_subtasks=6)({"company": "Acme", "role": "Backend"})
+    subtasks = make_planner(model, max_subtasks=6)(
+        {"company": "Acme", "role": "Backend"}
+    )
     assert len(subtasks) == 2
     assert subtasks[0]["source"] == "owner_corpus"
     assert subtasks[0]["status"] == "pending"
@@ -28,13 +30,17 @@ def test_planner_decomposes_into_typed_subtasks():
 
 def test_planner_caps_subtasks_and_defaults_bad_source():
     items = ",".join(['{"query": "q%d", "source": "bogus"}' % i for i in range(10)])
-    subtasks = make_planner(_Model('{"subtasks": [' + items + "]}"), max_subtasks=3)({"role": "X"})
+    subtasks = make_planner(_Model('{"subtasks": [' + items + "]}"), max_subtasks=3)(
+        {"role": "X"}
+    )
     assert len(subtasks) == 3
     assert all(s["source"] == "web" for s in subtasks)  # invalid → web fallback
 
 
 def test_planner_parse_failure_yields_single_corpus_subtask():
-    subtasks = make_planner(_Model("sorry no json"), max_subtasks=6)({"company": "Acme"})
+    subtasks = make_planner(_Model("sorry no json"), max_subtasks=6)(
+        {"company": "Acme"}
+    )
     assert len(subtasks) == 1
     assert subtasks[0]["source"] == "owner_corpus"
 

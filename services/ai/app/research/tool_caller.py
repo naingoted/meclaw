@@ -71,7 +71,9 @@ class JsonToolCaller:
         self._model = model
 
     def propose(self, messages: list[dict], tools: list[Tool]) -> Proposal:
-        catalog = "\n".join(f"- {t.name}{t.args_schema}: {t.description}" for t in tools)
+        catalog = "\n".join(
+            f"- {t.name}{t.args_schema}: {t.description}" for t in tools
+        )
         system = {
             "role": "system",
             "content": ("Available tools:\n" + catalog + _TOOLCALL_INSTRUCTION),
@@ -83,14 +85,19 @@ class JsonToolCaller:
             match = re.search(r"\{.*\}", text, re.DOTALL)
             parsed = json.loads(match.group(0) if match else text)
         except Exception as exc:  # parse/transport fault → degrade to done
-            logger.warning("ToolCaller parse failed (%s); finishing. Raw: %r", exc, text[:200])
+            logger.warning(
+                "ToolCaller parse failed (%s); finishing. Raw: %r", exc, text[:200]
+            )
             return Proposal(calls=[], content=text)
         if parsed.get("done"):
             return Proposal(calls=[], content=str(parsed.get("answer", "")))
         name = parsed.get("tool")
         if not name:
             return Proposal(calls=[], content=text)
-        return Proposal(calls=[ToolCall(name=str(name), args=dict(parsed.get("args") or {}))], content="")
+        return Proposal(
+            calls=[ToolCall(name=str(name), args=dict(parsed.get("args") or {}))],
+            content="",
+        )
 
 
 class NativeToolCaller:
@@ -126,7 +133,9 @@ class NativeToolCaller:
             ToolCall(name=tc["name"], args=dict(tc.get("args") or {}))
             for tc in (getattr(resp, "tool_calls", None) or [])
         ]
-        return Proposal(calls=calls, content=_extract_text(resp.content) if not calls else "")
+        return Proposal(
+            calls=calls, content=_extract_text(resp.content) if not calls else ""
+        )
 
 
 def dispatch(call: ToolCall, tools: list[Tool]) -> Any:

@@ -46,7 +46,9 @@ class TriageResult:
 
 
 class _TriageSchema(BaseModel):
-    intent: str = Field(description="One of: tech, project, scheduler, contact, general")
+    intent: str = Field(
+        description="One of: tech, project, scheduler, contact, general"
+    )
     confidence: float = Field(description="0.0-1.0 confidence in the intent")
     clarifying_question: str | None = Field(
         default=None,
@@ -77,7 +79,9 @@ def _last_user_text(messages: list[dict]) -> str:
     return ""
 
 
-def default_triage_fn(triage_model, system: str | None = None) -> Callable[[list[dict]], TriageResult]:
+def default_triage_fn(
+    triage_model, system: str | None = None
+) -> Callable[[list[dict]], TriageResult]:
     """Build a triage function that prompts for JSON and parses the response.
 
     Uses JSON prompting instead of with_structured_output to work with thinking-mode
@@ -94,7 +98,8 @@ def default_triage_fn(triage_model, system: str | None = None) -> Callable[[list
         try:
             base = system or TRIAGE_SYSTEM
             response = triage_model.invoke(
-                [{"role": "system", "content": base + TRIAGE_JSON_INSTRUCTION}] + messages
+                [{"role": "system", "content": base + TRIAGE_JSON_INSTRUCTION}]
+                + messages
             )
             text = _extract_text(response.content).strip()
             # Find the first {...} JSON object in the text (tolerates code fences/prose)
@@ -108,7 +113,9 @@ def default_triage_fn(triage_model, system: str | None = None) -> Callable[[list
             # answer attempt. review_node guards against hallucination if retrieval
             # comes back empty. Keep the log to one line; full traceback at debug.
             snippet = text[:200] if text else "<empty>"
-            logger.warning("Triage parse failed (%s); routing to general. Raw: %r", exc, snippet)
+            logger.warning(
+                "Triage parse failed (%s); routing to general. Raw: %r", exc, snippet
+            )
             logger.debug("Triage parse traceback", exc_info=True)
             return TriageResult(
                 intent="general",
@@ -222,7 +229,9 @@ def knowledge_node(
         logger.warning("Retrieval failed; continuing without context", exc_info=True)
         retrieval = RetrievalResult(chunks=[], sources=[])
     context = "\n\n".join(chunk.text for chunk in retrieval.chunks)
-    draft = draft_fn(PERSONAS.get(persona, PERSONAS["general"]), state["messages"], context)
+    draft = draft_fn(
+        PERSONAS.get(persona, PERSONAS["general"]), state["messages"], context
+    )
     return {
         "retrieved_chunks": list(retrieval.chunks),
         "sources": retrieval.sources,

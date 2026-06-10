@@ -24,12 +24,16 @@ def test_rejects_loopback_and_private_and_metadata(monkeypatch):
 
 
 def test_accepts_public_address(monkeypatch):
-    monkeypatch.setattr("app.research.web_tools._resolve", lambda host: ["93.184.216.34"])
+    monkeypatch.setattr(
+        "app.research.web_tools._resolve", lambda host: ["93.184.216.34"]
+    )
     assert_public_url("https://example.com/path") is None  # no raise
 
 
 def test_fetch_enforces_content_type_allowlist(monkeypatch):
-    monkeypatch.setattr("app.research.web_tools._resolve", lambda host: ["93.184.216.34"])
+    monkeypatch.setattr(
+        "app.research.web_tools._resolve", lambda host: ["93.184.216.34"]
+    )
 
     class _Resp:
         status_code = 200

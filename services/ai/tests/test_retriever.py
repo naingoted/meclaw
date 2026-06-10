@@ -84,8 +84,8 @@ def test_default_search_builds_cosine_query(monkeypatch):
 
     assert "rag_chunks" in captured["sql"]
     assert "<=>" in captured["sql"]
-    assert captured["params"][0] == "[0.1,0.2,0.3]"   # text-cast vector literal
-    assert captured["params"][-1] == 4                # limit
+    assert captured["params"][0] == "[0.1,0.2,0.3]"  # text-cast vector literal
+    assert captured["params"][-1] == 4  # limit
     assert hits[0]["payload"]["source"] == "about.md"
     assert hits[0]["payload"]["id"] == "about:0"
     assert hits[0]["score"] == 0.93

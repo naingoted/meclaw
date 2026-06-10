@@ -56,8 +56,9 @@ def below_thresholds(agg: dict, thresholds: dict[str, float]) -> bool:
 
 def _render_markdown(rows: list[dict], agg: dict) -> str:
     lines = ["# RAG Eval Report", ""]
-    lines.append(f"**Overall:** {agg['passed']}/{agg['total']} passed "
-                 f"({agg['pass_rate']:.0%})")
+    lines.append(
+        f"**Overall:** {agg['passed']}/{agg['total']} passed ({agg['pass_rate']:.0%})"
+    )
     lines.append("")
     lines.append("## By category")
     lines.append("")
@@ -89,6 +90,8 @@ def write_report(rows: list[dict], out_dir: str | Path) -> dict:
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     agg = aggregate(rows)
-    (out / "report.json").write_text(json.dumps({"aggregate": agg, "cases": rows}, indent=2))
+    (out / "report.json").write_text(
+        json.dumps({"aggregate": agg, "cases": rows}, indent=2)
+    )
     (out / "report.md").write_text(_render_markdown(rows, agg))
     return agg

@@ -76,6 +76,14 @@ jobs:
         working-directory: services/ai
         run: uv sync --frozen
 
+      - name: Lint Python sidecar (ruff)
+        working-directory: services/ai
+        run: uv run ruff check .
+
+      - name: Format check Python sidecar (ruff)
+        working-directory: services/ai
+        run: uv run ruff format --check .
+
       - name: Migrate test database
         run: pnpm --filter @meclaw/core db:migrate
 

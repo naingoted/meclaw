@@ -39,7 +39,9 @@ def build_research_deps() -> ResearchDeps:
 
     return ResearchDeps(
         plan_fn=make_planner(reasoning, max_subtasks=config.RESEARCH_MAX_SUBTASKS),
-        research_fn=make_researcher(tool_caller, tools, max_steps=config.RESEARCH_REACT_MAX_STEPS),
+        research_fn=make_researcher(
+            tool_caller, tools, max_steps=config.RESEARCH_REACT_MAX_STEPS
+        ),
         replan_fn=make_replanner(reasoning),
         validate_fn=make_validator(
             reasoning,
@@ -47,7 +49,9 @@ def build_research_deps() -> ResearchDeps:
             judge_threshold=config.RESEARCH_JUDGE_THRESHOLD,
             corpus_score_floor=config.RESEARCH_CORPUS_SCORE_FLOOR,
         ),
-        synth_fn=lambda request, notes: make_synthesizer(synth)(request, notes).model_dump(),
+        synth_fn=lambda request, notes: make_synthesizer(synth)(
+            request, notes
+        ).model_dump(),
         budget=ResearchBudget(
             max_subtasks=config.RESEARCH_MAX_SUBTASKS,
             retry_budget=config.RESEARCH_RETRY_BUDGET,

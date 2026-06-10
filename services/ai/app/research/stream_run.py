@@ -25,9 +25,17 @@ def label_for(node: str, delta: dict, view: dict) -> str | None:
     if node == "plan":
         return "Planning research"
     if node == "research":
-        subs = (delta.get("subtasks") if isinstance(delta, dict) else None) or view.get("subtasks") or []
+        subs = (
+            (delta.get("subtasks") if isinstance(delta, dict) else None)
+            or view.get("subtasks")
+            or []
+        )
         i = view.get("cursor", 0)
-        query = subs[i].get("query") if i < len(subs) and isinstance(subs[i], dict) else None
+        query = (
+            subs[i].get("query")
+            if i < len(subs) and isinstance(subs[i], dict)
+            else None
+        )
         return f"Researching: {query}" if query else "Researching"
     if node == "validate":
         return "Validating findings"

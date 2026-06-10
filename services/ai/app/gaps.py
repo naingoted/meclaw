@@ -23,12 +23,16 @@ class NearestCluster(TypedDict):
     centroid: list[float]
 
 
-SearchFn = Callable[[list[float]], Optional[NearestCluster]]   # embedding -> nearest open cluster | None
-UpdateFn = Callable[[str, list[float]], None]                  # (cluster_id, new_centroid) -> None
-InsertFn = Callable[[list[float], str], str]                   # (embedding, query) -> new cluster id
+SearchFn = Callable[
+    [list[float]], Optional[NearestCluster]
+]  # embedding -> nearest open cluster | None
+UpdateFn = Callable[[str, list[float]], None]  # (cluster_id, new_centroid) -> None
+InsertFn = Callable[[list[float], str], str]  # (embedding, query) -> new cluster id
 
 
-def _incremental_mean(centroid: list[float], count: int, embedding: list[float]) -> list[float]:
+def _incremental_mean(
+    centroid: list[float], count: int, embedding: list[float]
+) -> list[float]:
     """Running mean: fold one new member into an existing centroid."""
     n = count + 1
     return [(c * count + e) / n for c, e in zip(centroid, embedding)]
@@ -52,7 +56,9 @@ def assign_cluster(
 
     nearest = search(embedding)
     if nearest is not None and nearest["distance"] <= r:
-        new_centroid = _incremental_mean(nearest["centroid"], nearest["count"], embedding)
+        new_centroid = _incremental_mean(
+            nearest["centroid"], nearest["count"], embedding
+        )
         update(nearest["id"], new_centroid)
         return nearest["id"]
     return insert(embedding, query)
@@ -80,14 +86,19 @@ def _default_search(embedding: list[float]) -> NearestCluster | None:
         ).fetchone()
     if row is None:
         return None
-    return NearestCluster(id=row[0], count=int(row[1]), centroid=_parse_vec(row[2]), distance=float(row[3]))
+    return NearestCluster(
+        id=row[0],
+        count=int(row[1]),
+        centroid=_parse_vec(row[2]),
+        distance=float(row[3]),
+    )
 
 
 def _default_update(cluster_id: str, new_centroid: list[float]) -> None:
     vec = _vec(new_centroid)
     with psycopg.connect(config.DATABASE_URL) as conn:
         conn.execute(
-            'UPDATE gap_clusters SET count = count + 1, centroid = %s::vector, '
+            "UPDATE gap_clusters SET count = count + 1, centroid = %s::vector, "
             '"updatedAt" = now() WHERE id = %s::uuid',
             (vec, cluster_id),
         )

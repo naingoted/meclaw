@@ -14,7 +14,10 @@ class _FakeLcTool:
 
 
 def test_adapt_wraps_lc_tools_into_tool_seam():
-    lc = [_FakeLcTool("search_corpus", "semantic search"), _FakeLcTool("run_read_query", "sql")]
+    lc = [
+        _FakeLcTool("search_corpus", "semantic search"),
+        _FakeLcTool("run_read_query", "sql"),
+    ]
     tools = adapt_mcp_tools(lc)
     assert [t.name for t in tools] == ["search_corpus", "run_read_query"]
     assert all(isinstance(t, Tool) for t in tools)

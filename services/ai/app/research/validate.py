@@ -52,9 +52,19 @@ def make_validator(
 
         # Stage 1 — heuristic gate (deterministic, first).
         if not text:
-            return {"verdict": "bad", "stage": "heuristic", "score": None, "reason": "empty"}
+            return {
+                "verdict": "bad",
+                "stage": "heuristic",
+                "score": None,
+                "reason": "empty",
+            }
         if len(text) < min_chars:
-            return {"verdict": "bad", "stage": "heuristic", "score": None, "reason": "too short"}
+            return {
+                "verdict": "bad",
+                "stage": "heuristic",
+                "score": None,
+                "reason": "too short",
+            }
         if subtask.get("source") == "owner_corpus":
             top = _top_corpus_score(note)
             if top is not None and top < corpus_score_floor:
@@ -83,9 +93,19 @@ def make_validator(
             # Judge fault: don't fail-open. Treat as borderline-bad so the subtask
             # retries (bounded) rather than admitting an unscored note.
             logger.warning("Judge parse failed (%s); marking bad to trigger retry", exc)
-            return {"verdict": "bad", "stage": "judge", "score": None, "reason": "judge error"}
+            return {
+                "verdict": "bad",
+                "stage": "judge",
+                "score": None,
+                "reason": "judge error",
+            }
 
         verdict = "good" if score >= judge_threshold else "bad"
-        return {"verdict": verdict, "stage": "judge", "score": score, "reason": "judged"}
+        return {
+            "verdict": verdict,
+            "stage": "judge",
+            "score": score,
+            "reason": "judged",
+        }
 
     return _run

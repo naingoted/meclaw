@@ -41,9 +41,13 @@ def _notes_block(notes: list[dict]) -> str:
     lines = []
     for i, note in enumerate(notes):
         refs = ", ".join(
-            str(s.get("source") or s.get("url")) for s in note.get("sources", []) if isinstance(s, dict)
+            str(s.get("source") or s.get("url"))
+            for s in note.get("sources", [])
+            if isinstance(s, dict)
         )
-        lines.append(f"[note {i}] {note.get('text', '')}\n  sources: {refs or '(none)'}")
+        lines.append(
+            f"[note {i}] {note.get('text', '')}\n  sources: {refs or '(none)'}"
+        )
     return "\n".join(lines) or "(no validated notes)"
 
 
@@ -55,12 +59,23 @@ def make_synthesizer(model) -> Callable[[dict, list[dict]], BriefingReport]:
         )
         try:
             resp = model.invoke(
-                [{"role": "system", "content": _SYSTEM}, {"role": "user", "content": user}]
+                [
+                    {"role": "system", "content": _SYSTEM},
+                    {"role": "user", "content": user},
+                ]
             )
             raw = _extract_text(resp.content).strip()
             match = re.search(r"\{.*\}", raw, re.DOTALL)
-            return BriefingReport.model_validate(json.loads(match.group(0) if match else raw))
-        except (json.JSONDecodeError, ValidationError, KeyError, AttributeError, TypeError) as exc:
+            return BriefingReport.model_validate(
+                json.loads(match.group(0) if match else raw)
+            )
+        except (
+            json.JSONDecodeError,
+            ValidationError,
+            KeyError,
+            AttributeError,
+            TypeError,
+        ) as exc:
             logger.warning("Synthesis parse failed (%s); degraded report", exc)
             return BriefingReport(
                 summary=(

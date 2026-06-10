@@ -62,7 +62,9 @@ def _build_real_runner() -> tuple:
         score_floor=RAG_SCORE_FLOOR,
         answer_use_threshold=ANSWER_USE_THRESHOLD,
         embed_fn=retriever.embed,
-        assign_cluster_fn=lambda emb, q: gaps.assign_cluster(emb, q, radius=CLUSTER_RADIUS),
+        assign_cluster_fn=lambda emb, q: gaps.assign_cluster(
+            emb, q, radius=CLUSTER_RADIUS
+        ),
     )
     return runner, chunk_text_by_id
 
@@ -71,7 +73,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Run the RAG eval set.")
     parser.add_argument("--set", dest="dataset", default="eval/interview.yaml")
     parser.add_argument("--report", dest="report_dir", default="out")
-    parser.add_argument("--ci", action="store_true", help="exit non-zero below thresholds")
+    parser.add_argument(
+        "--ci", action="store_true", help="exit non-zero below thresholds"
+    )
     args = parser.parse_args()
 
     cases = load_dataset(args.dataset)

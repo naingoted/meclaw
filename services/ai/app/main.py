@@ -32,6 +32,7 @@ def get_runner(config: dict | None = None):
     """
     from app.runtime_config import resolve_config
     from app.runner import build_runner
+
     return build_runner(resolve_config(config))
 
 

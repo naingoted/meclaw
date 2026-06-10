@@ -24,8 +24,12 @@ def test_match_within_radius_updates_existing_cluster():
         return "new"
 
     cluster_id = assign_cluster(
-        [3.0, 3.0], "q",
-        search_fn=search, update_fn=update, insert_fn=insert, radius=0.15,
+        [3.0, 3.0],
+        "q",
+        search_fn=search,
+        update_fn=update,
+        insert_fn=insert,
+        radius=0.15,
     )
 
     assert cluster_id == "c1"
@@ -47,8 +51,12 @@ def test_outside_radius_creates_new_cluster():
         raise AssertionError("should not update when outside radius")
 
     cluster_id = assign_cluster(
-        [9.0, 9.0], "q",
-        search_fn=search, update_fn=update, insert_fn=insert, radius=0.15,
+        [9.0, 9.0],
+        "q",
+        search_fn=search,
+        update_fn=update,
+        insert_fn=insert,
+        radius=0.15,
     )
     assert cluster_id == "new-cluster"
 
@@ -63,4 +71,14 @@ def test_no_existing_cluster_creates_new():
     def update(*_args):
         raise AssertionError("no cluster to update")
 
-    assert assign_cluster([1.0], "q", search_fn=search, update_fn=update, insert_fn=insert, radius=0.15) == "first-cluster"
+    assert (
+        assign_cluster(
+            [1.0],
+            "q",
+            search_fn=search,
+            update_fn=update,
+            insert_fn=insert,
+            radius=0.15,
+        )
+        == "first-cluster"
+    )

@@ -20,6 +20,7 @@ def test_triage_routes_high_confidence():
 def test_triage_low_confidence_without_question_routes_best_effort():
     """Low confidence but no clarifying_question (e.g. parse failure degraded to
     general) should attempt an answer, not dead-end on the generic clarify prompt."""
+
     def fake_triage(_messages):
         return TriageResult(intent="general", confidence=0.0, clarifying_question=None)
 

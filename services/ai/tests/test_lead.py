@@ -13,7 +13,9 @@ from app.lead import (
 
 
 def test_extract_email():
-    assert extract_contact("reach me at Jane.Doe@Acme.com please") == {"email": "jane.doe@acme.com"}
+    assert extract_contact("reach me at Jane.Doe@Acme.com please") == {
+        "email": "jane.doe@acme.com"
+    }
 
 
 def test_extract_phone_international():
@@ -60,8 +62,14 @@ def test_history_helpers_detect_offer_and_confirm():
 
 
 def test_most_recent_offer_trigger_maps_each_template():
-    assert most_recent_offer_trigger([{"role": "assistant", "content": CONNECT_OFFER}]) == "connect_intent"
-    assert most_recent_offer_trigger([{"role": "assistant", "content": ESCALATED_OFFER}]) == "repeated_dead_end"
+    assert (
+        most_recent_offer_trigger([{"role": "assistant", "content": CONNECT_OFFER}])
+        == "connect_intent"
+    )
+    assert (
+        most_recent_offer_trigger([{"role": "assistant", "content": ESCALATED_OFFER}])
+        == "repeated_dead_end"
+    )
     assert most_recent_offer_trigger([{"role": "assistant", "content": "hi"}]) is None
 
 

@@ -41,7 +41,9 @@ def get_chat_model(
 ) -> ChatAnthropic:
     api_key = os.environ["ANTHROPIC_API_KEY"]
     resolved_model = (
-        model if model is not None else os.getenv("ANTHROPIC_MODEL", ANTHROPIC_MODEL_DEFAULT)
+        model
+        if model is not None
+        else os.getenv("ANTHROPIC_MODEL", ANTHROPIC_MODEL_DEFAULT)
     )
     base_url = os.getenv("ANTHROPIC_BASE_URL")
 

@@ -1,6 +1,5 @@
 from app.research.tool_caller import (
     JsonToolCaller,
-    Proposal,
     Tool,
     ToolCall,
     dispatch,
@@ -31,7 +30,12 @@ def _tools():
         return {"results": ["x"]}
 
     return [
-        Tool(name="search_corpus", description="search", args_schema={"query": "str"}, run=_search),
+        Tool(
+            name="search_corpus",
+            description="search",
+            args_schema={"query": "str"},
+            run=_search,
+        ),
     ], ran
 
 
@@ -115,6 +119,8 @@ def test_native_caller_no_tool_calls_means_done():
             return _Bound()
 
     tools, _ = _tools()
-    prop = NativeToolCaller(_Model()).propose([{"role": "user", "content": "go"}], tools)
+    prop = NativeToolCaller(_Model()).propose(
+        [{"role": "user", "content": "go"}], tools
+    )
     assert prop.calls == []
     assert "sidecar" in prop.content

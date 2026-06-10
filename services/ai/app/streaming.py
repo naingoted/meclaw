@@ -38,7 +38,6 @@ from app.lead import (
     SOFT_OFFER,
     confirm,
     extract_contact,
-    format_contact,
     has_prior_confirm,
     most_recent_offer_trigger,
     prior_offer_made,
@@ -231,10 +230,14 @@ def run_stream(
                 stuffed = True
                 # Stuffed path: record telemetry with no per-chunk scores.
                 retrieval_meta = _retrieval_meta(
-                    query, intent,
-                    grounded=True, stuffed=True,
-                    candidates=[], kept_ids=set(),
-                    top_score=None, answer_used=False,
+                    query,
+                    intent,
+                    grounded=True,
+                    stuffed=True,
+                    candidates=[],
+                    kept_ids=set(),
+                    top_score=None,
+                    answer_used=False,
                 )
 
         if not stuffed:
@@ -263,8 +266,10 @@ def run_stream(
                         "corpus_version": corpus_version,
                         "miss": detect_miss(reason, None if not kept else top_score),
                         "retrieval": _retrieval_meta(
-                            query, intent,
-                            grounded=False, stuffed=False,
+                            query,
+                            intent,
+                            grounded=False,
+                            stuffed=False,
                             candidates=retrieval.chunks,
                             kept_ids={c.id for c in kept},
                             # None when no chunk passed threshold; otherwise the kept top score.
@@ -284,8 +289,10 @@ def run_stream(
             answer_gap_score = top_score
             # answer_used is filled after drafting (needs the draft text).
             retrieval_meta = _retrieval_meta(
-                query, intent,
-                grounded=True, stuffed=False,
+                query,
+                intent,
+                grounded=True,
+                stuffed=False,
                 candidates=retrieval.chunks,
                 kept_ids={c.id for c in kept},
                 top_score=top_score,

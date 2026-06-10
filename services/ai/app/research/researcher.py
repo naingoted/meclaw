@@ -62,7 +62,8 @@ def make_researcher(
             # Hit the step cap with tools still pending — ask once for a final note.
             try:
                 final = tool_caller.propose(
-                    messages + [{"role": "user", "content": "Stop. Give your final note now."}],
+                    messages
+                    + [{"role": "user", "content": "Stop. Give your final note now."}],
                     [],
                 )
                 content = final.content

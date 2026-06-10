@@ -39,6 +39,7 @@ class BriefingReport(BaseModel):
 
 # --- LangGraph state (TypedDict; mirrors app/graph/state.py style) -----------
 
+
 class Subtask(TypedDict, total=False):
     id: str
     query: str
@@ -51,13 +52,13 @@ class Subtask(TypedDict, total=False):
 
 
 class ResearchState(TypedDict, total=False):
-    request: dict           # {company?, role?, jd?}
+    request: dict  # {company?, role?, jd?}
     subtasks: list[Subtask]
-    cursor: int             # index of the subtask under research
-    notes: list[dict]       # validated notes, in resolution order
-    iterations: int         # research-node entries (loop guard)
-    tool_calls: int         # cumulative tool invocations
-    retries: int            # cumulative re-plans
-    report: dict | None     # BriefingReport.model_dump()
+    cursor: int  # index of the subtask under research
+    notes: list[dict]  # validated notes, in resolution order
+    iterations: int  # research-node entries (loop guard)
+    tool_calls: int  # cumulative tool invocations
+    retries: int  # cumulative re-plans
+    report: dict | None  # BriefingReport.model_dump()
     status: Literal["running", "done", "degraded", "error"]
-    route: str | None       # transient routing hint set by nodes
+    route: str | None  # transient routing hint set by nodes

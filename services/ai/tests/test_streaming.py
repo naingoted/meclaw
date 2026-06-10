@@ -5,7 +5,13 @@ stream tokens we'd have to retract."""
 import json
 
 from app.graph.nodes import TriageResult
-from app.lead import SOFT_OFFER, CONNECT_OFFER, ESCALATED_OFFER, NEUTRAL_FALLBACK, confirm
+from app.lead import (
+    SOFT_OFFER,
+    CONNECT_OFFER,
+    ESCALATED_OFFER,
+    NEUTRAL_FALLBACK,
+    confirm,
+)
 from app.retriever import RetrievalResult, RetrievedChunk
 from app.streaming import run_stream
 
@@ -26,7 +32,7 @@ def _finish_metadata(body: str) -> dict:
         line = line.strip()
         if not line.startswith("data:"):
             continue
-        payload = line[len("data:"):].strip()
+        payload = line[len("data:") :].strip()
         if payload in ("", "[DONE]"):
             continue
         part = json.loads(payload)
@@ -110,7 +116,7 @@ def test_empty_retrieval_emits_fallback_without_drafting():
     )
 
     assert drafted["called"] is False  # groundedness gate fires before drafting
-    assert SOFT_OFFER in body          # blunt fallback replaced by a capture offer
+    assert SOFT_OFFER in body  # blunt fallback replaced by a capture offer
     assert body.rstrip().endswith("[DONE]")
 
 
@@ -262,9 +268,7 @@ def test_fallback_path_metadata_carries_routing_and_search_steps():
         )
     )
 
-    assert (
-        '"steps":["Routing your question…","Searching knowledge base…"]'
-    ) in body
+    assert ('"steps":["Routing your question…","Searching knowledge base…"]') in body
 
 
 def test_contact_in_message_captures_lead_and_confirms():
@@ -291,11 +295,11 @@ def test_contact_in_message_captures_lead_and_confirms():
     )
 
     assert drafted["called"] is False
-    assert "jane@acme.com" in body              # confirmation echoes the contact
+    assert "jane@acme.com" in body  # confirmation echoes the contact
     assert "make sure Thet follows up" in body
-    assert '"lead":{' in body                   # lead object rides in metadata
+    assert '"lead":{' in body  # lead object rides in metadata
     assert '"email":"jane@acme.com"' in body
-    assert '"trigger":"edge_case"' in body      # mapped from the prior SOFT_OFFER
+    assert '"trigger":"edge_case"' in body  # mapped from the prior SOFT_OFFER
     assert '"triggerQuestion":"what\'s his salary?"' in body
 
 
@@ -324,7 +328,9 @@ def test_repeated_dead_end_escalates_offer():
         run_stream(
             history,
             triage_fn=_triage("tech", 0.9),
-            retriever_retrieve=lambda q: RetrievalResult([], []),  # no chunks → fallback
+            retriever_retrieve=lambda q: RetrievalResult(
+                [], []
+            ),  # no chunks → fallback
             draft_stream_fn=lambda s, m, c: iter(["x"]),
             schedule_fn=lambda: {},
             contact_fn=lambda: {},
@@ -460,6 +466,7 @@ def _embed_stub(_query):
 def _assign_stub(cluster_id="cluster-x"):
     def _fn(_embedding, _query):
         return cluster_id
+
     return _fn
 
 
@@ -473,7 +480,16 @@ def test_floor_below_threshold_records_floor_miss():
     def retrieve(_query):
         # one weak chunk, score below the floor
         return RetrievalResult(
-            chunks=[RetrievedChunk(id="d#0", source="a.md", title="A", text="weak", ordinal=0, score=0.2)],
+            chunks=[
+                RetrievedChunk(
+                    id="d#0",
+                    source="a.md",
+                    title="A",
+                    text="weak",
+                    ordinal=0,
+                    score=0.2,
+                )
+            ],
             sources=[{"source": "a.md", "title": "A", "score": 0.2}],
         )
 
@@ -545,7 +561,16 @@ def test_grounded_answer_carries_null_miss():
             [{"role": "user", "content": "stack?"}],
             triage_fn=_triage("tech", 0.9),
             retriever_retrieve=lambda q: RetrievalResult(
-                chunks=[RetrievedChunk(id="d#0", source="a.md", title="A", text="Python", ordinal=0, score=0.9)],
+                chunks=[
+                    RetrievedChunk(
+                        id="d#0",
+                        source="a.md",
+                        title="A",
+                        text="Python",
+                        ordinal=0,
+                        score=0.9,
+                    )
+                ],
                 sources=[{"source": "a.md", "title": "A", "score": 0.9}],
             ),
             draft_stream_fn=lambda s, m, c: iter(["Python."]),
@@ -577,7 +602,7 @@ def test_clustering_failure_emits_null_miss_and_still_streams():
             assign_cluster_fn=_assign_stub("never"),
         )
     )
-    assert '"miss":null' in body          # clustering failed → no miss recorded
+    assert '"miss":null' in body  # clustering failed → no miss recorded
     assert body.rstrip().endswith("[DONE]")
 
 
@@ -587,8 +612,22 @@ def test_score_threshold_drops_subthreshold_chunks_before_gate():
     def retrieve(_query):
         return RetrievalResult(
             chunks=[
-                RetrievedChunk(id="d#0", source="a.md", title="A", text="STRONG", ordinal=0, score=0.9),
-                RetrievedChunk(id="d#1", source="b.md", title="B", text="WEAK", ordinal=1, score=0.4),
+                RetrievedChunk(
+                    id="d#0",
+                    source="a.md",
+                    title="A",
+                    text="STRONG",
+                    ordinal=0,
+                    score=0.9,
+                ),
+                RetrievedChunk(
+                    id="d#1",
+                    source="b.md",
+                    title="B",
+                    text="WEAK",
+                    ordinal=1,
+                    score=0.4,
+                ),
             ],
             sources=[
                 {"source": "a.md", "title": "A", "score": 0.9},
@@ -614,7 +653,7 @@ def test_score_threshold_drops_subthreshold_chunks_before_gate():
     )
 
     assert "STRONG" in captured["context"]
-    assert "WEAK" not in captured["context"]      # filtered before context build
+    assert "WEAK" not in captured["context"]  # filtered before context build
     # User-facing sources array only includes kept chunks
     meta = _finish_metadata(body)
     assert len(meta["sources"]) == 1
@@ -631,7 +670,16 @@ def test_score_threshold_filtering_can_trigger_fallback():
 
     def retrieve(_query):
         return RetrievalResult(
-            chunks=[RetrievedChunk(id="d#0", source="a.md", title="A", text="weak", ordinal=0, score=0.4)],
+            chunks=[
+                RetrievedChunk(
+                    id="d#0",
+                    source="a.md",
+                    title="A",
+                    text="weak",
+                    ordinal=0,
+                    score=0.4,
+                )
+            ],
             sources=[{"source": "a.md", "title": "A", "score": 0.4}],
         )
 
@@ -679,7 +727,7 @@ def test_tiny_corpus_stuffs_full_corpus_and_skips_retrieval():
         )
     )
 
-    assert captured["retrieved"] is False           # retrieval skipped
+    assert captured["retrieved"] is False  # retrieval skipped
     assert captured["context"] == "THE WHOLE CORPUS"
     assert '"stage":"retrieval"' in body
     assert body.rstrip().endswith("[DONE]")
@@ -691,7 +739,11 @@ def test_tiny_corpus_disabled_when_corpus_exceeds_threshold():
     def retrieve(_query):
         captured["retrieved"] = True
         return RetrievalResult(
-            chunks=[RetrievedChunk(id="d#0", source="a.md", title="A", text="hit", ordinal=0, score=0.9)],
+            chunks=[
+                RetrievedChunk(
+                    id="d#0", source="a.md", title="A", text="hit", ordinal=0, score=0.9
+                )
+            ],
             sources=[{"source": "a.md", "title": "A", "score": 0.9}],
         )
 
@@ -737,7 +789,16 @@ def test_grounded_answer_admitting_missing_fact_records_answer_gap():
     def retrieve(_query):
         # retrieval passes the floor — a nearby chunk scores high…
         return RetrievalResult(
-            chunks=[RetrievedChunk(id="d#0", source="about.md", title="About", text="Thet likes coffee.", ordinal=0, score=0.7)],
+            chunks=[
+                RetrievedChunk(
+                    id="d#0",
+                    source="about.md",
+                    title="About",
+                    text="Thet likes coffee.",
+                    ordinal=0,
+                    score=0.7,
+                )
+            ],
             sources=[{"source": "about.md", "title": "About", "score": 0.7}],
         )
 
@@ -793,10 +854,22 @@ def test_grounded_path_attaches_retrieval_metadata():
     def retrieve(query):
         return RetrievalResult(
             chunks=[
-                RetrievedChunk(id="about:0", source="about.md", title="About",
-                               text="Thet uses Python.", ordinal=0, score=0.62),
-                RetrievedChunk(id="resume:3", source="resume.md", title="Resume",
-                               text="unrelated text here", ordinal=3, score=0.10),
+                RetrievedChunk(
+                    id="about:0",
+                    source="about.md",
+                    title="About",
+                    text="Thet uses Python.",
+                    ordinal=0,
+                    score=0.62,
+                ),
+                RetrievedChunk(
+                    id="resume:3",
+                    source="resume.md",
+                    title="Resume",
+                    text="unrelated text here",
+                    ordinal=3,
+                    score=0.10,
+                ),
             ],
             sources=[{"source": "about.md", "title": "About", "score": 0.62}],
         )
@@ -835,8 +908,16 @@ def test_fallback_miss_attaches_ungrounded_retrieval():
     # Top score below floor -> groundedness gate fires; retrieval still recorded.
     def retrieve(query):
         return RetrievalResult(
-            chunks=[RetrievedChunk(id="about:0", source="about.md", title="About",
-                                   text="weak", ordinal=0, score=0.05)],
+            chunks=[
+                RetrievedChunk(
+                    id="about:0",
+                    source="about.md",
+                    title="About",
+                    text="weak",
+                    ordinal=0,
+                    score=0.05,
+                )
+            ],
             sources=[],
         )
 
@@ -863,10 +944,19 @@ def test_fallback_miss_attaches_ungrounded_retrieval():
 def test_zero_kept_miss_records_null_top_score():
     def retrieve(query):
         return RetrievalResult(
-            chunks=[RetrievedChunk(id="about:0", source="about.md", title="About",
-                                   text="x", ordinal=0, score=0.1)],
+            chunks=[
+                RetrievedChunk(
+                    id="about:0",
+                    source="about.md",
+                    title="About",
+                    text="x",
+                    ordinal=0,
+                    score=0.1,
+                )
+            ],
             sources=[],
         )
+
     body = _collect(
         run_stream(
             [{"role": "user", "content": "q"}],

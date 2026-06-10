@@ -68,7 +68,14 @@ def test_resolve_reads_score_threshold_tiny_corpus_and_confidence(monkeypatch):
     monkeypatch.delenv("TRIAGE_CONFIDENCE_THRESHOLD", raising=False)
     cfg = resolve_config(
         {
-            "agents": {"triage": {"model": "t", "thinking": False, "prompt": "T", "confidence": 0.7}},
+            "agents": {
+                "triage": {
+                    "model": "t",
+                    "thinking": False,
+                    "prompt": "T",
+                    "confidence": 0.7,
+                }
+            },
             "rag": {"topK": 4, "scoreThreshold": 0.25, "tinyCorpusThreshold": 1200},
         }
     )
@@ -108,7 +115,9 @@ def test_resolve_defaults_new_fields(monkeypatch):
 def test_resolve_ignores_blank_public_overrides(monkeypatch):
     monkeypatch.delenv("NEXT_PUBLIC_CAL_URL", raising=False)
     # empty strings must NOT clobber the working defaults
-    cfg = resolve_config({"public": {"calUrl": "", "githubUrl": "", "contactEmail": ""}})
+    cfg = resolve_config(
+        {"public": {"calUrl": "", "githubUrl": "", "contactEmail": ""}}
+    )
     assert cfg.cal_url == "https://cal.com/tet-nai"
     assert cfg.github_url == ""
     assert cfg.contact_email == "naingoted@gmail.com"

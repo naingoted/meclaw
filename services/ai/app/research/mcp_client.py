@@ -30,15 +30,13 @@ def adapt_mcp_tools(lc_tools: list[Any]) -> list[Tool]:
                 name=name,
                 description=getattr(lc, "description", "") or name,
                 args_schema={},  # MCP advertises its own JSON schema; the model is told via name+desc
-                run=(lambda t: (lambda args: t.invoke(args)))(lc),
+                run=(lambda t: lambda args: t.invoke(args))(lc),
             )
         )
     return out
 
 
-def load_operator_tools(
-    url: str | None = None, token: str | None = None
-) -> list[Tool]:
+def load_operator_tools(url: str | None = None, token: str | None = None) -> list[Tool]:
     """Connect to @meclaw/mcp (operator scope, HTTP+bearer) and adapt its tools.
     Returns [] on connect failure (researcher degrades — owner subtasks unresolved,
     never a crash). Mirrors Spec C §6's 'absent → skipped, not fatal' posture."""
@@ -59,5 +57,7 @@ def load_operator_tools(
         lc_tools = asyncio.run(client.get_tools())
         return adapt_mcp_tools(lc_tools)
     except Exception as exc:
-        logger.warning("MCP operator tools unavailable (%s); owner subtasks will degrade", exc)
+        logger.warning(
+            "MCP operator tools unavailable (%s); owner subtasks will degrade", exc
+        )
         return []

@@ -25,8 +25,8 @@ from app.research.schemas import ResearchState
 @dataclass(frozen=True)
 class ResearchBudget:
     max_subtasks: int = 6
-    retry_budget: int = 2          # per subtask
-    max_iterations: int = 24       # global loop guard
+    retry_budget: int = 2  # per subtask
+    max_iterations: int = 24  # global loop guard
     max_tool_calls: int = 30
 
 

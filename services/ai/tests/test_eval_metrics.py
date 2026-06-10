@@ -12,7 +12,10 @@ def _case(**kw) -> EvalCase:
 
 
 def test_exact_match_all_present_passes():
-    assert exact_match("I use TypeScript and Postgres daily", ["TypeScript", "Postgres"]) is True
+    assert (
+        exact_match("I use TypeScript and Postgres daily", ["TypeScript", "Postgres"])
+        is True
+    )
 
 
 def test_exact_match_is_case_insensitive():
@@ -30,6 +33,7 @@ def test_exact_match_empty_requirements_passes():
 def test_defer_accuracy_passes_when_offer_made():
     # SOFT_OFFER text contains a known offer marker.
     from app.lead import SOFT_OFFER
+
     assert defer_accuracy(SOFT_OFFER) is True
 
 
@@ -39,7 +43,9 @@ def test_defer_accuracy_fails_when_bot_fabricates_an_answer():
 
 def test_score_case_runs_only_reference_free_metrics_without_reference():
     case = _case(expected_behavior="answer", must_include=["TypeScript"])
-    result = CollectResult(answer="I use TypeScript.", contexts=["Thet uses TypeScript."], retrieval={})
+    result = CollectResult(
+        answer="I use TypeScript.", contexts=["Thet uses TypeScript."], retrieval={}
+    )
 
     calls = {}
 
@@ -73,6 +79,7 @@ def test_score_case_includes_reference_metrics_when_reference_present():
 
 def test_score_case_defer_uses_defer_accuracy_not_ragas_correctness():
     from app.lead import SOFT_OFFER
+
     case = _case(expected_behavior="defer")
     result = CollectResult(answer=SOFT_OFFER, contexts=[], retrieval=None)
 

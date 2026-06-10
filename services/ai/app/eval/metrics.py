@@ -86,9 +86,13 @@ def build_ragas_score_fn() -> RagasScoreFn:
     from app import config
     from app.provider import get_chat_model
 
-    judge = LangchainLLMWrapper(get_chat_model(config.TRIAGE_MODEL, streaming=False, thinking=False))
+    judge = LangchainLLMWrapper(
+        get_chat_model(config.TRIAGE_MODEL, streaming=False, thinking=False)
+    )
     embeddings = LangchainEmbeddingsWrapper(
-        OllamaEmbeddings(base_url=config.OLLAMA_BASE_URL, model=config.OLLAMA_EMBED_MODEL)
+        OllamaEmbeddings(
+            base_url=config.OLLAMA_BASE_URL, model=config.OLLAMA_EMBED_MODEL
+        )
     )
 
     def score(*, question, answer, contexts, reference) -> dict:

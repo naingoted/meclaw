@@ -24,7 +24,11 @@ def test_runner_splits_triage_and_draft_models(monkeypatch):
 
     runner.build_production_runner()
 
-    assert {"model": runner.TRIAGE_MODEL, "streaming": False, "thinking": False} in calls
+    assert {
+        "model": runner.TRIAGE_MODEL,
+        "streaming": False,
+        "thinking": False,
+    } in calls
     assert {"model": runner.DRAFT_MODEL, "streaming": True, "thinking": False} in calls
 
 
@@ -43,7 +47,11 @@ def test_build_runner_passes_floor_and_clustering(monkeypatch):
     monkeypatch.setattr(runner_mod, "get_chat_model", lambda *a, **k: object())
 
     cfg = RuntimeConfig(
-        triage_model="t", draft_model="d", top_k=4, score_floor=0.42, cluster_radius=0.17
+        triage_model="t",
+        draft_model="d",
+        top_k=4,
+        score_floor=0.42,
+        cluster_radius=0.17,
     )
     run = runner_mod.build_runner(cfg)
     list(run([{"role": "user", "content": "hi"}]))

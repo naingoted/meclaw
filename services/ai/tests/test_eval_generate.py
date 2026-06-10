@@ -22,7 +22,11 @@ def test_build_draft_emits_valid_cases_per_category(tmp_path):
 
     # round-trips through the loader (proves generated YAML is valid)
     out = tmp_path / "draft.yaml"
-    out.write_text(yaml.safe_dump([c.model_dump(exclude_none=True) for c in cases], sort_keys=False))
+    out.write_text(
+        yaml.safe_dump(
+            [c.model_dump(exclude_none=True) for c in cases], sort_keys=False
+        )
+    )
     assert len(load_dataset(out)) == 2
 
 

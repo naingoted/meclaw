@@ -70,7 +70,7 @@ def build_graph(deps: GraphDeps):
         "triage",
         _route_after_triage,
         {
-            "clarify": END,        # clarification text emitted by the streaming layer
+            "clarify": END,  # clarification text emitted by the streaming layer
             "knowledge": "knowledge",
             "scheduler": "scheduler",
             "contact": "contact",

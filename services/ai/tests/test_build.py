@@ -7,6 +7,7 @@ from app.retriever import RetrievalResult, RetrievedChunk
 def _deps():
     def triage_fn(messages):
         from app.graph.nodes import TriageResult
+
         text = messages[-1]["content"]
         if "schedule" in text:
             return TriageResult("scheduler", 0.95, None)

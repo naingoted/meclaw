@@ -15,7 +15,10 @@ def _make_runner(*, chunks, draft_tokens, intent="tech", confidence=0.9):
             ),
             retriever_retrieve=lambda q: RetrievalResult(
                 chunks=chunks,
-                sources=[{"source": c.source, "title": c.title, "score": c.score} for c in chunks],
+                sources=[
+                    {"source": c.source, "title": c.title, "score": c.score}
+                    for c in chunks
+                ],
             ),
             draft_stream_fn=lambda s, m, c: iter(draft_tokens),
             schedule_fn=lambda: {},
@@ -23,6 +26,7 @@ def _make_runner(*, chunks, draft_tokens, intent="tech", confidence=0.9):
             score_threshold=0.3,
             answer_use_threshold=0.3,
         )
+
     return runner
 
 

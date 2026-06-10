@@ -1,6 +1,11 @@
 from dataclasses import dataclass, field
 
-from app.research.graph import ResearchBudget, ResearchDeps, _Compiled, build_research_graph
+from app.research.graph import (
+    ResearchBudget,
+    ResearchDeps,
+    _Compiled,
+    build_research_graph,
+)
 
 
 def _subtask(id_, source="owner_corpus"):
@@ -56,7 +61,13 @@ def _deps(spy, *, plan, validate_seq, budget=None, note_sources=None):
 
     def synth_fn(_request, notes):
         spy.synth_notes = [n["text"] for n in notes]
-        return {"summary": "done", "matched_strengths": [], "gaps": [], "talking_points": [], "sources": []}
+        return {
+            "summary": "done",
+            "matched_strengths": [],
+            "gaps": [],
+            "talking_points": [],
+            "sources": [],
+        }
 
     return ResearchDeps(
         plan_fn=plan_fn,
@@ -70,7 +81,9 @@ def _deps(spy, *, plan, validate_seq, budget=None, note_sources=None):
 
 def test_happy_path_single_good_subtask():
     spy = _Spy()
-    deps = _deps(spy, plan=[_subtask("a")], validate_seq=[{"verdict": "good", "score": 0.9}])
+    deps = _deps(
+        spy, plan=[_subtask("a")], validate_seq=[{"verdict": "good", "score": 0.9}]
+    )
     state = build_research_graph(deps).invoke({"request": {"company": "Acme"}})
     assert state["status"] == "done"
     assert spy.synth_notes == ["note for q-a"]
@@ -82,13 +95,16 @@ def test_recovery_retries_bad_then_recovers_no_garbage_downstream():
     deps = _deps(
         spy,
         plan=[_subtask("a")],
-        validate_seq=[{"verdict": "bad", "score": 0.1}, {"verdict": "good", "score": 0.8}],
+        validate_seq=[
+            {"verdict": "bad", "score": 0.1},
+            {"verdict": "good", "score": 0.8},
+        ],
     )
     state = build_research_graph(deps).invoke({"request": {"company": "Acme"}})
     assert state["status"] == "done"
     assert spy.replan_calls and spy.replan_calls[0][0] == "a"  # re-planned
-    assert spy.research_calls == ["q-a", "q-a+revised"]        # retried with revised query
-    assert spy.synth_notes == ["note for q-a+revised"]         # only the GOOD note synthesized
+    assert spy.research_calls == ["q-a", "q-a+revised"]  # retried with revised query
+    assert spy.synth_notes == ["note for q-a+revised"]  # only the GOOD note synthesized
 
 
 def test_retry_budget_exhaustion_marks_unresolved_and_excludes_note():
@@ -100,9 +116,9 @@ def test_retry_budget_exhaustion_marks_unresolved_and_excludes_note():
         budget=ResearchBudget(retry_budget=2, max_iterations=24),
     )
     state = build_research_graph(deps).invoke({"request": {"company": "Acme"}})
-    assert state["status"] == "degraded"            # an unresolved subtask
-    assert spy.synth_notes == []                    # no garbage reached synthesis
-    assert len(spy.research_calls) == 3             # initial + 2 retries (budget)
+    assert state["status"] == "degraded"  # an unresolved subtask
+    assert spy.synth_notes == []  # no garbage reached synthesis
+    assert len(spy.research_calls) == 3  # initial + 2 retries (budget)
     assert state["subtasks"][0]["status"] == "unresolved"
 
 
@@ -112,10 +128,10 @@ def test_two_subtasks_one_good_one_unresolved_is_degraded():
         spy,
         plan=[_subtask("a"), _subtask("b", source="web")],
         validate_seq=[
-            {"verdict": "good", "score": 0.8},   # a
-            {"verdict": "bad", "score": 0.1},    # b try 1
-            {"verdict": "bad", "score": 0.1},    # b retry 1
-            {"verdict": "bad", "score": 0.1},    # b retry 2
+            {"verdict": "good", "score": 0.8},  # a
+            {"verdict": "bad", "score": 0.1},  # b try 1
+            {"verdict": "bad", "score": 0.1},  # b retry 1
+            {"verdict": "bad", "score": 0.1},  # b retry 2
         ],
         budget=ResearchBudget(retry_budget=2),
     )
@@ -126,7 +142,9 @@ def test_two_subtasks_one_good_one_unresolved_is_degraded():
 
 def test_compiled_graph_streams_node_updates():
     spy = _Spy()
-    deps = _deps(spy, plan=[_subtask("a")], validate_seq=[{"verdict": "good", "score": 0.9}])
+    deps = _deps(
+        spy, plan=[_subtask("a")], validate_seq=[{"verdict": "good", "score": 0.9}]
+    )
     nodes = [
         next(iter(chunk.keys()))
         for chunk in build_research_graph(deps).stream({"request": {"company": "Acme"}})
@@ -139,7 +157,9 @@ def test_compiled_stream_forwards_state_config_and_stream_mode():
     compiled = _StreamSpyCompiled()
     wrapper = _Compiled(compiled, 123)
 
-    chunks = list(wrapper.stream({"request": {"company": "Acme"}}, stream_mode="values"))
+    chunks = list(
+        wrapper.stream({"request": {"company": "Acme"}}, stream_mode="values")
+    )
 
     assert chunks == [{"plan": {"status": "ok"}}]
     assert compiled.calls == [

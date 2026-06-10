@@ -1,5 +1,3 @@
-import pytest
-
 from app.research.schemas import BriefingReport
 from app.research.synthesize import make_synthesizer
 
@@ -30,7 +28,12 @@ def test_synthesizes_valid_briefing_report():
     )
     report = make_synthesizer(_model(payload))(
         {"company": "Acme", "role": "Backend"},
-        [{"text": "Thet built the sidecar.", "sources": [{"source": "about.md", "score": 0.7}]}],
+        [
+            {
+                "text": "Thet built the sidecar.",
+                "sources": [{"source": "about.md", "score": 0.7}],
+            }
+        ],
     )
     assert isinstance(report, BriefingReport)
     assert report.fit_score == 0.8

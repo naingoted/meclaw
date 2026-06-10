@@ -6,7 +6,9 @@ import os
 OWNER_EMAIL = "naingoted@gmail.com"
 
 
-def get_contact_info(email: str = OWNER_EMAIL, github: str | None = None) -> dict[str, str]:
+def get_contact_info(
+    email: str = OWNER_EMAIL, github: str | None = None
+) -> dict[str, str]:
     info = {"email": email}
     gh = github if github is not None else os.getenv("NEXT_PUBLIC_GITHUB_URL")
     if gh:

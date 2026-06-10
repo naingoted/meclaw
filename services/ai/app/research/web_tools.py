@@ -55,7 +55,9 @@ def assert_public_url(url: str) -> None:
         raise UnsafeUrlError(f"unsupported url: {url!r}")
     for addr in _resolve(parsed.hostname):
         if not _is_public(addr):
-            raise UnsafeUrlError(f"non-public address {addr} for host {parsed.hostname}")
+            raise UnsafeUrlError(
+                f"non-public address {addr} for host {parsed.hostname}"
+            )
 
 
 def fetch_url(args: dict) -> dict:
@@ -86,7 +88,9 @@ def fetch_url(args: dict) -> dict:
                     ctype = resp.headers.get("content-type", "").split(";")[0].strip()
                     # Missing/empty content-type is treated as disallowed (no bypass).
                     if ctype not in _ALLOWED_CONTENT:
-                        return {"error": f"unsupported content-type: {ctype or '(none)'}"}
+                        return {
+                            "error": f"unsupported content-type: {ctype or '(none)'}"
+                        }
                     body = bytearray()
                     for chunk in resp.iter_bytes(chunk_size=16384):
                         body.extend(chunk)
@@ -111,12 +115,18 @@ def _tavily_search(api_key: str):
     def _run(args: dict) -> dict:
         query = str(args.get("query", ""))
         try:
-            res = client.search(query=query, max_results=int(args.get("max_results", 5)))
+            res = client.search(
+                query=query, max_results=int(args.get("max_results", 5))
+            )
         except Exception as exc:  # network/quota → observation, not crash
             return {"error": f"search failed: {exc}"}
         return {
             "results": [
-                {"url": r.get("url"), "title": r.get("title"), "content": r.get("content")}
+                {
+                    "url": r.get("url"),
+                    "title": r.get("title"),
+                    "content": r.get("content"),
+                }
                 for r in res.get("results", [])
             ]
         }

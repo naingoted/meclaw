@@ -34,20 +34,33 @@ def test_add_step_inserts_with_seq_and_role():
     sink = []
     writer = RunWriter(connect=lambda: _Ctx(_FakeConn(sink)))
     writer.add_step(
-        "run-123", seq=2, role="researcher", input={"q": "x"}, output={"text": "n"},
-        tool_calls=[{"name": "search_corpus"}], verdict="good", score=0.8, retry_index=0, duration_ms=12,
+        "run-123",
+        seq=2,
+        role="researcher",
+        input={"q": "x"},
+        output={"text": "n"},
+        tool_calls=[{"name": "search_corpus"}],
+        verdict="good",
+        score=0.8,
+        retry_index=0,
+        duration_ms=12,
     )
     step = next(s for s in sink if s[0].startswith("INSERT INTO agent_steps"))
     assert step[1][0] == "run-123"  # runId
-    assert step[1][1] == 2          # seq
+    assert step[1][1] == 2  # seq
     assert step[1][2] == "researcher"
 
 
 def test_finish_run_updates_status_and_report():
     sink = []
     writer = RunWriter(connect=lambda: _Ctx(_FakeConn(sink)))
-    writer.finish_run("run-123", status="done", report={"summary": "s"}, eval_records=[],
-                       totals={"subtasks": 1, "retries": 0, "toolCalls": 2, "tokens": 0})
+    writer.finish_run(
+        "run-123",
+        status="done",
+        report={"summary": "s"},
+        eval_records=[],
+        totals={"subtasks": 1, "retries": 0, "toolCalls": 2, "tokens": 0},
+    )
     upd = next(s for s in sink if s[0].startswith("UPDATE agent_runs"))
     assert "status" in upd[0] and upd[1][0] == "done"
 

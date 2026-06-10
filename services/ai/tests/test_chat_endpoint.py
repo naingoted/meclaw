@@ -27,7 +27,9 @@ def test_chat_passes_runner_stream_through(monkeypatch):
     monkeypatch.setattr(main, "get_runner", lambda *a, **k: _stub_runner(frames))
 
     client = TestClient(main.app)
-    response = client.post("/chat", json={"messages": [{"role": "user", "content": "stack?"}]})
+    response = client.post(
+        "/chat", json={"messages": [{"role": "user", "content": "stack?"}]}
+    )
 
     assert response.status_code == 200
     assert response.headers["x-vercel-ai-ui-message-stream"] == "v1"

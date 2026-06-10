@@ -66,7 +66,8 @@ def make_planner(model, max_subtasks: int) -> Callable[[dict], list[dict]]:
             subtasks.append(
                 {
                     "id": uuid4().hex[:8],
-                    "query": str(item.get("query", "")).strip() or _request_text(request),
+                    "query": str(item.get("query", "")).strip()
+                    or _request_text(request),
                     "source": source if source in _VALID_SOURCES else "web",
                     "status": "pending",
                     "retry_count": 0,
@@ -110,9 +111,13 @@ def make_replanner(model) -> Callable[[dict, str], dict]:
                     },
                 ]
             )
-            new_query = str(_parse_json(_extract_text(resp.content).strip())["query"]).strip()
+            new_query = str(
+                _parse_json(_extract_text(resp.content).strip())["query"]
+            ).strip()
         except Exception as exc:
-            logger.warning("Replanner parse failed (%s); appending a refinement hint", exc)
+            logger.warning(
+                "Replanner parse failed (%s); appending a refinement hint", exc
+            )
             new_query = f"{subtask.get('query')} (specific facts, with evidence)"
         revised = dict(subtask)
         revised["query"] = new_query or subtask.get("query")

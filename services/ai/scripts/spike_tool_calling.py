@@ -26,7 +26,12 @@ def main() -> None:
     try:
         bound = model.bind_tools([get_weather])
         resp = bound.invoke(
-            [{"role": "user", "content": "What's the weather in Singapore? Use the tool."}]
+            [
+                {
+                    "role": "user",
+                    "content": "What's the weather in Singapore? Use the tool.",
+                }
+            ]
         )
         calls = getattr(resp, "tool_calls", None)
         print("tool_calls:", json.dumps(calls, indent=2, default=str))
@@ -39,7 +44,12 @@ def main() -> None:
     try:
         model_t = get_chat_model(streaming=False, thinking=True)
         resp = model_t.bind_tools([get_weather]).invoke(
-            [{"role": "user", "content": "What's the weather in Singapore? Use the tool."}]
+            [
+                {
+                    "role": "user",
+                    "content": "What's the weather in Singapore? Use the tool.",
+                }
+            ]
         )
         calls = getattr(resp, "tool_calls", None)
         print("tool_calls:", json.dumps(calls, indent=2, default=str))

@@ -29,7 +29,9 @@ class RunWriter:
     def __init__(self, connect: ConnectFn | None = None):
         self._connect = connect or _default_connect
 
-    def start_run(self, request: dict, model_set: dict, use_case: str = "briefing") -> str:
+    def start_run(
+        self, request: dict, model_set: dict, use_case: str = "briefing"
+    ) -> str:
         with self._connect() as conn:
             row = conn.execute(
                 "INSERT INTO agent_runs "
@@ -108,7 +110,7 @@ class RunWriter:
     def fail_run(self, run_id: str, error: str) -> None:
         with self._connect() as conn:
             conn.execute(
-                'UPDATE agent_runs SET status = \'error\', error = %s, "endedAt" = now() '
+                "UPDATE agent_runs SET status = 'error', error = %s, \"endedAt\" = now() "
                 "WHERE id = %s::uuid",
                 (error[:2000], run_id),
             )

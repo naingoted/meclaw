@@ -4,7 +4,13 @@ retriever, and tools. Imported lazily so tests can stub get_runner."""
 from functools import lru_cache, partial
 
 from app import gaps
-from app.config import ANSWER_USE_THRESHOLD, CLUSTER_RADIUS, DRAFT_MODEL, RAG_SCORE_FLOOR, TRIAGE_MODEL
+from app.config import (
+    ANSWER_USE_THRESHOLD,
+    CLUSTER_RADIUS,
+    DRAFT_MODEL,
+    RAG_SCORE_FLOOR,
+    TRIAGE_MODEL,
+)
 from app.corpus import corpus_fulltext, corpus_version
 from app.graph.nodes import default_draft_stream_fn, default_triage_fn
 from app.provider import get_chat_model
@@ -31,7 +37,9 @@ def build_production_runner():
         score_floor=RAG_SCORE_FLOOR,
         answer_use_threshold=ANSWER_USE_THRESHOLD,
         embed_fn=retriever.embed,
-        assign_cluster_fn=lambda emb, q: gaps.assign_cluster(emb, q, radius=CLUSTER_RADIUS),
+        assign_cluster_fn=lambda emb, q: gaps.assign_cluster(
+            emb, q, radius=CLUSTER_RADIUS
+        ),
     )
 
 
@@ -59,7 +67,9 @@ def build_runner(cfg: RuntimeConfig):
         retriever_retrieve=retriever.retrieve,
         draft_stream_fn=default_draft_stream_fn(draft_model),
         schedule_fn=partial(schedule_call, url=cfg.cal_url),
-        contact_fn=partial(get_contact_info, email=cfg.contact_email, github=cfg.github_url or None),
+        contact_fn=partial(
+            get_contact_info, email=cfg.contact_email, github=cfg.github_url or None
+        ),
         corpus_version_fn=corpus_version,
         knowledge_system=cfg.prompts.get("knowledge"),
         scheduler_system=cfg.prompts.get("scheduler"),
@@ -72,5 +82,7 @@ def build_runner(cfg: RuntimeConfig):
         answer_use_threshold=ANSWER_USE_THRESHOLD,
         corpus_text_fn=corpus_fulltext,
         embed_fn=retriever.embed,
-        assign_cluster_fn=lambda emb, q: gaps.assign_cluster(emb, q, radius=cfg.cluster_radius),
+        assign_cluster_fn=lambda emb, q: gaps.assign_cluster(
+            emb, q, radius=cfg.cluster_radius
+        ),
     )
