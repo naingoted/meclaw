@@ -174,3 +174,62 @@ describe("embedClients", () => {
     expect(embedClients.revokedAt).toBeDefined();
   });
 });
+
+describe("schema additions for admin UI redesign", () => {
+  it("documents has corpusVersion and requestId columns", () => {
+    expect(documents.corpusVersion).toBeDefined();
+    expect(documents.requestId).toBeDefined();
+  });
+
+  it("gap_clusters has resolvedAtCorpusVersion column", () => {
+    expect(gapClusters.resolvedAtCorpusVersion).toBeDefined();
+  });
+
+  it("documents can be inserted with corpusVersion and requestId", async () => {
+    const { db } = await makeTestDb();
+    const now = new Date();
+    await db
+      .insert(documents)
+      .values({
+        id: randomUUID(),
+        title: "gap-doc",
+        body: "answers the thing",
+        kind: "markdown",
+        category: null,
+        origin: "gap",
+        status: "draft",
+        contentHash: "h",
+        createdAt: now,
+        updatedAt: now,
+        lastIngestedAt: null,
+        corpusVersion: null,
+        requestId: "req-abc-123",
+      })
+      .execute();
+    const rows = await db.select().from(documents);
+    expect(rows[0].requestId).toBe("req-abc-123");
+    expect(rows[0].corpusVersion).toBeNull();
+  });
+
+  it("documents.requestId has a unique index", async () => {
+    const { db } = await makeTestDb();
+    const now = new Date();
+    const values = {
+      id: randomUUID(),
+      title: "d1",
+      body: "b",
+      kind: "markdown",
+      category: null,
+      origin: "gap" as const,
+      status: "draft" as const,
+      contentHash: "h",
+      createdAt: now,
+      updatedAt: now,
+      lastIngestedAt: null,
+      corpusVersion: null,
+      requestId: "req-unique-test",
+    };
+    await db.insert(documents).values(values).execute();
+    await expect(db.insert(documents).values({ ...values, id: randomUUID() })).rejects.toThrow();
+  });
+});

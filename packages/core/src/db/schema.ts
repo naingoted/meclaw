@@ -97,26 +97,34 @@ export const leads = pgTable(
   ],
 );
 
-export const documents = pgTable("documents", {
-  id: uuid("id").primaryKey(),
-  title: text("title").notNull(),
-  body: text("body").notNull(),
-  // seam: future multimodal kinds (pdf/image/…) extend this; v1 only writes 'markdown'.
-  kind: text("kind").notNull().default("markdown"),
-  category: text("category"),
-  // Lifecycle origin: 'manual' (Documents page / legacy), 'seed' (content import),
-  // 'gap' (created by answering a gap cluster). Type-only enum → plain text + default in SQL.
-  origin: text("origin", { enum: ["manual", "seed", "gap"] })
-    .notNull()
-    .default("manual"),
-  status: text("status", { enum: ["draft", "ready", "error"] })
-    .notNull()
-    .default("draft"),
-  contentHash: text("contentHash").notNull(),
-  createdAt: timestamp("createdAt", { withTimezone: true }).notNull(),
-  updatedAt: timestamp("updatedAt", { withTimezone: true }).notNull(),
-  lastIngestedAt: timestamp("lastIngestedAt", { withTimezone: true }),
-});
+export const documents = pgTable(
+  "documents",
+  {
+    id: uuid("id").primaryKey(),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    // seam: future multimodal kinds (pdf/image/…) extend this; v1 only writes 'markdown'.
+    kind: text("kind").notNull().default("markdown"),
+    category: text("category"),
+    // Lifecycle origin: 'manual' (Documents page / legacy), 'seed' (content import),
+    // 'gap' (created by answering a gap cluster). Type-only enum → plain text + default in SQL.
+    origin: text("origin", { enum: ["manual", "seed", "gap"] })
+      .notNull()
+      .default("manual"),
+    status: text("status", { enum: ["draft", "ready", "error"] })
+      .notNull()
+      .default("draft"),
+    contentHash: text("contentHash").notNull(),
+    createdAt: timestamp("createdAt", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updatedAt", { withTimezone: true }).notNull(),
+    lastIngestedAt: timestamp("lastIngestedAt", { withTimezone: true }),
+    /** Corpus version (count of succeeded jobs) at last ingest. Null = never ingested. */
+    corpusVersion: integer("corpusVersion"),
+    /** Client-generated UUID for idempotent gap-resolution. Null for non-gap docs. */
+    requestId: text("requestId"),
+  },
+  (t) => [uniqueIndex("uq_documents_requestId").on(t.requestId)],
+);
 
 export const ingestionJobs = pgTable("ingestion_jobs", {
   id: uuid("id").primaryKey(),
@@ -173,6 +181,8 @@ export const gapClusters = pgTable(
     /** link to documents.id (no hard FK, matches schema style) */
     resolvedDocumentId: uuid("resolvedDocumentId"),
     resolvedAt: timestamp("resolvedAt", { withTimezone: true }),
+    /** Corpus version when this cluster was resolved. Null if not resolved. */
+    resolvedAtCorpusVersion: integer("resolvedAtCorpusVersion"),
     createdAt: timestamp("createdAt", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updatedAt", { withTimezone: true }).notNull(),
   },

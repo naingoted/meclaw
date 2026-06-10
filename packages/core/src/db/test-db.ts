@@ -30,8 +30,11 @@ const SCHEMA_DDL: string[] = [
     "contentHash" text NOT NULL,
     "createdAt" timestamptz NOT NULL,
     "updatedAt" timestamptz NOT NULL,
-    "lastIngestedAt" timestamptz
+    "lastIngestedAt" timestamptz,
+    "corpusVersion" integer,
+    "requestId" text
   );`,
+  'CREATE UNIQUE INDEX uq_documents_requestId ON documents ("requestId");',
   `CREATE TABLE ingestion_jobs (
     id uuid PRIMARY KEY,
     "documentId" uuid,
@@ -90,6 +93,7 @@ const SCHEMA_DDL: string[] = [
     "exemplarQuery" text,
     "resolvedDocumentId" uuid,
     "resolvedAt" timestamptz,
+    "resolvedAtCorpusVersion" integer,
     "createdAt" timestamptz NOT NULL,
     "updatedAt" timestamptz NOT NULL
   );`,
