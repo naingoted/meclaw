@@ -64,7 +64,7 @@ def test_resolve_config_defaults_gap_tunables(monkeypatch):
     assert cfg.cluster_radius == 0.15
 
 
-def test_resolve_reads_score_threshold_tiny_corpus_and_confidence(monkeypatch):
+def test_resolve_reads_score_threshold_gap_match_and_confidence(monkeypatch):
     monkeypatch.delenv("TRIAGE_CONFIDENCE_THRESHOLD", raising=False)
     cfg = resolve_config(
         {
@@ -76,11 +76,11 @@ def test_resolve_reads_score_threshold_tiny_corpus_and_confidence(monkeypatch):
                     "confidence": 0.7,
                 }
             },
-            "rag": {"topK": 4, "scoreThreshold": 0.25, "tinyCorpusThreshold": 1200},
+            "rag": {"topK": 4, "scoreThreshold": 0.25, "gapMatchThreshold": 0.2},
         }
     )
     assert cfg.score_threshold == 0.25
-    assert cfg.tiny_corpus_threshold == 1200
+    assert cfg.gap_match_threshold == 0.2
     assert cfg.triage_confidence == 0.7
 
 
@@ -103,9 +103,10 @@ def test_resolve_defaults_new_fields(monkeypatch):
     monkeypatch.delenv("TRIAGE_CONFIDENCE_THRESHOLD", raising=False)
     monkeypatch.delenv("NEXT_PUBLIC_CAL_URL", raising=False)
     monkeypatch.delenv("NEXT_PUBLIC_GITHUB_URL", raising=False)
+    monkeypatch.delenv("GAP_MATCH_THRESHOLD", raising=False)
     cfg = resolve_config({})
     assert cfg.score_threshold == 0.0
-    assert cfg.tiny_corpus_threshold == 0
+    assert cfg.gap_match_threshold == 0.15
     assert cfg.triage_confidence == 0.5
     assert cfg.cal_url == "https://cal.com/tet-nai"
     assert cfg.github_url == ""
@@ -121,3 +122,12 @@ def test_resolve_ignores_blank_public_overrides(monkeypatch):
     assert cfg.cal_url == "https://cal.com/tet-nai"
     assert cfg.github_url == ""
     assert cfg.contact_email == "naingoted@gmail.com"
+
+
+def test_gap_match_threshold_env_fallback(monkeypatch):
+    monkeypatch.setenv("GAP_MATCH_THRESHOLD", "0.3")
+    cfg = resolve_config({})
+    assert cfg.gap_match_threshold == 0.3
+    # request value still wins over env
+    cfg = resolve_config({"rag": {"gapMatchThreshold": 0.1}})
+    assert cfg.gap_match_threshold == 0.1

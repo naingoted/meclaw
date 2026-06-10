@@ -3,15 +3,16 @@ retriever, and tools. Imported lazily so tests can stub get_runner."""
 
 from functools import lru_cache, partial
 
-from app import gaps
+from app import gap_match, gaps
 from app.config import (
     ANSWER_USE_THRESHOLD,
     CLUSTER_RADIUS,
     DRAFT_MODEL,
+    GAP_MATCH_THRESHOLD,
     RAG_SCORE_FLOOR,
     TRIAGE_MODEL,
 )
-from app.corpus import corpus_fulltext, corpus_version
+from app.corpus import corpus_version
 from app.graph.nodes import default_draft_stream_fn, default_triage_fn
 from app.provider import get_chat_model
 from app.retriever import Retriever
@@ -36,6 +37,8 @@ def build_production_runner():
         corpus_version_fn=corpus_version,
         score_floor=RAG_SCORE_FLOOR,
         answer_use_threshold=ANSWER_USE_THRESHOLD,
+        gap_match_fn=gap_match.find_resolved_answer,
+        gap_match_threshold=GAP_MATCH_THRESHOLD,
         embed_fn=retriever.embed,
         assign_cluster_fn=lambda emb, q: gaps.assign_cluster(
             emb, q, radius=CLUSTER_RADIUS
@@ -52,7 +55,7 @@ def build_runner(cfg: RuntimeConfig):
 
     Args:
         cfg: RuntimeConfig with triage_model, draft_model, top_k, persona, prompts,
-             score_floor, cluster_radius, score_threshold, tiny_corpus_threshold,
+             score_floor, cluster_radius, score_threshold, gap_match_threshold,
              triage_confidence, cal_url, github_url, contact_email.
 
     Returns:
@@ -77,10 +80,10 @@ def build_runner(cfg: RuntimeConfig):
         persona_prefix=cfg.persona,
         score_floor=cfg.score_floor,
         score_threshold=cfg.score_threshold,
-        tiny_corpus_threshold=cfg.tiny_corpus_threshold,
+        gap_match_fn=gap_match.find_resolved_answer,
+        gap_match_threshold=cfg.gap_match_threshold,
         triage_confidence=cfg.triage_confidence,
         answer_use_threshold=ANSWER_USE_THRESHOLD,
-        corpus_text_fn=corpus_fulltext,
         embed_fn=retriever.embed,
         assign_cluster_fn=lambda emb, q: gaps.assign_cluster(
             emb, q, radius=cfg.cluster_radius

@@ -79,7 +79,7 @@ def test_build_runner_threads_new_config_and_binds_tools(monkeypatch):
         draft_model="d",
         top_k=4,
         score_threshold=0.3,
-        tiny_corpus_threshold=1500,
+        gap_match_threshold=0.22,
         triage_confidence=0.65,
         cal_url="https://cal.com/owner",
         github_url="https://github.com/owner",
@@ -89,9 +89,10 @@ def test_build_runner_threads_new_config_and_binds_tools(monkeypatch):
     list(run([{"role": "user", "content": "hi"}]))
 
     assert captured["score_threshold"] == 0.3
-    assert captured["tiny_corpus_threshold"] == 1500
-    assert captured["triage_confidence"] == 0.65
-    assert callable(captured["corpus_text_fn"])
+    assert captured["gap_match_threshold"] == 0.22
+    assert callable(captured["gap_match_fn"])
+    assert "tiny_corpus_threshold" not in captured
+    assert "corpus_text_fn" not in captured
     # tools are bound to the resolved public values
     assert captured["schedule_fn"]() == {"url": "https://cal.com/owner"}
     assert captured["contact_fn"]() == {
@@ -116,3 +117,5 @@ def test_production_runner_binds_answer_use_threshold(monkeypatch):
     list(run_fn([{"role": "user", "content": "hi"}]))
 
     assert captured["answer_use_threshold"] == ANSWER_USE_THRESHOLD
+    assert callable(captured["gap_match_fn"])
+    assert captured["gap_match_threshold"] == runner.GAP_MATCH_THRESHOLD

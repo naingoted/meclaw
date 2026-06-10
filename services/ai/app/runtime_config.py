@@ -24,7 +24,7 @@ class RuntimeConfig:
     score_floor: float = 0.35
     cluster_radius: float = 0.15
     score_threshold: float = 0.0
-    tiny_corpus_threshold: int = 0
+    gap_match_threshold: float = 0.15
     triage_confidence: float = 0.5
     cal_url: str = "https://cal.com/tet-nai"
     github_url: str = ""
@@ -114,10 +114,10 @@ def resolve_config(payload: dict | None) -> RuntimeConfig:
     if isinstance(rag, dict) and isinstance(rag.get("scoreThreshold"), (int, float)):
         score_threshold = float(rag["scoreThreshold"])
 
-    # tiny_corpus_threshold: 0 disables full-corpus stuffing (current behavior).
-    tiny_corpus_threshold = int(os.getenv("RAG_TINY_CORPUS_THRESHOLD", "0"))
-    if isinstance(rag, dict) and isinstance(rag.get("tinyCorpusThreshold"), int):
-        tiny_corpus_threshold = rag["tinyCorpusThreshold"]
+    # gap_match_threshold: max cosine distance for the resolved-gap fast path.
+    gap_match_threshold = float(os.getenv("GAP_MATCH_THRESHOLD", "0.15"))
+    if isinstance(rag, dict) and isinstance(rag.get("gapMatchThreshold"), (int, float)):
+        gap_match_threshold = float(rag["gapMatchThreshold"])
 
     # triage_confidence: request (agents.triage.confidence) > env > 0.5.
     triage_confidence = float(os.getenv("TRIAGE_CONFIDENCE_THRESHOLD", "0.5"))
@@ -151,7 +151,7 @@ def resolve_config(payload: dict | None) -> RuntimeConfig:
         score_floor=score_floor,
         cluster_radius=cluster_radius,
         score_threshold=score_threshold,
-        tiny_corpus_threshold=tiny_corpus_threshold,
+        gap_match_threshold=gap_match_threshold,
         triage_confidence=triage_confidence,
         cal_url=cal_url,
         github_url=github_url,
