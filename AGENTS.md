@@ -41,9 +41,9 @@ pnpm test       # vitest run
 
 Hooks enforce quality automatically. Write code that passes on the first commit:
 
-- **Format before committing:** run `pnpm format`. Biome is the formatter (not Prettier/ESLint). Commits auto-format staged JS/TS/JSON/CSS files, but pre-formatting avoids surprise restages.
+- **Format before committing:** run `pnpm format`. Biome is the formatter **and** linter (one Rust binary — replaces Prettier and ESLint). Commits auto-format and lint-fix staged JS/TS/JSON/CSS files, but pre-formatting avoids surprise restages.
 - **Commit messages:** Conventional Commits (`feat:`, `fix:`, `chore:`, `docs:`, `style:`, `ci:`, `test:`, `refactor:`). `commit-msg` runs commitlint.
 - **No secrets:** secretlint scans staged files. Never stage real keys/tokens or `.env*` (only `*.env.example` and `*.env.*.example` placeholders).
-- **What blocks where:** pre-commit = guard + format/organize + secretlint + incremental `fallow audit` against the branch base (fast, staged-only). pre-push = whole-repo `lint typecheck test`. CI = quality gate (`test`, `verify`, `format:check`, fallow coverage report) + security gate (secretlint, commitlint range, `pnpm audit`, semgrep).
+- **What blocks where:** pre-commit = guard + Biome format/lint/organize + secretlint + incremental `fallow audit` against the branch base (fast, staged-only). pre-push = whole-repo `biome check .` (lint/format) then `turbo typecheck test`. CI = quality gate (`test`, `verify` = biome+typecheck+build, fallow coverage report) + security gate (secretlint, commitlint range, `pnpm audit`, semgrep).
 - **Runtime baseline:** use Node `22.12+` (`.nvmrc` pins `22.12.0`) with `pnpm@10.32.1`.
 - **Never `--no-verify`.** Fix the finding (extract a function for complexity, organize imports, correct the message). Bypassing defeats the gate.

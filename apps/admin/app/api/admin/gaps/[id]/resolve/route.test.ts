@@ -1,5 +1,5 @@
 import { makeTestDb } from "@meclaw/core/db/test-db";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock the db() and clientIp() from request.ts
 vi.mock("@/lib/admin/request", () => ({

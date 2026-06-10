@@ -27,7 +27,6 @@ vi.mock("@/components/chat/config-refresh-poller", () => ({
 import {
   appendStep,
   Chat,
-  clearResumeEntry,
   extractCorpusVersion,
   extractSteps,
   groundingLabel,
@@ -35,12 +34,11 @@ import {
   hasRenderedText,
   LiveTrace,
   MAIN_RESUME_KEY,
-  readResumeEntry,
   shouldRenderMessage,
   shouldShowThinking,
   writeResumeEntry,
 } from "@/components/chat/chat";
-import { getSession, removeSession, upsertSession } from "@/lib/chat/sessions";
+import { getSession, upsertSession } from "@/lib/chat/sessions";
 
 const CHAT_PROPS = {
   greeting: "Hi! I'm meclaw, Thet's personal bot.",

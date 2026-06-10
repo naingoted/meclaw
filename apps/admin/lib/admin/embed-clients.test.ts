@@ -41,9 +41,9 @@ describe("embed-clients service", () => {
 
   it("lists all clients newest first", async () => {
     const { db } = await makeTestDb();
-    const c1 = await createEmbedClient(db, { name: "First", allowedOrigins: [] }, "ip");
+    const _c1 = await createEmbedClient(db, { name: "First", allowedOrigins: [] }, "ip");
     await new Promise((r) => setTimeout(r, 10));
-    const c2 = await createEmbedClient(db, { name: "Second", allowedOrigins: [] }, "ip");
+    const _c2 = await createEmbedClient(db, { name: "Second", allowedOrigins: [] }, "ip");
 
     const clients = await listEmbedClients(db);
     expect(clients.map((c) => c.name)).toEqual(["Second", "First"]);
@@ -51,7 +51,7 @@ describe("embed-clients service", () => {
 
   it("listActiveEmbedClients excludes revoked clients", async () => {
     const { db } = await makeTestDb();
-    const active = await createEmbedClient(db, { name: "Active", allowedOrigins: [] }, "ip");
+    const _active = await createEmbedClient(db, { name: "Active", allowedOrigins: [] }, "ip");
     const toRevoke = await createEmbedClient(db, { name: "To Revoke", allowedOrigins: [] }, "ip");
     await revokeEmbedClient(db, toRevoke.id, "ip");
 

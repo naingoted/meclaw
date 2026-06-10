@@ -37,9 +37,7 @@ describe("useAdminFetch", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const { result } = renderHook(() =>
-      useAdminFetch<{ data: string }>("/api/test", { key: ["test-key"] }),
-    );
+    renderHook(() => useAdminFetch<{ data: string }>("/api/test", { key: ["test-key"] }));
 
     await act(async () => {
       await new Promise((r) => setTimeout(r, 10));

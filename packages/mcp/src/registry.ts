@@ -1,6 +1,6 @@
 import type { EmbeddingClient, VectorStoreClient } from "@meclaw/rag";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
+import type { z } from "zod";
 import type { ReadOnlySql } from "./db";
 import type { McpEnv } from "./env";
 import { latestEvalReport } from "./resources/eval-report";

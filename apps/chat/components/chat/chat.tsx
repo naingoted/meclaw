@@ -517,6 +517,7 @@ export function Chat({
   }
 
   // Auto-scroll to the latest message as content streams in.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: messages is a re-run trigger, not read in the body
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -527,7 +528,7 @@ export function Chat({
   // updater is a no-op once every visible id is stamped, so it can't loop.
   useEffect(() => {
     const now = Date.now();
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- impure clock value; see above
+    // impure clock value; setState in effect is intentional (see above)
     setFirstSeen((prev) => {
       let next = prev;
       for (const m of messages) {
@@ -618,13 +619,13 @@ export function Chat({
     [conversationId, startNewChat],
   );
 
-  // Resume the active conversation once on mount.
+  // Resume the active conversation once on mount. Mount-only: conversationId/
+  // loadConversation are stable for the initial id.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only resume; deps intentionally empty
   useEffect(() => {
     if (historyFetchedRef.current) return;
     historyFetchedRef.current = true;
     loadConversation(conversationId);
-    // Mount-only: conversationId/loadConversation are stable for the initial id.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const isStreaming = status === "submitted" || status === "streaming";
@@ -708,6 +709,7 @@ export function Chat({
               <div className="flex flex-col gap-2">
                 {suggestions.map((chip) => (
                   <button
+                    type="button"
                     key={chip}
                     onClick={() => handleChipClick(chip)}
                     className="cursor-pointer rounded-sm border border-border bg-card px-3 py-2 text-left text-sm transition-colors hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"

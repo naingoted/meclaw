@@ -38,7 +38,7 @@ describe("useAdminMutation + useAdminFetch integration", () => {
     count = 0;
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (url: string, init?: RequestInit) => {
+      vi.fn(async (_url: string, init?: RequestInit) => {
         if (init?.method === "POST") {
           count++;
           return new Response(JSON.stringify({ ok: true }));

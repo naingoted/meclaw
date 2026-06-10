@@ -3,9 +3,9 @@
 ## Code style
 
 - TypeScript strict. No `any` without a comment justifying it.
-- Path alias `@/*` → repo root (e.g. `@/lib/utils`, `@/components/ui/button`).
+- Path alias `@/*` is **app-local** (each app maps it to its own root). Inside `packages/*` (`@meclaw/*`) use relative or package-name imports only — `@/` there breaks the Next build.
 - Server code (route handlers, content/db loaders) stays out of client components. Mark client components with `"use client"`.
-- Tailwind 4 utility-first. Compose class names with `cn()` from `@/lib/utils`. Use shadcn primitives in `components/ui/*`; app-specific composites go in `components/chat/*`.
+- Tailwind 4 utility-first. Compose class names with `cn()` from `@meclaw/ui`. Use shadcn primitives from `@meclaw/ui`; app-specific composites live in the app (e.g. `apps/chat/components/chat/*`).
 
 ## UI / component rules
 
@@ -22,13 +22,13 @@
 
 - Vitest. Write a **failing test first** for any logic: persona builder, content loader, tools, route handler.
 - Mock the LLM provider in tests — never hit the live gateway.
-- Test files live beside source as `*.test.ts(x)` (see `lib/utils.test.ts`).
+- Test files live beside source as `*.test.ts(x)`.
 
 ## Browser verification (Playwright MCP)
 
 Each milestone must render in the browser before moving on. Verify with the **Playwright MCP via the Docker MCP toolkit** (already connected — `MCP_DOCKER` `browser_*` tools), not a hand-run browser:
 
-1. `pnpm dev` (background) → app at `http://localhost:3000`.
+1. Start the stack (`pnpm dev:full`, or `pnpm services` + per-app dev servers) → chat at `http://localhost:3000`, admin at `:3001`.
 2. `browser_navigate` to the page, `browser_snapshot` for the a11y tree, `browser_take_screenshot` for visual proof.
 3. For chat: `browser_type` into the input, submit, `browser_wait_for` the streamed reply, snapshot to confirm.
 
@@ -42,12 +42,12 @@ Prefer this over asserting "it works" — capture real browser evidence per mile
 ## Git / PRs
 
 - Conventional-commit style subjects (`feat:`, `fix:`, `docs:`, `chore:`).
-- `pnpm verify` must pass before opening a PR. CI also runs tests, `format:check`, fallow checks, secretlint, commitlint range checks, `pnpm audit`, and semgrep.
+- `pnpm verify` must pass before opening a PR (it runs `biome check .` + typecheck + build). CI also runs tests, fallow checks, secretlint, commitlint range checks, `pnpm audit`, and semgrep.
 - Keep PRs milestone-scoped; update `docs/ai/HANDOFF.md` status in the same PR that completes a milestone.
 
 ## Formatting & commits
 
-- **Formatter:** Biome (`pnpm format` to fix, `pnpm format:check` to verify). 2-space indent, double quotes, semicolons, organized imports. Do not hand-format or reintroduce Prettier.
-- **Linting:** ESLint (`eslint-config-next`) still owns lint rules; Biome's linter is disabled.
+- **Formatter + linter:** Biome — one Rust binary for formatting, linting, and import organization (replaces Prettier **and** ESLint). `pnpm format` to fix, `pnpm format:check` to verify, `pnpm lint` to lint-only. 2-space indent, double quotes, semicolons. Do not hand-format or reintroduce Prettier/ESLint.
+- **Lint rules:** Biome recommended + the `react` and `next` domains (so `@next/next` checks like `noImgElement` are covered), configured in `biome.json`. `noNonNullAssertion` and `noArrayIndexKey` are off (intentional `!`, composite/static keys); test files relax `useButtonType`. Suppress a one-off finding with `// biome-ignore lint/<rule>: <reason>` — never `--no-verify`.
 - **Commits:** Conventional Commits, enforced by commitlint at `commit-msg`.
-- **Pre-commit gate:** staged-content guard + Biome + secretlint + incremental `fallow audit` against the branch base. Fix findings instead of bypassing the hook.
+- **Pre-commit gate:** staged-content guard + Biome (format/lint/organize) + secretlint + incremental `fallow audit` against the branch base. Fix findings instead of bypassing the hook.

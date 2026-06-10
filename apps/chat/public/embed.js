@@ -16,9 +16,7 @@
 // control handle on `window.MeclawWidget` for programmatic open/close/destroy.
 
 // fallow-ignore-next-line complexity
-(function () {
-  "use strict";
-
+(() => {
   // Build identity — placeholders are replaced with the git tag + commit at
   // image build time (see apps/chat/Dockerfile). Unreplaced => local "dev".
   var MECLAW_VERSION = "__MECLAW_VERSION__";
@@ -26,18 +24,18 @@
   function buildIdent() {
     var v = MECLAW_VERSION.indexOf("__") === 0 ? "dev" : MECLAW_VERSION;
     var s = MECLAW_SHA.indexOf("__") === 0 ? "dev" : MECLAW_SHA.slice(0, 7);
-    return { version: v, sha: s, label: v + "+" + s };
+    return { version: v, sha: s, label: `${v}+${s}` };
   }
 
   if (typeof window === "undefined") return;
   if (window.MeclawWidget) return;
 
   var ident = buildIdent();
-  console.info("[meclaw] embed loaded v" + ident.version + " (" + ident.sha + ")");
+  console.info(`[meclaw] embed loaded v${ident.version} (${ident.sha})`);
 
   var scripts = document.getElementsByTagName("script");
   var thisScript = scripts[scripts.length - 1];
-  var token = thisScript && thisScript.getAttribute("data-meclaw-token");
+  var token = thisScript?.getAttribute("data-meclaw-token");
   if (!token) {
     console.error("[meclaw] embed.js: missing data-meclaw-token attribute on <script> tag");
     return;
@@ -88,10 +86,10 @@
     zIndex: "2147483646",
     transition: "transform 120ms ease",
   });
-  bubble.addEventListener("mouseenter", function () {
+  bubble.addEventListener("mouseenter", () => {
     bubble.style.transform = "scale(1.05)";
   });
-  bubble.addEventListener("mouseleave", function () {
+  bubble.addEventListener("mouseleave", () => {
     bubble.style.transform = "scale(1)";
   });
 
@@ -137,19 +135,19 @@
   bubble.addEventListener("click", toggle);
 
   // Close on Escape
-  document.addEventListener("keydown", function (e) {
+  document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && open) toggle();
   });
 
   // ----- postMessage resize (the iframe may ask us to grow/shrink) -----
   // fallow-ignore-next-line complexity
-  window.addEventListener("message", function (event) {
+  window.addEventListener("message", (event) => {
     if (event.origin !== origin) return;
     var data = event.data;
-    if (!data || data.type !== "meclaw:resize") return;
+    if (data?.type !== "meclaw:resize") return;
     if (typeof data.height === "number") {
-      var next = Math.max(200, Math.min(data.height, window.innerHeight - 120));
-      container.style.height = next + "px";
+      const next = Math.max(200, Math.min(data.height, window.innerHeight - 120));
+      container.style.height = `${next}px`;
     }
   });
 
@@ -159,14 +157,14 @@
 
   window.MeclawWidget = {
     version: ident.label,
-    open: function () {
+    open: () => {
       if (!open) toggle();
     },
-    close: function () {
+    close: () => {
       if (open) toggle();
     },
     toggle: toggle,
-    destroy: function () {
+    destroy: () => {
       bubble.remove();
       container.remove();
       delete window.MeclawWidget;

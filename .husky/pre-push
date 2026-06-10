@@ -1,4 +1,6 @@
 #!/bin/sh
 # Full gate before code leaves the machine. Heavy; runs only on push.
 # Never bypass with --no-verify.
-turbo run lint typecheck test || exit 1
+# Biome lints + format/organize-checks the whole repo in one pass; turbo fans out typecheck/test.
+pnpm exec biome check . || exit 1
+turbo run typecheck test || exit 1

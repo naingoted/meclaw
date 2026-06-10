@@ -15,7 +15,7 @@ const Body = z.object({
 
 type Ctx = { params: Promise<{ id: string }> };
 
-export async function GET(req: Request, { params }: Ctx) {
+export async function GET(_req: Request, { params }: Ctx) {
   // access enforced by middleware.ts (Auth.js)
   const doc = await getDocument(await db(), (await params).id);
   return doc ? Response.json(doc) : Response.json({ error: "not found" }, { status: 404 });

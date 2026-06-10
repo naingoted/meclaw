@@ -1,4 +1,4 @@
-import * as React from "react";
+import type * as React from "react";
 import { cn } from "../utils";
 export const Table = (p: React.HTMLAttributes<HTMLTableElement>) => (
   <table className={cn("w-full text-sm", p.className)} {...p} />

@@ -140,7 +140,7 @@ sequenceDiagram
 | `packages/ui` | `@meclaw/ui` | shadcn/ui + shared design system |
 | `packages/mcp` | `@meclaw/mcp` | MCP server: read-only telemetry/schema tools (scoped + redacted) |
 | `services/ai` | — | Python FastAPI + LangGraph sidecar (:8000) + Ragas eval harness |
-| `infra/` | — | Docker Compose (dev + prod), Caddy reverse proxy, deploy |
+| `infra/` | — | Docker Compose (dev + Dokploy prod stack), deploy config |
 
 **Tech:** Next.js 16 (App Router) · React 19 · TypeScript · Tailwind 4 · shadcn/ui · Vercel AI SDK · Python (FastAPI + LangGraph) · PostgreSQL + pgvector · Ollama (`nomic-embed-text`, 768-dim) · Drizzle ORM · Auth.js v5 · Zod · Vitest + pytest · turbo.
 
@@ -253,21 +253,16 @@ Env: `MCP_DATABASE_URL` (read-only role), `MCP_AUTH_TOKEN` (http auth), `MCP_ALL
 
 ## Environment variables
 
-**Dev** (`.env.local` for Next, `.env` for Docker):
-- `ANTHROPIC_API_KEY` — your LLM provider API key (required)
-- `ANTHROPIC_BASE_URL` — Anthropic-compatible endpoint root (the Anthropic API, or a compatible gateway like DashScope). **TS AI SDK needs the `/v1` suffix; the Python sidecar must OMIT it** (it appends `/v1/messages` itself).
-- `ANTHROPIC_MODEL` — draft model id (your provider's model name)
-- `DATABASE_URL` — Postgres conn (default `postgres://meclaw:meclaw@localhost:5432/meclaw`)
-- `AI_SERVICE_URL` — sidecar (host dev `http://localhost:8000`; Docker `http://ai:8000`)
-- `OLLAMA_BASE_URL` / `OLLAMA_EMBED_MODEL` — embeddings (admin ingests in-process; required there)
-- `AUTH_SECRET` — Auth.js 32-byte hex (admin only)
-- `ADMIN_PASSWORD_HASH` — scrypt `salt:hash` (admin only; mint via `gen:admin-hash`)
+The two you can't guess:
 
-Full reference: `docs/ai/setup.md`.
+- `ANTHROPIC_BASE_URL` — Anthropic-compatible endpoint root (the Anthropic API, or a compatible gateway like DashScope). **TS AI SDK needs the `/v1` suffix; the Python sidecar must OMIT it** (it appends `/v1/messages` itself).
+- `OLLAMA_BASE_URL` / `OLLAMA_EMBED_MODEL` — the admin app embeds in-process, so it needs these too (not just the ingest CLI).
+
+Everything else (`ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `DATABASE_URL`, `AI_SERVICE_URL`, `AUTH_SECRET`, `ADMIN_PASSWORD_HASH`, …) is standard — full table in `docs/ai/setup.md`, placeholders in `infra/.env.example`.
 
 ## Deployment
 
-`git push origin main` → GitHub Actions builds four GHCR images (**chat**, **admin**, **ai**, **ops**) → SSHes to the VPS → pulls + runs `infra/docker-compose.prod.yml`. The one-shot **ops** image runs migrations + ingest on deploy. Caddy routes the apex domain → chat and `admin.<domain>` → admin. Full guide: `docs/ai/deploy.md`.
+`git tag v*` + push → GitHub Actions runs quality gates, builds four GHCR images (**chat**, **admin**, **ai**, **ops**), then calls the Dokploy REST API to deploy `infra/docker-compose.dokploy.yml` on the VPS. A one-shot **migrations** service applies pending schema before the apps boot; Traefik routes the chat and admin subdomains with auto-TLS. A plain push to `main` only runs the quality job — images build on tags. Full guide: `docs/ai/deploy.md`.
 
 ## Knowledge & privacy
 

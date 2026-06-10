@@ -1,7 +1,7 @@
 "use client";
 
 import { cn, StatusPill } from "@meclaw/ui";
-import * as React from "react";
+import type * as React from "react";
 import type { BriefingReport, RunStatus, SourceKind } from "@/lib/research/types";
 
 const SOURCE_TINTS: Record<SourceKind, { chip: string; dot: string; label: string }> = {

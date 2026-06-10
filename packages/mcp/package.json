@@ -9,7 +9,6 @@
   "scripts": {
     "mcp:stdio": "jiti src/bin/stdio.ts",
     "mcp:http": "jiti src/bin/http.ts",
-    "lint": "eslint src",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

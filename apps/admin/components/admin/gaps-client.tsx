@@ -128,10 +128,11 @@ export function GapsClient() {
             </TR>
           </THead>
           <TBody>
-            {clusters!.map((c) => (
+            {clusters?.map((c) => (
               <TR key={c.id}>
                 <TD>
                   <button
+                    type="button"
                     className="cursor-pointer text-left text-foreground transition-colors hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     onClick={() => setSelectedId(c.id)}
                   >
