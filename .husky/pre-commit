@@ -21,4 +21,13 @@ if [ -n "$UPSTREAM" ]; then
 else
   BASE="main"
 fi
-fallow audit --base "$BASE" --quiet --gate-marker pre-commit || exit 1
+# Reclaim any audit base-ref worktree leaked by a prior interrupted run (idempotent, fast).
+git worktree prune 2>/dev/null || true
+# Unset the git-hook env vars before fallow: git exports GIT_DIR/GIT_INDEX_FILE/etc
+# for hooks, and fallow inherits them when it shells out to `git worktree add/remove`
+# for its base-snapshot pass — they point git at the main repo and the worktree
+# remove then fails, leaking `.git/worktrees/audit-base-*`. Stripping them lets
+# fallow re-derive git context from the cwd. (fallow's own error recommends this.)
+env -u GIT_DIR -u GIT_INDEX_FILE -u GIT_WORK_TREE \
+    -u GIT_OBJECT_DIRECTORY -u GIT_COMMON_DIR -u GIT_PREFIX \
+    fallow audit --base "$BASE" --quiet --gate-marker pre-commit || exit 1
