@@ -1,6 +1,6 @@
+import { promises as fs } from "node:fs";
+import { join } from "node:path";
 import { contentDir } from "@meclaw/core/content";
-import { promises as fs } from "fs";
-import { join } from "path";
 
 /**
  * GET /resume — serves content/resume.md as a downloadable file.

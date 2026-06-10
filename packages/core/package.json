@@ -22,7 +22,6 @@
   "scripts": {
     "db:generate": "drizzle-kit generate",
     "db:migrate": "jiti scripts/db-migrate.ts",
-    "lint": "eslint src",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

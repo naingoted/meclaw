@@ -210,6 +210,7 @@ export function DocumentsClient() {
                 <TR key={d.id}>
                   <TD>
                     <button
+                      type="button"
                       className="inline-flex cursor-pointer items-center gap-2 rounded-sm text-left text-foreground transition-colors hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50 disabled:pointer-events-none active:text-primary"
                       aria-busy={openingId === d.id || undefined}
                       disabled={openingId === d.id}

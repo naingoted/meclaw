@@ -1,5 +1,5 @@
 import { AdminToaster } from "@meclaw/ui";
-import * as React from "react";
+import type * as React from "react";
 import { AdminSidebar } from "@/components/admin/admin-sidebar";
 import { VersionFooter } from "@/components/admin/framework/version-footer";
 

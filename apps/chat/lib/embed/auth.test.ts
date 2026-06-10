@@ -20,8 +20,8 @@ describe("resolveEmbedClient", () => {
     });
     const c = await resolveEmbedClient(db as never, "pk_live");
     expect(c).not.toBeNull();
-    expect(c!.publicToken).toBe("pk_live");
-    expect(c!.allowedOrigins).toEqual(["https://a.com"]);
+    expect(c?.publicToken).toBe("pk_live");
+    expect(c?.allowedOrigins).toEqual(["https://a.com"]);
   });
 
   it("returns null for an unknown token", async () => {

@@ -13,7 +13,7 @@ export function buildDeps(): ServerDeps {
     env,
     tableExists: async (table: string) => {
       const rows =
-        (await sql`SELECT to_regclass(${"public." + table}) IS NOT NULL AS ok`) as Array<{
+        (await sql`SELECT to_regclass(${`public.${table}`}) IS NOT NULL AS ok`) as Array<{
           ok: boolean;
         }>;
       return rows[0]?.ok ?? false;

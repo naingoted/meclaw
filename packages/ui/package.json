@@ -21,7 +21,6 @@
     "react-dom": "19.2.4"
   },
   "scripts": {
-    "lint": "eslint src",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

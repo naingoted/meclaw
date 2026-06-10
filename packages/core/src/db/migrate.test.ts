@@ -25,8 +25,8 @@ describe.skipIf(!DATABASE_URL)("migrations (real Postgres)", () => {
         WHERE table_name = 'messages'
       `;
       const byName = Object.fromEntries(msgCols.map((c) => [c.column_name, c.data_type]));
-      expect(byName["toolCalls"]).toBe("jsonb");
-      expect(byName["createdAt"]).toBe("timestamp with time zone");
+      expect(byName.toolCalls).toBe("jsonb");
+      expect(byName.createdAt).toBe("timestamp with time zone");
 
       // pgvector extension installed, and embedding is a vector column.
       const ext = await sql<{ extname: string }[]>`

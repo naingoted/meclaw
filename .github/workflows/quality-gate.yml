@@ -94,11 +94,8 @@ jobs:
         working-directory: services/ai
         run: uv run pytest
 
-      - name: Verify JS workspace
+      - name: Verify JS workspace (biome lint/format + typecheck + build)
         run: pnpm verify
-
-      - name: Format check (biome)
-        run: pnpm format:check
 
       - name: Fallow audit
         env:

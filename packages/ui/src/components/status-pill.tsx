@@ -1,4 +1,3 @@
-import * as React from "react";
 import { type StatusTone, statusTone } from "../status";
 import { cn } from "../utils";
 

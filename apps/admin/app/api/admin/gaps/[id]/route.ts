@@ -9,7 +9,7 @@ const Body = z.discriminatedUnion("action", [
   z.object({ action: z.literal("ignore") }),
 ]);
 
-export async function GET(req: Request, { params }: Ctx) {
+export async function GET(_req: Request, { params }: Ctx) {
   // access enforced by middleware.ts (Auth.js)
   const result = await getCluster(await db(), (await params).id);
   return result ? Response.json(result) : Response.json({ error: "not found" }, { status: 404 });

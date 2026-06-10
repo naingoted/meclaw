@@ -95,3 +95,4 @@ One line per landed change, newest last. Full writeups: `git log -p docs/ai/HAND
 - 2026-06-10: Auto-migration on deploy — `migrations` init-service; CI deploy path proven live (`1d7aa2b`, v1.0.3-alpha).
 - 2026-06-11: **Resolved-gap pickup** — curated-answer fast path before triage; tiny-corpus stuffing removed; `gapMatchThreshold` knob (`5503d8f`, released v1.0.5-alpha). Browser smoke pending.
 - 2026-06-11: **Chat UI upgrade** — single-bot loading fix, timestamps + copy + day separators, New chat, history drawer; merged + pushed (`2c5cc1e`). Browser smoke pending.
+- 2026-06-11: **Lint → Biome** — enabled Biome linter (`react`+`next` domains) and dropped ESLint entirely (removed `eslint`/`eslint-config-next` + all eslint configs). `pnpm lint`/`verify`, pre-push, and CI now run `biome check`; `noNonNullAssertion`/`noArrayIndexKey` off, `useButtonType` relaxed in tests.

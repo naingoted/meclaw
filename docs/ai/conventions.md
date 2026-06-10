@@ -42,12 +42,12 @@ Prefer this over asserting "it works" — capture real browser evidence per mile
 ## Git / PRs
 
 - Conventional-commit style subjects (`feat:`, `fix:`, `docs:`, `chore:`).
-- `pnpm verify` must pass before opening a PR. CI also runs tests, `format:check`, fallow checks, secretlint, commitlint range checks, `pnpm audit`, and semgrep.
+- `pnpm verify` must pass before opening a PR (it runs `biome check .` + typecheck + build). CI also runs tests, fallow checks, secretlint, commitlint range checks, `pnpm audit`, and semgrep.
 - Keep PRs milestone-scoped; update `docs/ai/HANDOFF.md` status in the same PR that completes a milestone.
 
 ## Formatting & commits
 
-- **Formatter:** Biome (`pnpm format` to fix, `pnpm format:check` to verify). 2-space indent, double quotes, semicolons, organized imports. Do not hand-format or reintroduce Prettier.
-- **Linting:** ESLint (`eslint-config-next`) still owns lint rules; Biome's linter is disabled.
+- **Formatter + linter:** Biome — one Rust binary for formatting, linting, and import organization (replaces Prettier **and** ESLint). `pnpm format` to fix, `pnpm format:check` to verify, `pnpm lint` to lint-only. 2-space indent, double quotes, semicolons. Do not hand-format or reintroduce Prettier/ESLint.
+- **Lint rules:** Biome recommended + the `react` and `next` domains (so `@next/next` checks like `noImgElement` are covered), configured in `biome.json`. `noNonNullAssertion` and `noArrayIndexKey` are off (intentional `!`, composite/static keys); test files relax `useButtonType`. Suppress a one-off finding with `// biome-ignore lint/<rule>: <reason>` — never `--no-verify`.
 - **Commits:** Conventional Commits, enforced by commitlint at `commit-msg`.
-- **Pre-commit gate:** staged-content guard + Biome + secretlint + incremental `fallow audit` against the branch base. Fix findings instead of bypassing the hook.
+- **Pre-commit gate:** staged-content guard + Biome (format/lint/organize) + secretlint + incremental `fallow audit` against the branch base. Fix findings instead of bypassing the hook.

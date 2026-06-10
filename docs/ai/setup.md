@@ -77,7 +77,8 @@ Keep both if switching between paths, or symlink one to the other.
 | `pnpm --filter @meclaw/rag ingest` | Embed `content/` → Postgres `rag_chunks` table. |
 | `pnpm --filter @meclaw/admin gen:admin-hash <password>` | Mint scrypt admin password hash. |
 | `pnpm install` | Install all monorepo dependencies (pnpm workspaces). |
-| `pnpm verify` | Lint + typecheck + build (pre-merge gate). Runs turbo: `turbo run lint typecheck build`. |
+| `pnpm verify` | Biome lint/format check + typecheck + build (pre-merge gate). Runs `biome check . && turbo run typecheck build`. |
+| `pnpm lint` | Biome lint-only (`biome lint .`). |
 | `pnpm test` | Vitest (all packages). |
 | `pnpm fallow` | Full static analysis (dead code, dupes, health). CRAP scores are **estimated** from export refs (fast, no tests). |
 | `pnpm fallow:audit` | Manual changed-files audit. The pre-commit hook adds its own base, gate, quiet, and marker flags. |
@@ -90,15 +91,16 @@ Keep both if switching between paths, or symlink one to the other.
 
 After `pnpm install`, Husky wires the local hooks:
 
-- `pre-commit`: cheap staged-content guard, Biome format/organize + secretlint
+- `pre-commit`: cheap staged-content guard, Biome format/lint/organize + secretlint
   through lint-staged, then incremental `fallow audit` on files changed since
   the merge-base with your upstream branch (or `main` if none).
 - `commit-msg`: commitlint enforces Conventional Commits.
-- `pre-push`: whole-repo `turbo run lint typecheck test`.
+- `pre-push`: whole-repo `biome check .` (lint/format), then `turbo run typecheck test`.
 
 ```bash
-pnpm format              # Biome format + organize imports
-pnpm format:check        # verify formatting
+pnpm format              # Biome format + lint safe-fixes + organize imports (writes)
+pnpm format:check        # Biome lint + format + organize check (no writes)
+pnpm lint                # Biome lint only
 pnpm fallow              # full-repo scan (optional baseline)
 pnpm fallow:audit        # manual fallow audit
 ```
@@ -109,7 +111,7 @@ Reinstall hook plumbing after Husky edits with `pnpm install`.
 ## Quality tooling
 
 All hook tooling is npm-native and arrives with `pnpm install` — no extra local
-installs: Biome (format), secretlint (secret scan), commitlint (commit messages),
+installs: Biome (format + lint), secretlint (secret scan), commitlint (commit messages),
 lint-staged, husky, fallow. Heavier security (`pnpm audit`, semgrep) runs in CI
 only. If a commit is blocked, fix the finding — do not use `--no-verify`.
 

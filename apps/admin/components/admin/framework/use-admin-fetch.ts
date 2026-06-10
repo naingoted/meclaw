@@ -53,7 +53,7 @@ export function useAdminFetch<TData = unknown>(
   // Initial fetch
   React.useEffect(() => {
     mounted.current = true;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- data-fetching; setState guarded by mounted ref + async boundary
+    // data-fetching; setState guarded by mounted ref + async boundary (intentional setState in effect)
     void doFetch();
     return () => {
       mounted.current = false;

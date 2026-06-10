@@ -7,7 +7,7 @@
   },
   "files": {
     "ignoreUnknown": false,
-    "includes": ["**", "!apps/admin/.eslintrc.json"]
+    "includes": ["**"]
   },
   "formatter": {
     "enabled": true,
@@ -16,7 +16,19 @@
     "lineWidth": 100
   },
   "linter": {
-    "enabled": false
+    "enabled": true,
+    "domains": {
+      "next": "recommended",
+      "react": "recommended"
+    },
+    "rules": {
+      "style": {
+        "noNonNullAssertion": "off"
+      },
+      "suspicious": {
+        "noArrayIndexKey": "off"
+      }
+    }
   },
   "javascript": {
     "formatter": {
@@ -36,5 +48,17 @@
         "organizeImports": "on"
       }
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["**/*.test.ts", "**/*.test.tsx"],
+      "linter": {
+        "rules": {
+          "a11y": {
+            "useButtonType": "off"
+          }
+        }
+      }
+    }
+  ]
 }

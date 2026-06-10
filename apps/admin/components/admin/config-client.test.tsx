@@ -47,8 +47,8 @@ const SETTINGS = {
 };
 
 function mockFetch(putOk = true) {
-  return vi.fn(async (url: string, init?: RequestInit) => {
-    if (!init || init.method !== "PUT") {
+  return vi.fn(async (_url: string, init?: RequestInit) => {
+    if (init?.method !== "PUT") {
       return new Response(JSON.stringify(SETTINGS), { status: 200 });
     }
     return new Response(JSON.stringify(SETTINGS), { status: putOk ? 200 : 400 });

@@ -56,6 +56,7 @@ function getClientIp(req: Request): string {
 // Initialize the database once per process (lazy — only when handling a request)
 let dbPromise: ReturnType<typeof initDb> | null = null;
 async function getDb(): Promise<Awaited<ReturnType<typeof initDb>>> {
+  // biome-ignore lint/suspicious/noAssignInExpressions: lazy DB init via logical assignment
   return (dbPromise ??= initDb());
 }
 
@@ -319,7 +320,7 @@ export async function POST(req: Request) {
   }));
 
   // Snapshot the current config (request values will override env defaults in the sidecar)
-  let config: unknown = undefined;
+  let config: unknown;
   try {
     config = await configSnapshot(await getDb());
   } catch (e) {

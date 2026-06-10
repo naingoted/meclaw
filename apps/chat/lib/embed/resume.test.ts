@@ -16,7 +16,7 @@ describe("resume tokens", () => {
 
   it("rejects a tampered token", () => {
     const token = signResumeToken({ conversationId: "c1", embedClientId: "e1" });
-    const tampered = token.slice(0, -4) + "zzzz";
+    const tampered = `${token.slice(0, -4)}zzzz`;
     expect(verifyResumeToken({ token: tampered, conversationId: "c1", embedClientId: "e1" })).toBe(
       false,
     );

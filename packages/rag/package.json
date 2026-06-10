@@ -13,7 +13,6 @@
   },
   "scripts": {
     "ingest": "jiti scripts/ingest.ts",
-    "lint": "eslint src",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

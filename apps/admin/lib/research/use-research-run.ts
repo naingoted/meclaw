@@ -113,13 +113,10 @@ export function useResearchRun() {
   const abortRef = React.useRef<AbortController | null>(null);
   const readerRef = React.useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null);
 
-  const applyEvent = React.useCallback(
-    (runId: number, event: ResearchEvent) => {
-      if (runId !== runIdRef.current) return;
-      setState((current) => reduceEvent(current, event));
-    },
-    [setState],
-  );
+  const applyEvent = React.useCallback((runId: number, event: ResearchEvent) => {
+    if (runId !== runIdRef.current) return;
+    setState((current) => reduceEvent(current, event));
+  }, []);
 
   const stopActiveRun = React.useCallback(() => {
     runIdRef.current += 1;

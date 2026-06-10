@@ -58,5 +58,6 @@ export function frameAncestorsHeader(client: EmbedClient | null): string {
  */
 let dbPromise: ReturnType<typeof initDb> | null = null;
 export function getChatDb(): ReturnType<typeof initDb> {
+  // biome-ignore lint/suspicious/noAssignInExpressions: lazy DB init via logical assignment
   return (dbPromise ??= initDb());
 }
