@@ -1239,5 +1239,5 @@ def test_run_stream_no_longer_accepts_stuffing_params():
             )
         )
         raise AssertionError("expected TypeError for removed params")
-    except TypeError:
-        pass
+    except TypeError as e:
+        assert "tiny_corpus_threshold" in str(e) or "corpus_text_fn" in str(e)
