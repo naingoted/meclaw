@@ -784,3 +784,62 @@ describe("New chat control", () => {
     expect(setMessages).toHaveBeenCalledWith([]);
   });
 });
+
+describe("History drawer wiring (normal mode)", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    mockState = { messages: [], sendMessage: vi.fn(), setMessages: vi.fn(), status: "ready" };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ conversationId: "x", messages: [] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      ),
+    );
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("opens the drawer and lists a stored session", () => {
+    upsertSession({ conversationId: "conv-1", title: "Past chat" });
+    render(<Chat {...CHAT_PROPS} />);
+    fireEvent.click(screen.getByRole("button", { name: /history/i }));
+    expect(screen.getByText("Past chat")).toBeInTheDocument();
+  });
+
+  it("does not render the History button in embed mode", () => {
+    render(<Chat {...CHAT_PROPS} mode="embed" embedToken="pk_a" />);
+    expect(screen.queryByRole("button", { name: /history/i })).not.toBeInTheDocument();
+  });
+
+  it("deletes the active conversation and resets to a fresh chat", () => {
+    upsertSession({ conversationId: "c1", title: "Active" });
+    const setMessages = vi.fn();
+    mockState.setMessages = setMessages;
+    render(<Chat {...CHAT_PROPS} />); // sole session → c1 is the active conversation
+    setMessages.mockClear();
+    fireEvent.click(screen.getByRole("button", { name: /history/i }));
+    fireEvent.click(screen.getByRole("button", { name: /delete conversation/i }));
+    expect(getSession("c1")).toBeNull();
+    expect(setMessages).toHaveBeenCalledWith([]); // startNewChat fired for the active chat
+  });
+
+  it("removes a non-active conversation from the open drawer, keeping the active one", () => {
+    const nowSpy = vi.spyOn(Date, "now");
+    nowSpy.mockReturnValue(1000);
+    upsertSession({ conversationId: "old", title: "Old chat" });
+    nowSpy.mockReturnValue(2000);
+    upsertSession({ conversationId: "current", title: "Current chat" });
+    nowSpy.mockRestore();
+    render(<Chat {...CHAT_PROPS} />); // newest (current) is active on mount
+    fireEvent.click(screen.getByRole("button", { name: /history/i }));
+    // newest-first order: [Current chat, Old chat] — delete the second (non-active) row
+    const delButtons = screen.getAllByRole("button", { name: /delete conversation/i });
+    fireEvent.click(delButtons[1]);
+    expect(getSession("old")).toBeNull();
+    expect(getSession("current")).not.toBeNull();
+    expect(screen.queryByText("Old chat")).not.toBeInTheDocument();
+    expect(screen.getByText("Current chat")).toBeInTheDocument();
+  });
+});

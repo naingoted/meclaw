@@ -5,6 +5,7 @@ import { Button, cn } from "@meclaw/ui";
 import { Bot } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import type { ChatSession } from "@/lib/chat/sessions";
 import {
   clearResumeEntry,
   getSession,
@@ -21,6 +22,7 @@ import {
 import { formatDayLabel, isSameDay } from "@/lib/chat/time";
 import { ChatToolbar } from "./chat-toolbar";
 import { ConfigRefreshPoller } from "./config-refresh-poller";
+import { HistoryDrawer } from "./history-drawer";
 import { MessageMeta } from "./message-meta";
 
 // Re-export the embed single-entry helpers + sentinel so existing importers
@@ -471,6 +473,14 @@ export function Chat({
   // Bounded per conversation: cleared on New chat / switch (kept small in practice).
   const firstSeenRef = useRef<Map<string, number>>(new Map());
   const [historyOpen, setHistoryOpen] = useState(false);
+  // Snapshot of the session index for the drawer, seeded when it opens and
+  // refreshed after a delete — avoids re-reading localStorage on every render.
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+
+  const openHistory = useCallback(() => {
+    setSessions(listSessions());
+    setHistoryOpen(true);
+  }, []);
 
   const startNewChat = useCallback(() => {
     const id = crypto.randomUUID();
@@ -558,6 +568,32 @@ export function Chat({
     [mode, embedToken, parentOrigin, setMessages],
   );
 
+  // Switch to a stored conversation from the history drawer: point at its id,
+  // clear transient UI, then fetch + hydrate its transcript.
+  const pickConversation = useCallback(
+    (id: string) => {
+      setConversationId(id);
+      setLiveSteps([]);
+      firstSeenRef.current.clear();
+      setHistoryOpen(false);
+      loadConversation(id);
+    },
+    [loadConversation],
+  );
+
+  // Remove a conversation from the local index. If it's the active one, fall
+  // back to a fresh chat (DB rows are untouched — local index only).
+  const deleteConversation = useCallback(
+    (id: string) => {
+      removeSession(id);
+      // Deleting the active chat resets to a fresh one (which also closes the
+      // drawer); deleting another just refreshes the still-open list.
+      if (id === conversationId) startNewChat();
+      else setSessions(listSessions());
+    },
+    [conversationId, startNewChat],
+  );
+
   // Resume the active conversation once on mount.
   useEffect(() => {
     if (historyFetchedRef.current) return;
@@ -625,11 +661,7 @@ export function Chat({
   return (
     <div className="mx-auto flex h-full w-full max-w-2xl flex-col">
       <ConfigRefreshPoller initialConfigVersion={initialConfigVersion} status={status} />
-      <ChatToolbar
-        mode={mode}
-        onNewChat={startNewChat}
-        onOpenHistory={() => setHistoryOpen(true)}
-      />
+      <ChatToolbar mode={mode} onNewChat={startNewChat} onOpenHistory={openHistory} />
       <div className="flex-1 space-y-4 overflow-y-auto p-4">
         {messages.length === 0 && (
           <div className="mt-10 space-y-6">
@@ -717,6 +749,17 @@ export function Chat({
           Send
         </Button>
       </form>
+
+      {mode === "normal" ? (
+        <HistoryDrawer
+          open={historyOpen}
+          sessions={sessions}
+          activeConversationId={conversationId}
+          onSelect={pickConversation}
+          onDelete={deleteConversation}
+          onClose={() => setHistoryOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }
