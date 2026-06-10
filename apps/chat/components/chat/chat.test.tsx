@@ -161,25 +161,32 @@ describe("shouldRenderMessage", () => {
   });
 });
 
-describe("single-bot loading (regression guard)", () => {
-  it("shows exactly one bot avatar during the pre-token window", () => {
+describe("bot avatar removed (mobile space recovery)", () => {
+  it("does not render any bot-avatar testid", () => {
     mockState.status = "streaming";
     mockState.messages = [
       { id: "u1", role: "user", parts: [{ type: "text", text: "stack?" }] },
-      { id: "a1", role: "assistant", parts: [] }, // empty pre-token assistant
+      { id: "a1", role: "assistant", parts: [] },
     ];
     render(<Chat {...CHAT_PROPS} />);
-    expect(screen.getAllByTestId("bot-avatar")).toHaveLength(1);
+    expect(screen.queryAllByTestId("bot-avatar")).toHaveLength(0);
   });
 
-  it("shows exactly one bot avatar after the answer streams in", () => {
+  it("renders assistant messages with aria-label for screen readers", () => {
     mockState.status = "ready";
     mockState.messages = [
       { id: "u1", role: "user", parts: [{ type: "text", text: "stack?" }] },
       { id: "a1", role: "assistant", parts: [{ type: "text", text: "Python." }] },
     ];
     render(<Chat {...CHAT_PROPS} />);
-    expect(screen.getAllByTestId("bot-avatar")).toHaveLength(1);
+    expect(screen.getByLabelText("Assistant says")).toBeInTheDocument();
+  });
+
+  it("renders user messages with aria-label for screen readers", () => {
+    mockState.status = "ready";
+    mockState.messages = [{ id: "u1", role: "user", parts: [{ type: "text", text: "hello" }] }];
+    render(<Chat {...CHAT_PROPS} />);
+    expect(screen.getByLabelText("You said")).toBeInTheDocument();
   });
 });
 

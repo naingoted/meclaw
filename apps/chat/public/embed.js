@@ -216,8 +216,7 @@
 
       // Use visualViewport for keyboard handling (modern browsers)
       if (window.visualViewport) {
-        // Minimum height floor to prevent unusably small widget when keyboard is open
-        viewportHeight = Math.max(window.visualViewport.height, 200);
+        viewportHeight = window.visualViewport.height;
         container.style.height = `${viewportHeight}px`;
       } else {
         container.style.height = `${window.innerHeight}px`;
@@ -249,18 +248,23 @@
   window.addEventListener("resize", debouncedViewportResize);
   window.addEventListener("orientationchange", debouncedViewportResize);
 
-  // ----- postMessage resize (the iframe may ask us to grow/shrink) -----
+  // ----- postMessage protocol (resize + close) -----
   // fallow-ignore-next-line complexity
   window.addEventListener("message", (event) => {
     if (event.origin !== origin) return;
     var data = event.data;
-    if (data?.type !== "meclaw:resize") return;
-    // Only apply postMessage resize in desktop mode (mobile uses visualViewport)
-    if (shouldUseFullscreen()) return;
+    if (!data || typeof data.type !== "string") return;
     var next;
-    if (typeof data.height === "number") {
-      next = Math.max(200, Math.min(data.height, window.innerHeight - 120));
-      container.style.height = `${next}px`;
+
+    if (data.type === "meclaw:resize") {
+      // Only apply postMessage resize in desktop mode (mobile uses visualViewport)
+      if (shouldUseFullscreen()) return;
+      if (typeof data.height === "number") {
+        next = Math.max(200, Math.min(data.height, window.innerHeight - 120));
+        container.style.height = `${next}px`;
+      }
+    } else if (data.type === "meclaw:close") {
+      if (open) toggle();
     }
   });
 

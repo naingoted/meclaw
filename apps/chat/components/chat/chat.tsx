@@ -2,7 +2,6 @@
 
 import { useChat } from "@ai-sdk/react";
 import { Button, cn } from "@meclaw/ui";
-import { Bot } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import type { ChatSession } from "@/lib/chat/sessions";
@@ -244,14 +243,11 @@ function StepDots() {
  */
 export function LiveTrace({ steps }: { steps: string[] }) {
   return (
-    <div className="flex items-start gap-3">
-      <div
-        data-testid="bot-avatar"
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted"
+    <div>
+      <section
+        aria-label="Assistant says"
+        className="rounded-2xl bg-muted px-4 py-2 text-sm text-muted-foreground"
       >
-        <Bot className="h-5 w-5 text-foreground" />
-      </div>
-      <div className="rounded-2xl bg-muted px-4 py-2 text-sm text-muted-foreground">
         {steps.length === 0 ? (
           <div className="flex items-center gap-2">
             <StepDots />
@@ -276,7 +272,7 @@ export function LiveTrace({ steps }: { steps: string[] }) {
             })}
           </ul>
         )}
-      </div>
+      </section>
     </div>
   );
 }
@@ -368,38 +364,30 @@ function AssistantTurn({
   const route = extractRoute(message);
   const steps = extractSteps(message);
   return (
-    <>
-      <div
-        data-testid="bot-avatar"
-        className="mr-3 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted"
-      >
-        <Bot className="h-5 w-5 text-foreground" />
+    <section aria-label="Assistant says" className="min-w-0 space-y-2">
+      <div className="max-w-[calc(100%-16px)] rounded-2xl bg-muted px-4 py-2 text-sm text-foreground">
+        {message.parts.map((part, j) =>
+          part.type === "text" ? (
+            <div
+              key={`${message.id}-${j}`}
+              className="prose prose-sm max-w-none overflow-hidden break-words font-sans dark:prose-invert"
+            >
+              <ReactMarkdown>{part.text}</ReactMarkdown>
+            </div>
+          ) : null,
+        )}
       </div>
-      <div className="min-w-0 space-y-2">
-        <div className="max-w-[85%] rounded-2xl bg-muted px-4 py-2 text-sm text-foreground">
-          {message.parts.map((part, j) =>
-            part.type === "text" ? (
-              <div
-                key={`${message.id}-${j}`}
-                className="prose prose-sm max-w-none font-sans dark:prose-invert"
-              >
-                <ReactMarkdown>{part.text}</ReactMarkdown>
-              </div>
-            ) : null,
-          )}
-        </div>
-        {answered ? <MessageMeta timestamp={ts} text={text} /> : null}
-        {answered && (sources.length > 0 || route) ? (
-          <SourcesPanel
-            sources={sources}
-            route={route}
-            label={groundingLabel(route, sources.length)}
-            corpusVersion={extractCorpusVersion(message)}
-          />
-        ) : null}
-        {answered && steps.length > 0 ? <ThinkingTrace steps={steps} /> : null}
-      </div>
-    </>
+      {answered ? <MessageMeta timestamp={ts} text={text} /> : null}
+      {answered && (sources.length > 0 || route) ? (
+        <SourcesPanel
+          sources={sources}
+          route={route}
+          label={groundingLabel(route, sources.length)}
+          corpusVersion={extractCorpusVersion(message)}
+        />
+      ) : null}
+      {answered && steps.length > 0 ? <ThinkingTrace steps={steps} /> : null}
+    </section>
   );
 }
 
@@ -414,23 +402,26 @@ function UserTurn({
   text: string;
 }) {
   return (
-    <div className="flex flex-col items-end">
+    <section aria-label="You said" className="flex flex-col items-end">
       <div
         className={cn(
-          "max-w-[85%] rounded-2xl px-4 py-2 text-sm",
+          "max-w-[calc(100%-16px)] rounded-2xl px-4 py-2 text-sm",
           "bg-primary text-primary-foreground",
         )}
       >
         {message.parts.map((part, j) =>
           part.type === "text" ? (
-            <div key={`${message.id}-${j}`} className="prose prose-sm max-w-none dark:prose-invert">
+            <div
+              key={`${message.id}-${j}`}
+              className="prose prose-sm max-w-none overflow-hidden break-words dark:prose-invert"
+            >
               <ReactMarkdown>{part.text}</ReactMarkdown>
             </div>
           ) : null,
         )}
       </div>
       <MessageMeta timestamp={ts} text={text} />
-    </div>
+    </section>
   );
 }
 
@@ -441,6 +432,7 @@ export function Chat({
   mode = "normal",
   embedToken,
   parentOrigin,
+  onClose,
 }: {
   greeting: string;
   suggestions: string[];
@@ -449,6 +441,8 @@ export function Chat({
   embedToken?: string;
   /** Parent embedding site's origin (e.g. "https://acme.com"). Required in embed mode. */
   parentOrigin?: string;
+  /** Called when the user closes the widget (embed mode only). */
+  onClose?: () => void;
 }) {
   // `liveSteps` accumulates the backend's transient `data-status` labels into an
   // ordered checklist ("Routing…" → "Searching…" → "Writing…") shown live during
@@ -480,6 +474,8 @@ export function Chat({
   });
   const [input, setInput] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const touchingRef = useRef(false);
   // Stable first-seen time per live message id (UIMessages carry no timestamp).
   // Stamped in an effect (not during render — Date.now/ref access would be
   // impure); cleared on New chat / switch. Bounded per conversation.
@@ -517,10 +513,31 @@ export function Chat({
   }
 
   // Auto-scroll to the latest message as content streams in.
+  // Suppressed when the input is focused (keyboard open) — the input
+  // scroll-into-view handler owns the scroll position in that case.
   // biome-ignore lint/correctness/useExhaustiveDependencies: messages is a re-run trigger, not read in the body
   useEffect(() => {
+    if (document.activeElement === inputRef.current) return;
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Mobile keyboard handling: scroll input into view when viewport shrinks
+  // (keyboard opening). Only fires when input is focused and user isn't
+  // actively touching the message area (to avoid fighting manual scroll).
+  useEffect(() => {
+    if (!inputRef.current || !window.visualViewport) return;
+
+    const scrollInputIntoView = () => {
+      if (document.activeElement === inputRef.current && !touchingRef.current) {
+        inputRef.current?.scrollIntoView({ block: "nearest" });
+      }
+    };
+
+    window.visualViewport.addEventListener("resize", scrollInputIntoView);
+    return () => {
+      window.visualViewport?.removeEventListener("resize", scrollInputIntoView);
+    };
+  }, []);
 
   // Stamp a first-seen time for any new message lacking a persisted createdAt.
   // Must run in an effect: the wall-clock is impure (no Date.now in render) and
@@ -631,6 +648,30 @@ export function Chat({
   const isStreaming = status === "submitted" || status === "streaming";
   const showThinking = shouldShowThinking(status, messages as MessageWithParts[]);
 
+  function handleClose() {
+    if (mode === "embed") {
+      window.parent.postMessage({ type: "meclaw:close", version: 1 }, parentOrigin ?? "*");
+    }
+    onClose?.();
+  }
+
+  // Escape key closes the widget in embed mode. The parent page's Escape
+  // listener in embed.js can't reach the iframe — external keyboard users
+  // (iPad Magic Keyboard, Android BT keyboard) need an in-iframe handler.
+  // Use refs for handleClose deps to avoid re-registering the listener on
+  // every render (handleClose captures parentOrigin/onClose from props).
+  const handleCloseRef = useRef(handleClose);
+  handleCloseRef.current = handleClose;
+
+  useEffect(() => {
+    if (mode !== "embed") return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") handleCloseRef.current();
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [mode]);
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const text = input.trim();
@@ -686,21 +727,29 @@ export function Chat({
   return (
     <div className="mx-auto flex h-full w-full max-w-2xl flex-col">
       <ConfigRefreshPoller initialConfigVersion={initialConfigVersion} status={status} />
-      <ChatToolbar mode={mode} onNewChat={startNewChat} onOpenHistory={openHistory} />
-      <div className="flex-1 space-y-4 overflow-y-auto p-4">
+      <ChatToolbar
+        mode={mode}
+        onNewChat={startNewChat}
+        onOpenHistory={openHistory}
+        onClose={handleClose}
+      />
+      <div
+        className="flex-1 space-y-4 overflow-y-auto overscroll-contain p-4"
+        onTouchStart={() => {
+          touchingRef.current = true;
+        }}
+        onTouchEnd={() => {
+          touchingRef.current = false;
+        }}
+      >
         {messages.length === 0 && (
           <div className="mt-10 space-y-6">
             {/* Greeting from meclaw */}
-            <div className="flex items-start gap-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted">
-                <Bot className="h-5 w-5 text-foreground" />
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm font-medium">{greeting}</p>
-                <p className="text-sm text-muted-foreground">
-                  Ask me anything about his work, skills, or projects.
-                </p>
-              </div>
+            <div className="space-y-1">
+              <p className="text-sm font-medium">{greeting}</p>
+              <p className="text-sm text-muted-foreground">
+                Ask me anything about his work, skills, or projects.
+              </p>
             </div>
 
             {/* Suggestion chips */}
@@ -762,6 +811,7 @@ export function Chat({
 
       <form onSubmit={handleSubmit} className="flex gap-2 border-t border-border p-4">
         <input
+          ref={inputRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Say something…"
