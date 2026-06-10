@@ -1,3 +1,5 @@
+// Shared fallback config: packages/* run `eslint src` with no local
+// eslint.config and resolve up to this file. Apps carry their own copy.
 import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";

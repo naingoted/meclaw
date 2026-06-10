@@ -1,10 +1,27 @@
 # meclaw
 
-A personal AI bot for **Thet Naing**. Visitors chat on a public page; an AI answers about the owner's work, projects, and contact details — grounded in markdown knowledge, not made up. An authenticated admin console lets the owner edit knowledge, re-ingest, tune the agents, and close gaps the bot couldn't answer.
+[![CI](https://github.com/naingoted/meclaw/actions/workflows/ci.yml/badge.svg)](https://github.com/naingoted/meclaw/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Local-first by design: knowledge lives in markdown under `content/`, everything runs in Docker, no managed cloud DB required.
+**Your AI twin, self-hosted.** Fork it, drop your markdown into `content/`, and get a public chatbot that answers questions about *you* — grounded in your own notes, never made up — plus an admin console with a built-in feedback loop: every question the bot couldn't answer lands in a ranked inbox, one click turns it into new knowledge.
+
+This instance is the personal AI bot for **Thet Naing**. Visitors chat on a public page; an AI answers about the owner's work, projects, and contact details. An authenticated admin console lets the owner edit knowledge, re-ingest, tune the agents, and close gaps the bot couldn't answer.
+
+Local-first by design: knowledge lives in markdown under `content/`, everything runs in Docker, no managed cloud DB required. What sets it apart from "chat with my resume" demos: retrieval telemetry on every answer, an offline Ragas eval harness over the real pipeline, a read-only MCP server for agent introspection, and a one-push VPS deploy story.
 
 This project applies what I learned from [RAG and Agentic AI](https://coursera.org/share/7f66461a5be8323f542f68d4a45b8a25) together with my product engineering experience.
+
+<!-- TODO(screenshots): capture and uncomment.
+  1. docs/assets/chat-demo.gif   — public chat: ask a question, show streaming answer + the live "how I answered" trace expanding. ~10s screen recording, gif or mp4.
+  2. docs/assets/admin-gaps.png  — admin Gaps inbox with a few clustered misses + the "Answer this gap" flow.
+
+<p align="center">
+  <img src="docs/assets/chat-demo.gif" alt="Public chat streaming an answer with live retrieval trace" width="720">
+</p>
+<p align="center">
+  <img src="docs/assets/admin-gaps.png" alt="Admin gaps inbox: questions the bot could not answer, clustered by similarity" width="720">
+</p>
+-->
 
 ## How it works
 
@@ -282,3 +299,12 @@ The flow:
 - `docs/ai/deploy.md` — VPS deploy guide
 - `docs/ai/repo-index.md` — where things live
 - Internal planning/review notes are intentionally not tracked in the public repo.
+
+## Contributing & security
+
+- [CONTRIBUTING.md](CONTRIBUTING.md) — dev setup, quality gates, commit conventions.
+- [SECURITY.md](SECURITY.md) — how to report vulnerabilities (privately, please).
+
+## License
+
+[MIT](LICENSE) © Thet Naing Oo
