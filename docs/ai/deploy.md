@@ -140,6 +140,23 @@ $DC --profile tools run --rm ops pnpm --filter @meclaw/rag ingest
 The corpus is bind-mounted (`../content` → `/app/content`, `MECLAW_CONTENT_DIR=/app/content`), not
 baked in. Drop the real `.md`/`.pdf` corpus into `<code>/content/` before ingest.
 
+### One-shot: reset dangling resolved gap clusters (2026-06-10)
+
+Resolved gap clusters whose curated document was deleted before the
+delete-guard existed (e.g. the two "What is his contact number" clusters)
+silently no-match in the resolved-gap fast path. Flip them back to `new` so
+they reappear in /admin/gaps for re-answering:
+
+```sql
+UPDATE gap_clusters
+SET status = 'new', "resolvedDocumentId" = NULL, "resolvedAt" = NULL, "updatedAt" = now()
+WHERE status = 'resolved'
+  AND ("resolvedDocumentId" IS NULL
+       OR "resolvedDocumentId" NOT IN (SELECT id FROM documents));
+```
+
+Run once against each environment's Postgres (local + prod). Idempotent.
+
 ### 7. Set the Dokploy panel domain (HTTPS for the panel itself)
 Dokploy ships routing `dokploy.docker.localhost` on plain `web` only — the panel has **no real
 domain or TLS** until you set one. Settings → Web Server → Domain (enter `dokploy.leanior.com` +
