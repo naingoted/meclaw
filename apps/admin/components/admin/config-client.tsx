@@ -31,8 +31,8 @@ const HELP = {
   clusterRadius: "Max cosine distance for a miss to fold into an existing gap cluster.",
   scoreThreshold:
     "Per-chunk include filter: chunks scoring below this are dropped before building context (distinct from Score floor).",
-  tinyCorpusThreshold:
-    "If the whole corpus is smaller than this many tokens, skip retrieval and use the full corpus.",
+  gapMatchThreshold:
+    "Max cosine distance between a question and a resolved gap cluster for its saved answer to be returned verbatim (same scale as Cluster radius).",
   greeting: "First message shown on the public chat page.",
   suggestions: "Starter prompt chips on the public page. One per line.",
   calUrl: "Cal.com booking link used by the scheduler tool and the 'Book a call' button.",
@@ -251,15 +251,16 @@ export function ConfigClient() {
               />
             </Field>
             <Field
-              label="Tiny-corpus threshold"
-              help={HELP.tinyCorpusThreshold}
-              htmlFor="rag.tinyCorpusThreshold"
-              error={errAt("rag.tinyCorpusThreshold")}
+              label="Gap match threshold"
+              help={HELP.gapMatchThreshold}
+              htmlFor="rag.gapMatchThreshold"
+              error={errAt("rag.gapMatchThreshold")}
             >
               <Input
-                id="rag.tinyCorpusThreshold"
+                id="rag.gapMatchThreshold"
                 type="number"
-                {...register("rag.tinyCorpusThreshold", { valueAsNumber: true })}
+                step="0.01"
+                {...register("rag.gapMatchThreshold", { valueAsNumber: true })}
               />
             </Field>
           </div>

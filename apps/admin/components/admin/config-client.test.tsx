@@ -28,7 +28,7 @@ const SETTINGS = {
   rag: {
     topK: 4,
     scoreThreshold: 0.1,
-    tinyCorpusThreshold: 8000,
+    gapMatchThreshold: 0.15,
     scoreFloor: 0.35,
     clusterRadius: 0.15,
   },
@@ -96,6 +96,7 @@ describe("ConfigClient", () => {
     render(<ConfigClient />);
     await screen.findByText("Score floor");
     expect(screen.getByText("Cluster radius")).toBeInTheDocument();
+    expect(screen.getByText("Gap match threshold")).toBeInTheDocument();
   });
 
   it("writes ?tab= to the URL when a tab is clicked", async () => {
