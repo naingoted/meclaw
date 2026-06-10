@@ -50,16 +50,25 @@ export function Field({
   children: React.ReactNode;
 }) {
   // Mark the single control invalid so the shared Input/Textarea turn red.
+  const errorId = error ? `${htmlFor}-error` : undefined;
   const control = React.isValidElement(children)
-    ? React.cloneElement(children as React.ReactElement<{ "aria-invalid"?: boolean }>, {
-        "aria-invalid": error ? true : undefined,
-      })
+    ? React.cloneElement(
+        children as React.ReactElement<{ "aria-invalid"?: boolean; "aria-describedby"?: string }>,
+        {
+          "aria-invalid": error ? true : undefined,
+          "aria-describedby": errorId,
+        },
+      )
     : children;
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-tight">
       <FieldLabel label={label} help={help} htmlFor={htmlFor} />
       {control}
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      {error ? (
+        <p id={errorId} className="text-xs text-destructive" role="alert">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }

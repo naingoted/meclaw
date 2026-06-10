@@ -6,6 +6,11 @@ const nav = vi.hoisted(() => ({
   search: new URLSearchParams(),
 }));
 
+const toastSuccess = vi.fn();
+vi.mock("sonner", () => ({
+  toast: { success: (...args: unknown[]) => toastSuccess(...args), error: vi.fn() },
+}));
+
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: nav.replace }),
   usePathname: () => "/admin/config",
@@ -109,12 +114,12 @@ describe("ConfigClient", () => {
   });
 
   it("shows the immediate-propagation toast on save", async () => {
+    toastSuccess.mockClear();
     render(<ConfigClient />);
     await screen.findByText("Router model");
     fireEvent.click(screen.getByRole("button", { name: /^Save$/ }));
     await waitFor(() =>
-      expect(screen.getByText(/Saved\. Chat updates within seconds\./i)).toBeInTheDocument(),
+      expect(toastSuccess).toHaveBeenCalledWith("Saved. Chat updates within seconds."),
     );
-    expect(screen.queryByText(/Live within ~30 min/i)).not.toBeInTheDocument();
   });
 });

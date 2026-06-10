@@ -12,8 +12,10 @@ import {
 } from "@meclaw/ui";
 import * as React from "react";
 import { Controller, type Path, useForm } from "react-hook-form";
+import { toast } from "sonner";
 import { useUrlState } from "@/lib/use-url-state";
 import { Field } from "./field-label";
+import { AdminPage } from "./framework";
 
 // Only two real models exist; scheduler/contact reuse the draft model, so only
 // these two agents expose an editable model field.
@@ -52,7 +54,6 @@ function sectionOf(path: string): string {
 export function ConfigClient() {
   const [agentKeys, setAgentKeys] = React.useState<(keyof SettingsValue["agents"])[]>([]);
   const [loaded, setLoaded] = React.useState(false);
-  const [msg, setMsg] = React.useState("");
   const [tab, setTab] = useUrlState("tab", "agents", ["agents", "rag", "public"]);
   const {
     register,
@@ -113,7 +114,7 @@ export function ConfigClient() {
         body: JSON.stringify(payload),
       });
       if (res.ok) {
-        setMsg("Saved. Chat updates within seconds.");
+        toast.success("Saved. Chat updates within seconds.");
         return;
       }
       // Map each server validation issue back onto its field, then jump to the
@@ -124,9 +125,9 @@ export function ConfigClient() {
       const issues = body?.issues ?? [];
       for (const i of issues) setError(p(i.path), { type: "server", message: i.message });
       if (issues[0]) setTab(sectionOf(issues[0].path));
-      setMsg("Invalid — fix the highlighted fields.");
+      toast.error("Invalid — fix the highlighted fields.");
     } catch {
-      setMsg("Save failed — check your connection and retry.");
+      toast.error("Save failed — check your connection and retry.");
     }
   }
 
@@ -140,199 +141,198 @@ export function ConfigClient() {
     );
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="max-w-2xl">
-      <h1 className="mb-4 text-lg font-bold tracking-tight text-foreground">Config</h1>
-      <Tabs value={tab} onValueChange={setTab}>
-        <TabsList>
-          <TabsTrigger value="agents">Agents &amp; Prompts</TabsTrigger>
-          <TabsTrigger value="rag">RAG params</TabsTrigger>
-          <TabsTrigger value="public">Public page</TabsTrigger>
-        </TabsList>
+    <AdminPage title="Config">
+      <form onSubmit={handleSubmit(onSubmit)} className="max-w-2xl">
+        <Tabs value={tab} onValueChange={setTab}>
+          <TabsList>
+            <TabsTrigger value="agents">Agents &amp; Prompts</TabsTrigger>
+            <TabsTrigger value="rag">RAG params</TabsTrigger>
+            <TabsTrigger value="public">Public page</TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="agents">
-          <div className={STACK}>
-            <Field
-              label="Shared persona"
-              help={HELP.persona}
-              htmlFor="shared.persona"
-              error={errAt("shared.persona")}
-            >
-              <Textarea id="shared.persona" {...register("shared.persona")} />
-            </Field>
-            {agentKeys.map((key) => (
-              <div key={key} className={`${STACK} border-t pt-5`}>
-                <div className="font-medium capitalize">{key}</div>
-                {MODEL_LABELS[key] ? (
+          <TabsContent value="agents">
+            <div className={STACK}>
+              <Field
+                label="Shared persona"
+                help={HELP.persona}
+                htmlFor="shared.persona"
+                error={errAt("shared.persona")}
+              >
+                <Textarea id="shared.persona" {...register("shared.persona")} />
+              </Field>
+              {agentKeys.map((key) => (
+                <div key={key} className={`${STACK} border-t pt-5`}>
+                  <div className="font-medium capitalize">{key}</div>
+                  {MODEL_LABELS[key] ? (
+                    <Field
+                      label={MODEL_LABELS[key]}
+                      help={HELP.model}
+                      htmlFor={`agents.${key}.model`}
+                      error={errAt(`agents.${key}.model`)}
+                    >
+                      <Input id={`agents.${key}.model`} {...register(p(`agents.${key}.model`))} />
+                    </Field>
+                  ) : null}
                   <Field
-                    label={MODEL_LABELS[key]}
-                    help={HELP.model}
-                    htmlFor={`agents.${key}.model`}
-                    error={errAt(`agents.${key}.model`)}
+                    label="Prompt"
+                    help={HELP.prompt}
+                    htmlFor={`agents.${key}.prompt`}
+                    error={errAt(`agents.${key}.prompt`)}
                   >
-                    <Input id={`agents.${key}.model`} {...register(p(`agents.${key}.model`))} />
-                  </Field>
-                ) : null}
-                <Field
-                  label="Prompt"
-                  help={HELP.prompt}
-                  htmlFor={`agents.${key}.prompt`}
-                  error={errAt(`agents.${key}.prompt`)}
-                >
-                  <Textarea id={`agents.${key}.prompt`} {...register(p(`agents.${key}.prompt`))} />
-                </Field>
-                {key === "triage" ? (
-                  <Field
-                    label="Routing confidence"
-                    help={HELP.confidence}
-                    htmlFor="agents.triage.confidence"
-                    error={errAt("agents.triage.confidence")}
-                  >
-                    <Input
-                      id="agents.triage.confidence"
-                      type="number"
-                      step="0.05"
-                      min="0"
-                      max="1"
-                      {...register("agents.triage.confidence", { valueAsNumber: true })}
+                    <Textarea
+                      id={`agents.${key}.prompt`}
+                      {...register(p(`agents.${key}.prompt`))}
                     />
                   </Field>
-                ) : null}
-              </div>
-            ))}
-          </div>
-        </TabsContent>
+                  {key === "triage" ? (
+                    <Field
+                      label="Routing confidence"
+                      help={HELP.confidence}
+                      htmlFor="agents.triage.confidence"
+                      error={errAt("agents.triage.confidence")}
+                    >
+                      <Input
+                        id="agents.triage.confidence"
+                        type="number"
+                        step="0.05"
+                        min="0"
+                        max="1"
+                        {...register("agents.triage.confidence", { valueAsNumber: true })}
+                      />
+                    </Field>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </TabsContent>
 
-        <TabsContent value="rag">
-          <div className={STACK}>
-            <Field label="Top-K" help={HELP.topK} htmlFor="rag.topK" error={errAt("rag.topK")}>
-              <Input
-                id="rag.topK"
-                type="number"
-                {...register("rag.topK", { valueAsNumber: true })}
-              />
-            </Field>
-            <Field
-              label="Score floor"
-              help={HELP.scoreFloor}
-              htmlFor="rag.scoreFloor"
-              error={errAt("rag.scoreFloor")}
-            >
-              <Input
-                id="rag.scoreFloor"
-                type="number"
-                step="0.01"
-                {...register("rag.scoreFloor", { valueAsNumber: true })}
-              />
-            </Field>
-            <Field
-              label="Score threshold"
-              help={HELP.scoreThreshold}
-              htmlFor="rag.scoreThreshold"
-              error={errAt("rag.scoreThreshold")}
-            >
-              <Input
-                id="rag.scoreThreshold"
-                type="number"
-                step="0.01"
-                {...register("rag.scoreThreshold", { valueAsNumber: true })}
-              />
-            </Field>
-            <Field
-              label="Cluster radius"
-              help={HELP.clusterRadius}
-              htmlFor="rag.clusterRadius"
-              error={errAt("rag.clusterRadius")}
-            >
-              <Input
-                id="rag.clusterRadius"
-                type="number"
-                step="0.01"
-                {...register("rag.clusterRadius", { valueAsNumber: true })}
-              />
-            </Field>
-            <Field
-              label="Gap match threshold"
-              help={HELP.gapMatchThreshold}
-              htmlFor="rag.gapMatchThreshold"
-              error={errAt("rag.gapMatchThreshold")}
-            >
-              <Input
-                id="rag.gapMatchThreshold"
-                type="number"
-                step="0.01"
-                {...register("rag.gapMatchThreshold", { valueAsNumber: true })}
-              />
-            </Field>
-          </div>
-        </TabsContent>
+          <TabsContent value="rag">
+            <div className={STACK}>
+              <Field label="Top-K" help={HELP.topK} htmlFor="rag.topK" error={errAt("rag.topK")}>
+                <Input
+                  id="rag.topK"
+                  type="number"
+                  {...register("rag.topK", { valueAsNumber: true })}
+                />
+              </Field>
+              <Field
+                label="Score floor"
+                help={HELP.scoreFloor}
+                htmlFor="rag.scoreFloor"
+                error={errAt("rag.scoreFloor")}
+              >
+                <Input
+                  id="rag.scoreFloor"
+                  type="number"
+                  step="0.01"
+                  {...register("rag.scoreFloor", { valueAsNumber: true })}
+                />
+              </Field>
+              <Field
+                label="Score threshold"
+                help={HELP.scoreThreshold}
+                htmlFor="rag.scoreThreshold"
+                error={errAt("rag.scoreThreshold")}
+              >
+                <Input
+                  id="rag.scoreThreshold"
+                  type="number"
+                  step="0.01"
+                  {...register("rag.scoreThreshold", { valueAsNumber: true })}
+                />
+              </Field>
+              <Field
+                label="Cluster radius"
+                help={HELP.clusterRadius}
+                htmlFor="rag.clusterRadius"
+                error={errAt("rag.clusterRadius")}
+              >
+                <Input
+                  id="rag.clusterRadius"
+                  type="number"
+                  step="0.01"
+                  {...register("rag.clusterRadius", { valueAsNumber: true })}
+                />
+              </Field>
+              <Field
+                label="Gap match threshold"
+                help={HELP.gapMatchThreshold}
+                htmlFor="rag.gapMatchThreshold"
+                error={errAt("rag.gapMatchThreshold")}
+              >
+                <Input
+                  id="rag.gapMatchThreshold"
+                  type="number"
+                  step="0.01"
+                  {...register("rag.gapMatchThreshold", { valueAsNumber: true })}
+                />
+              </Field>
+            </div>
+          </TabsContent>
 
-        <TabsContent value="public">
-          <div className={STACK}>
-            <Field
-              label="Greeting"
-              help={HELP.greeting}
-              htmlFor="public.greeting"
-              error={errAt("public.greeting")}
-            >
-              <Input id="public.greeting" {...register("public.greeting")} />
-            </Field>
-            <Field
-              label="Suggestions"
-              help={HELP.suggestions}
-              htmlFor="public.suggestions"
-              error={errAt("public.suggestions")}
-            >
-              <Controller
-                control={control}
-                name="public.suggestions"
-                render={({ field }) => (
-                  <Textarea
-                    id="public.suggestions"
-                    value={(field.value ?? []).join("\n")}
-                    onChange={(e) => field.onChange(e.target.value.split("\n"))}
-                    onBlur={field.onBlur}
-                  />
-                )}
-              />
-            </Field>
-            <Field
-              label="Cal.com URL"
-              help={HELP.calUrl}
-              htmlFor="public.calUrl"
-              error={errAt("public.calUrl")}
-            >
-              <Input id="public.calUrl" {...register("public.calUrl")} />
-            </Field>
-            <Field
-              label="GitHub URL"
-              help={HELP.githubUrl}
-              htmlFor="public.githubUrl"
-              error={errAt("public.githubUrl")}
-            >
-              <Input id="public.githubUrl" {...register("public.githubUrl")} />
-            </Field>
-            <Field
-              label="Contact email"
-              help={HELP.contactEmail}
-              htmlFor="public.contactEmail"
-              error={errAt("public.contactEmail")}
-            >
-              <Input id="public.contactEmail" {...register("public.contactEmail")} />
-            </Field>
-          </div>
-        </TabsContent>
-      </Tabs>
+          <TabsContent value="public">
+            <div className={STACK}>
+              <Field
+                label="Greeting"
+                help={HELP.greeting}
+                htmlFor="public.greeting"
+                error={errAt("public.greeting")}
+              >
+                <Input id="public.greeting" {...register("public.greeting")} />
+              </Field>
+              <Field
+                label="Suggestions"
+                help={HELP.suggestions}
+                htmlFor="public.suggestions"
+                error={errAt("public.suggestions")}
+              >
+                <Controller
+                  control={control}
+                  name="public.suggestions"
+                  render={({ field }) => (
+                    <Textarea
+                      id="public.suggestions"
+                      value={(field.value ?? []).join("\n")}
+                      onChange={(e) => field.onChange(e.target.value.split("\n"))}
+                      onBlur={field.onBlur}
+                    />
+                  )}
+                />
+              </Field>
+              <Field
+                label="Cal.com URL"
+                help={HELP.calUrl}
+                htmlFor="public.calUrl"
+                error={errAt("public.calUrl")}
+              >
+                <Input id="public.calUrl" {...register("public.calUrl")} />
+              </Field>
+              <Field
+                label="GitHub URL"
+                help={HELP.githubUrl}
+                htmlFor="public.githubUrl"
+                error={errAt("public.githubUrl")}
+              >
+                <Input id="public.githubUrl" {...register("public.githubUrl")} />
+              </Field>
+              <Field
+                label="Contact email"
+                help={HELP.contactEmail}
+                htmlFor="public.contactEmail"
+                error={errAt("public.contactEmail")}
+              >
+                <Input id="public.contactEmail" {...register("public.contactEmail")} />
+              </Field>
+            </div>
+          </TabsContent>
+        </Tabs>
 
-      <div className="mt-6 flex items-center gap-3">
-        <Button type="submit" loading={isSubmitting}>
-          Save
-        </Button>
-        <span
-          className={`text-sm ${msg.startsWith("Saved") ? "text-success" : msg ? "text-destructive" : "text-muted-foreground"}`}
-        >
-          {msg}
-        </span>
-      </div>
-    </form>
+        <div className="mt-6 flex items-center gap-3">
+          <Button type="submit" loading={isSubmitting}>
+            Save
+          </Button>
+        </div>
+      </form>
+    </AdminPage>
   );
 }
