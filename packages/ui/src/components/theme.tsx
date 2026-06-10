@@ -1,19 +1,28 @@
 "use client";
 import { Moon, Sun } from "lucide-react";
-import { ThemeProvider as NextThemesProvider, useTheme } from "next-themes";
+import {
+  ThemeProvider as NextThemesProvider,
+  type ThemeProviderProps,
+  useTheme,
+} from "next-themes";
 import * as React from "react";
 import { cn } from "../utils";
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  // next-themes@0.4.6 declares `ThemeProviderProps extends React.PropsWithChildren`
+  // (no type arg); under @types/react@19 that collapses to `unknown` and drops
+  // `children`, so JSX children fail to typecheck. Pass children inside a cast
+  // props object instead — identical at runtime (next-themes renders props.children).
   return (
     <NextThemesProvider
-      attribute="class"
-      defaultTheme="dark"
-      enableSystem={false}
-      disableTransitionOnChange
-    >
-      {children}
-    </NextThemesProvider>
+      {...({
+        attribute: "class",
+        defaultTheme: "dark",
+        enableSystem: false,
+        disableTransitionOnChange: true,
+        children,
+      } as ThemeProviderProps)}
+    />
   );
 }
 
