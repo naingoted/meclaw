@@ -26,6 +26,11 @@ meclaw/
 │  │  ├─ lib/rag/{pgvector,ingest,chunk,embed,loaders,config,types}.ts
 │  │  ├─ scripts/ingest.ts           # `pnpm ingest` entry — embeds content/ → Postgres
 │  │  └─ package.json
+│  ├─ mcp/                           # @meclaw/mcp — unified MCP tool layer (TS-defined, two transports)
+│  │  ├─ src/{registry,scope,guard,redact,auth,env,db}.ts   # tool registry + two-scope model (public/operator) + safety
+│  │  ├─ src/tools/{describe-schema,run-read-query,get-telemetry,search-corpus,static-tools}.ts
+│  │  ├─ src/bin/{stdio,http}.ts     # stdio (local/tokenless) + streamable-HTTP (bearer auth) transports
+│  │  └─ package.json
 │  └─ ui/                            # @meclaw/ui — shadcn components + cn helper
 │     ├─ lib/{cn.ts,components/}     # cn() + re-exported shadcn + custom chat components
 │     ├─ components.json
