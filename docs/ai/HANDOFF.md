@@ -48,6 +48,7 @@ ANTHROPIC_MODEL=qwen3.6-plus
 - Embeddable chat widget + resume tokens + main-chat session persistence
 - Resolved-gap pickup (curated-answer fast path; stuffing removed)
 - Chat UI upgrade (single-bot loading fix, timestamps, New chat, history drawer)
+- Mobile-responsive embed (full-screen on mobile/PWA, keyboard handling, safe-area insets)
 - Pre-commit/CI hardening; auto-migration on deploy (CI-proven)
 
 **Open items:**
@@ -96,3 +97,4 @@ One line per landed change, newest last. Full writeups: `git log -p docs/ai/HAND
 - 2026-06-11: **Resolved-gap pickup** — curated-answer fast path before triage; tiny-corpus stuffing removed; `gapMatchThreshold` knob (`5503d8f`, released v1.0.5-alpha). Browser smoke pending.
 - 2026-06-11: **Chat UI upgrade** — single-bot loading fix, timestamps + copy + day separators, New chat, history drawer; merged + pushed (`2c5cc1e`). Browser smoke pending.
 - 2026-06-11: **Lint → Biome** — enabled Biome linter (`react`+`next` domains) and dropped ESLint entirely (removed `eslint`/`eslint-config-next` + all eslint configs). `pnpm lint`/`verify`, pre-push, and CI now run `biome check`; `noNonNullAssertion`/`noArrayIndexKey` off, `useButtonType` relaxed in tests.
+- 2026-06-11: **Mobile-responsive embed** — embed.js now auto-switches to full-screen on mobile (≤768px) and PWA standalone mode. Includes keyboard handling via `visualViewport` API with 200px min-height floor, safe-area insets for notched devices, 75ms debounced resize/orientation listeners, `document.currentScript` for reliable async script detection, and event listener cleanup in `destroy()`. Browser-verified on Chrome (mobile/desktop modes).
