@@ -19,6 +19,7 @@ import {
   writeResumeEntry,
 } from "@/lib/chat/sessions";
 import { formatDayLabel, isSameDay } from "@/lib/chat/time";
+import { ChatToolbar } from "./chat-toolbar";
 import { ConfigRefreshPoller } from "./config-refresh-poller";
 import { MessageMeta } from "./message-meta";
 
@@ -467,7 +468,18 @@ export function Chat({
   const [input, setInput] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
   // Stable first-seen time per live message id (UIMessages carry no timestamp).
+  // Bounded per conversation: cleared on New chat / switch (kept small in practice).
   const firstSeenRef = useRef<Map<string, number>>(new Map());
+  const [historyOpen, setHistoryOpen] = useState(false);
+
+  const startNewChat = useCallback(() => {
+    const id = crypto.randomUUID();
+    setConversationId(id);
+    setMessages([]);
+    setLiveSteps([]);
+    firstSeenRef.current.clear();
+    setHistoryOpen(false);
+  }, [setMessages]);
 
   function messageTimestamp(message: { id: string; metadata?: unknown }): number | undefined {
     const meta = isRecord(message.metadata) ? message.metadata : null;
@@ -613,6 +625,11 @@ export function Chat({
   return (
     <div className="mx-auto flex h-full w-full max-w-2xl flex-col">
       <ConfigRefreshPoller initialConfigVersion={initialConfigVersion} status={status} />
+      <ChatToolbar
+        mode={mode}
+        onNewChat={startNewChat}
+        onOpenHistory={() => setHistoryOpen(true)}
+      />
       <div className="flex-1 space-y-4 overflow-y-auto p-4">
         {messages.length === 0 && (
           <div className="mt-10 space-y-6">

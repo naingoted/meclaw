@@ -761,3 +761,26 @@ describe("Chat main-chat history restore (normal mode)", () => {
     await waitFor(() => expect(getSession("conv-1")).toBeNull());
   });
 });
+
+describe("New chat control", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    mockState = { messages: [], sendMessage: vi.fn(), setMessages: vi.fn(), status: "ready" };
+  });
+
+  it("clears the transcript when New chat is clicked", () => {
+    const setMessages = vi.fn();
+    mockState.setMessages = setMessages;
+    mockState.messages = [
+      { id: "u1", role: "user", parts: [{ type: "text", text: "hi" }] },
+      { id: "a1", role: "assistant", parts: [{ type: "text", text: "hello" }] },
+    ];
+    render(<Chat {...CHAT_PROPS} />);
+    // Drop the mount-time loadConversation([]) call so we attribute the clear
+    // strictly to the click, not to the no-session resume on mount.
+    setMessages.mockClear();
+    fireEvent.click(screen.getByRole("button", { name: /new chat/i }));
+    expect(setMessages).toHaveBeenCalledTimes(1);
+    expect(setMessages).toHaveBeenCalledWith([]);
+  });
+});
