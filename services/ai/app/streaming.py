@@ -54,6 +54,11 @@ logger = logging.getLogger(__name__)
 
 _TEXT_ID = "0"
 
+# Triage only needs recent turns to classify intent; the full history goes to
+# a reasoning model otherwise — pure routing latency on long conversations.
+# (Drafting still receives the full history. Real windowing is Spec B.)
+_TRIAGE_WINDOW = 6
+
 # (system, messages, context) -> stream of text deltas
 DraftStreamFn = Callable[[str, list[dict], str], Iterator[str]]
 TriageFn = Callable[[list[dict]], TriageResult]
@@ -224,7 +229,7 @@ def run_stream(
             return
 
     yield status("Routing your question…", "triage")
-    triage = triage_fn(messages)
+    triage = triage_fn(messages[-_TRIAGE_WINDOW:])
     intent = triage.intent if triage.intent in VALID_INTENTS else "general"
 
     # Don't nag for contact again once it's been captured this conversation.

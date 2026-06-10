@@ -1257,3 +1257,48 @@ def test_lead_capture_still_beats_gap_match():
     )
     assert '"route":"lead"' in body
     assert '"route":"gap"' not in body
+
+
+def test_triage_receives_only_last_six_messages():
+    captured = {}
+
+    def triage(messages):
+        captured["messages"] = messages
+        return TriageResult(intent="contact", confidence=0.9, clarifying_question=None)
+
+    # 9 alternating turns ending on a user message (i=8 even → user).
+    msgs = [
+        {"role": "assistant" if i % 2 else "user", "content": f"m{i}"} for i in range(9)
+    ]
+    _collect(
+        run_stream(
+            msgs,
+            triage_fn=triage,
+            retriever_retrieve=lambda q: RetrievalResult([], []),
+            draft_stream_fn=lambda s, m, c: iter(["ok"]),
+            schedule_fn=lambda: {},
+            contact_fn=lambda: {"email": "a@b.c"},
+        )
+    )
+    assert captured["messages"] == msgs[-6:]
+
+
+def test_short_conversation_passes_all_messages_to_triage():
+    captured = {}
+
+    def triage(messages):
+        captured["messages"] = messages
+        return TriageResult(intent="contact", confidence=0.9, clarifying_question=None)
+
+    msgs = [{"role": "user", "content": "hi"}]
+    _collect(
+        run_stream(
+            msgs,
+            triage_fn=triage,
+            retriever_retrieve=lambda q: RetrievalResult([], []),
+            draft_stream_fn=lambda s, m, c: iter(["ok"]),
+            schedule_fn=lambda: {},
+            contact_fn=lambda: {"email": "a@b.c"},
+        )
+    )
+    assert captured["messages"] == msgs
