@@ -344,4 +344,82 @@ describe("Chat component — embed mode resume integration", () => {
     expect(options?.body?.conversationId).toMatch(/^[0-9a-f-]{36}$/i);
     expect(options?.body?.embedToken).toBeUndefined();
   });
+
+  it("Escape key posts meclaw:close in embed mode", () => {
+    mockState.messages = [];
+    mockState.status = "ready";
+    const embedToken = "pk_esc";
+    const parentOrigin = "https://acme.com";
+    localStorage.setItem(
+      `meclaw:resume:${embedToken}`,
+      JSON.stringify({ conversationId: "c", resumeToken: "r" }),
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ conversationId: "c", messages: [] }), { status: 200 }),
+        ),
+      ),
+    );
+    const postMessageSpy = vi.fn();
+    Object.defineProperty(window, "parent", {
+      value: { postMessage: postMessageSpy },
+      writable: true,
+      configurable: true,
+    });
+
+    render(
+      <Chat
+        greeting="Hi"
+        suggestions={["chip"]}
+        initialConfigVersion="0"
+        mode="embed"
+        embedToken={embedToken}
+        parentOrigin={parentOrigin}
+      />,
+    );
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(postMessageSpy).toHaveBeenCalledWith({ type: "meclaw:close", version: 1 }, parentOrigin);
+
+    // Cleanup
+    Object.defineProperty(window, "parent", {
+      value: window,
+      writable: true,
+      configurable: true,
+    });
+  });
+
+  it("Escape key does NOT post meclaw:close in normal mode", () => {
+    mockState.messages = [];
+    mockState.status = "ready";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ conversationId: "x", messages: [] }), { status: 200 }),
+        ),
+      ),
+    );
+    const postMessageSpy = vi.fn();
+    Object.defineProperty(window, "parent", {
+      value: { postMessage: postMessageSpy },
+      writable: true,
+      configurable: true,
+    });
+
+    render(<Chat greeting="Hi" suggestions={["chip"]} initialConfigVersion="0" mode="normal" />);
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(postMessageSpy).not.toHaveBeenCalled();
+
+    // Cleanup
+    Object.defineProperty(window, "parent", {
+      value: window,
+      writable: true,
+      configurable: true,
+    });
+  });
 });

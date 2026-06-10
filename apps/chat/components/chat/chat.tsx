@@ -441,6 +441,7 @@ export function Chat({
   mode = "normal",
   embedToken,
   parentOrigin,
+  onClose,
 }: {
   greeting: string;
   suggestions: string[];
@@ -449,6 +450,8 @@ export function Chat({
   embedToken?: string;
   /** Parent embedding site's origin (e.g. "https://acme.com"). Required in embed mode. */
   parentOrigin?: string;
+  /** Called when the user closes the widget (embed mode only). */
+  onClose?: () => void;
 }) {
   // `liveSteps` accumulates the backend's transient `data-status` labels into an
   // ordered checklist ("Routing…" → "Searching…" → "Writing…") shown live during
@@ -631,6 +634,30 @@ export function Chat({
   const isStreaming = status === "submitted" || status === "streaming";
   const showThinking = shouldShowThinking(status, messages as MessageWithParts[]);
 
+  function handleClose() {
+    if (mode === "embed") {
+      window.parent.postMessage({ type: "meclaw:close", version: 1 }, parentOrigin ?? "*");
+    }
+    onClose?.();
+  }
+
+  // Escape key closes the widget in embed mode. The parent page's Escape
+  // listener in embed.js can't reach the iframe — external keyboard users
+  // (iPad Magic Keyboard, Android BT keyboard) need an in-iframe handler.
+  // Use refs for handleClose deps to avoid re-registering the listener on
+  // every render (handleClose captures parentOrigin/onClose from props).
+  const handleCloseRef = useRef(handleClose);
+  handleCloseRef.current = handleClose;
+
+  useEffect(() => {
+    if (mode !== "embed") return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") handleCloseRef.current();
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [mode]);
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const text = input.trim();
@@ -686,7 +713,12 @@ export function Chat({
   return (
     <div className="mx-auto flex h-full w-full max-w-2xl flex-col">
       <ConfigRefreshPoller initialConfigVersion={initialConfigVersion} status={status} />
-      <ChatToolbar mode={mode} onNewChat={startNewChat} onOpenHistory={openHistory} />
+      <ChatToolbar
+        mode={mode}
+        onNewChat={startNewChat}
+        onOpenHistory={openHistory}
+        onClose={handleClose}
+      />
       <div className="flex-1 space-y-4 overflow-y-auto p-4">
         {messages.length === 0 && (
           <div className="mt-10 space-y-6">
