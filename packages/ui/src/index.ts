@@ -13,6 +13,7 @@ export * from "./components/table";
 export * from "./components/tabs";
 export { Textarea } from "./components/textarea";
 export { ThemeProvider, ThemeToggle } from "./components/theme";
+export { AdminToaster } from "./components/toaster";
 export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./components/tooltip";
 export type { StatusCounts, StatusTone } from "./status";
 export { deriveStatusCounts, relativeTime, statusTone } from "./status";
