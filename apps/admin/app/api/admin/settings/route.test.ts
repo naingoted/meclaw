@@ -9,7 +9,7 @@ const value = {
     contact: { model: "qwen3.6-plus", thinking: false, prompt: "c" },
   },
   shared: { persona: "" },
-  rag: { topK: 4, scoreThreshold: 0, tinyCorpusThreshold: 8000 },
+  rag: { topK: 4, scoreThreshold: 0, gapMatchThreshold: 0.15 },
   public: { greeting: "Hi", suggestions: [], calUrl: "", githubUrl: "" },
 };
 vi.mock("@meclaw/core/settings", async (importOriginal) => {

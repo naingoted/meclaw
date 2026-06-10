@@ -26,12 +26,21 @@ describe("settings rag tunables", () => {
     const legacy = {
       agents: {},
       shared: { persona: "" },
-      rag: { topK: 4, scoreThreshold: 0, tinyCorpusThreshold: 8000 },
+      rag: { topK: 4, scoreThreshold: 0, gapMatchThreshold: 0.15 },
       public: { greeting: "", suggestions: [], calUrl: "", githubUrl: "" },
     };
     const parsed = SettingsSchema.parse(legacy);
     expect(parsed.rag.scoreFloor).toBe(0.35);
     expect(parsed.rag.clusterRadius).toBe(0.15);
+  });
+
+  it("parses legacy rows: tinyCorpusThreshold stripped, gapMatchThreshold defaulted", () => {
+    const parsed = SettingsSchema.parse({
+      ...defaultSettings(),
+      rag: { topK: 4, scoreThreshold: 0, tinyCorpusThreshold: 8000 },
+    });
+    expect(parsed.rag.gapMatchThreshold).toBe(0.15);
+    expect("tinyCorpusThreshold" in parsed.rag).toBe(false);
   });
 });
 
@@ -55,7 +64,7 @@ describe("settings new wired fields", () => {
     const legacy = {
       agents: {},
       shared: { persona: "" },
-      rag: { topK: 4, scoreThreshold: 0, tinyCorpusThreshold: 8000 },
+      rag: { topK: 4, scoreThreshold: 0, gapMatchThreshold: 0.15 },
       public: { greeting: "", suggestions: [], calUrl: "", githubUrl: "" },
     };
     const parsed = SettingsSchema.parse(legacy);

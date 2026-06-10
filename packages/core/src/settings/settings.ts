@@ -23,7 +23,8 @@ export const SettingsSchema = z.object({
   rag: z.object({
     topK: z.number().int().min(1).max(20),
     scoreThreshold: z.number().min(0).max(1),
-    tinyCorpusThreshold: z.number().int().min(0),
+    /** Max cosine DISTANCE for the resolved-gap fast path to return a curated answer verbatim. */
+    gapMatchThreshold: z.number().min(0).max(2).default(0.15),
     /** Relevance floor: retrieval is grounded iff top cosine score >= this. */
     scoreFloor: z.number().min(0).max(1).default(0.35),
     /** Max cosine distance for a miss to fold into an existing gap cluster. */
@@ -76,7 +77,7 @@ export function defaultSettings(): SettingsValue {
     rag: {
       topK: Number(process.env.RAG_TOP_K ?? 4),
       scoreThreshold: 0,
-      tinyCorpusThreshold: 8000,
+      gapMatchThreshold: 0.15,
       scoreFloor: 0.35,
       clusterRadius: 0.15,
     },
