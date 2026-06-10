@@ -3,7 +3,6 @@ import {
   Button,
   EmptyState,
   Input,
-  PageHeader,
   Skeleton,
   Spinner,
   StatusPill,
@@ -17,7 +16,9 @@ import {
 } from "@meclaw/ui";
 import { Trash2 } from "lucide-react";
 import * as React from "react";
+import { toast } from "sonner";
 import { useUrlState } from "@/lib/use-url-state";
+import { AdminPage } from "./framework";
 
 type Doc = {
   id: string;
@@ -112,12 +113,14 @@ export function DocumentsClient() {
     await fetch(url, { method: d.id ? "PUT" : "POST", body: JSON.stringify(d) });
     setEditing(null);
     await load();
+    toast.success(d.id ? "Document updated" : "Document created");
   }
   async function remove(id: string) {
     setBusyId(id);
     try {
       await fetch(`/api/admin/documents/${id}`, { method: "DELETE" });
       await load();
+      toast.success("Document deleted");
     } finally {
       setBusyId(null);
       setConfirmId(null);
@@ -128,6 +131,7 @@ export function DocumentsClient() {
     try {
       await fetch("/api/admin/jobs", { method: "POST", body: JSON.stringify({ documentId: id }) });
       await loadJobs(); // surface the queued job → starts polling, keeps button disabled
+      toast.success("Ingest queued");
     } finally {
       setPendingId(null);
     }
@@ -156,14 +160,12 @@ export function DocumentsClient() {
   };
 
   return (
-    <div>
-      <PageHeader
-        title="Documents"
-        subtitle={docs ? `${docs.length} total` : undefined}
-        action={<Button onClick={() => setEditing(newDocAction)}>New document</Button>}
-      />
-
-      <div className="mb-4 flex gap-2">
+    <AdminPage
+      title="Documents"
+      subtitle={docs ? `${docs.length} total` : undefined}
+      action={<Button onClick={() => setEditing(newDocAction)}>New document</Button>}
+    >
+      <div className="mb-item flex gap-2">
         {(["all", "manual", "gap"] as const).map((f) => (
           <Button
             key={f}
@@ -287,7 +289,7 @@ export function DocumentsClient() {
           </TBody>
         </Table>
       )}
-    </div>
+    </AdminPage>
   );
 }
 
@@ -316,7 +318,7 @@ function Editor({
 
   return (
     <div className="max-w-3xl">
-      <h1 className="mb-4 text-lg font-bold tracking-tight text-foreground">
+      <h1 className="mb-section text-lg font-bold tracking-tight text-foreground">
         {doc.id ? "Edit" : "New"} document
       </h1>
       <Input
@@ -336,7 +338,7 @@ function Editor({
         value={body}
         onChange={(e) => setBody(e.target.value)}
       />
-      <div className="flex gap-2">
+      <div className="flex gap-item">
         <Button onClick={handleSave} loading={saving}>
           Save
         </Button>
