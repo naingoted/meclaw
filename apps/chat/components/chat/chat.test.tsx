@@ -40,6 +40,7 @@ import {
   shouldShowThinking,
   writeResumeEntry,
 } from "@/components/chat/chat";
+import { getSession, removeSession, upsertSession } from "@/lib/chat/sessions";
 
 const CHAT_PROPS = {
   greeting: "Hi! I'm meclaw, Thet's personal bot.",
@@ -186,6 +187,7 @@ describe("single-bot loading (regression guard)", () => {
 
 describe("Chat component — M4 behavioral tests", () => {
   beforeEach(() => {
+    localStorage.clear();
     vi.clearAllMocks();
     vi.unstubAllEnvs();
     // Reset mock state for each test
@@ -694,17 +696,13 @@ describe("Chat main-chat session persistence (normal mode)", () => {
     expect(options?.body?.conversationId).toBe("stored-conv-id");
   });
 
-  it("writes a __main__ resume entry on a valid data-resume-token in normal mode", () => {
+  it("stores the resume token in the session index on a valid token in normal mode", () => {
     handleResumeTokenEvent(
       { type: "data-resume-token", data: { token: "rt-1", conversationId: "conv-1" } },
       "normal",
       undefined,
     );
-
-    expect(readResumeEntry(MAIN_RESUME_KEY)).toEqual({
-      conversationId: "conv-1",
-      resumeToken: "rt-1",
-    });
+    expect(getSession("conv-1")).toMatchObject({ conversationId: "conv-1", resumeToken: "rt-1" });
   });
 });
 
@@ -753,13 +751,13 @@ describe("Chat main-chat history restore (normal mode)", () => {
     ]);
   });
 
-  it("clears the __main__ resume entry when history fetch returns 401", async () => {
+  it("forgets the session when history fetch returns 401 (normal mode)", async () => {
     writeResumeEntry(MAIN_RESUME_KEY, { conversationId: "conv-1", resumeToken: "stale" });
     mockState.setMessages = vi.fn();
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("", { status: 401 })));
 
     render(<Chat {...CHAT_PROPS} />);
 
-    await waitFor(() => expect(readResumeEntry(MAIN_RESUME_KEY)).toBeNull());
+    await waitFor(() => expect(getSession("conv-1")).toBeNull());
   });
 });

@@ -3,72 +3,27 @@
 import { useChat } from "@ai-sdk/react";
 import { Button, cn } from "@meclaw/ui";
 import { Bot } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import {
+  clearResumeEntry,
+  getSession,
+  listSessions,
+  MAIN_RESUME_KEY,
+  migrateLegacyEntry,
+  readResumeEntry,
+  removeSession,
+  setSessionTitle,
+  setSessionToken,
+  upsertSession,
+  writeResumeEntry,
+} from "@/lib/chat/sessions";
 import { ConfigRefreshPoller } from "./config-refresh-poller";
 
-// --- Embed resume helpers (localStorage) ---
-type ResumeEntry = { conversationId: string; resumeToken: string };
-
-const RESUME_KEY_PREFIX = "meclaw:resume:";
-
-// First-party (main chat) sessions store their resume entry under a fixed key
-// and sign/verify against the matching "__main__" sentinel embedClientId.
-export const MAIN_RESUME_KEY = "__main__";
-
-/**
- * Read a resume entry from localStorage for the given embedToken.
- * Returns null if no entry exists, localStorage is unavailable, or parsing fails.
- * Safe to call in SSR (returns null).
- */
-export function readResumeEntry(embedToken: string): ResumeEntry | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.localStorage.getItem(`${RESUME_KEY_PREFIX}${embedToken}`);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as unknown;
-    if (
-      typeof parsed === "object" &&
-      parsed !== null &&
-      "conversationId" in parsed &&
-      "resumeToken" in parsed &&
-      typeof (parsed as ResumeEntry).conversationId === "string" &&
-      typeof (parsed as ResumeEntry).resumeToken === "string"
-    ) {
-      return parsed as ResumeEntry;
-    }
-    return null;
-  } catch {
-    // private browsing, quota exceeded, or malformed JSON
-    return null;
-  }
-}
-
-/**
- * Write a resume entry to localStorage for the given embedToken.
- * Safe to call in SSR (does nothing).
- */
-export function writeResumeEntry(embedToken: string, entry: ResumeEntry): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(`${RESUME_KEY_PREFIX}${embedToken}`, JSON.stringify(entry));
-  } catch {
-    // private browsing, quota exceeded — silently ignore
-  }
-}
-
-/**
- * Clear a resume entry from localStorage for the given embedToken.
- * Safe to call in SSR (does nothing).
- */
-export function clearResumeEntry(embedToken: string): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.removeItem(`${RESUME_KEY_PREFIX}${embedToken}`);
-  } catch {
-    // private browsing, quota exceeded — silently ignore
-  }
-}
+// Re-export the embed single-entry helpers + sentinel so existing importers
+// (chat.test.tsx, chat-embed.test.tsx) keep a stable surface. Implementations
+// now live in lib/chat/sessions.ts.
+export { clearResumeEntry, MAIN_RESUME_KEY, readResumeEntry, writeResumeEntry };
 
 type SourceMetadata = {
   title?: unknown;
@@ -122,8 +77,8 @@ export function appendStep(steps: string[], label: string): string[] {
 }
 
 /**
- * Persist a data-resume-token SSE event to localStorage. Stores under the
- * embedToken key in embed mode, or under MAIN_RESUME_KEY in normal mode.
+ * Persist a data-resume-token SSE event. Embed mode writes the single entry
+ * keyed on embedToken; normal mode stores the token in the session index.
  * Exported for direct unit testing.
  */
 export function handleResumeTokenEvent(
@@ -131,15 +86,16 @@ export function handleResumeTokenEvent(
   mode: "normal" | "embed",
   embedToken: string | undefined,
 ): void {
-  const key = mode === "embed" ? embedToken : MAIN_RESUME_KEY;
-  if (!key) return;
   if (!isRecord(part) || part.type !== "data-resume-token") return;
   const data = part.data;
   if (!isRecord(data)) return;
   const token = readString(data.token);
   const convId = readString(data.conversationId);
-  if (token && convId) {
-    writeResumeEntry(key, { conversationId: convId, resumeToken: token });
+  if (!token || !convId) return;
+  if (mode === "embed") {
+    if (embedToken) writeResumeEntry(embedToken, { conversationId: convId, resumeToken: token });
+  } else {
+    setSessionToken(convId, token);
   }
 }
 
@@ -392,18 +348,18 @@ export function Chat({
   // the pre-answer gap. The same labels persist per-message via metadata.steps.
   const [liveSteps, setLiveSteps] = useState<string[]>([]);
   // Resume from a stored entry when one exists: embed mode keys on embedToken,
-  // normal mode on MAIN_RESUME_KEY. Otherwise start a fresh conversation.
-  const [conversationId] = useState(() => {
-    const key = mode === "embed" ? embedToken : MAIN_RESUME_KEY;
-    if (key) {
-      const entry = readResumeEntry(key);
-      if (entry) return entry.conversationId;
+  // normal mode uses the session index. Otherwise start a fresh conversation.
+  const [conversationId, setConversationId] = useState(() => {
+    if (mode === "embed") {
+      const entry = embedToken ? readResumeEntry(embedToken) : null;
+      return entry?.conversationId ?? crypto.randomUUID();
     }
-    return crypto.randomUUID();
+    // Normal mode: fold any legacy single entry into the index, then resume the
+    // most-recently-updated session if one exists.
+    migrateLegacyEntry();
+    const latest = listSessions()[0];
+    return latest?.conversationId ?? crypto.randomUUID();
   });
-  // Track whether we've attempted to fetch history in embed mode (to avoid re-fetching).
-  // Using a ref (not state) so that setting it doesn't trigger a re-render which would
-  // run the effect cleanup and cancel the in-flight fetch.
   const historyFetchedRef = useRef(false);
   const { messages, sendMessage, status, setMessages } = useChat({
     onData: (part) => {
@@ -423,60 +379,67 @@ export function Chat({
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Fetch history on mount when a resume entry exists. Embed mode keys on
-  // embedToken (and forwards embedToken + parentOrigin); normal mode keys on
-  // MAIN_RESUME_KEY (same-origin, no embed params).
+  // Fetch a conversation's history and hydrate the message list. Used on mount
+  // (resume) and by the history drawer (Task 7). Resolves the resume token from
+  // the embed single entry (embed) or the session index (normal).
+  const loadConversation = useCallback(
+    (id: string) => {
+      const resume =
+        mode === "embed" ? (embedToken ? readResumeEntry(embedToken) : null) : getSession(id);
+      if (!resume) {
+        setMessages([]);
+        return;
+      }
+      const params = new URLSearchParams({ conversationId: id, resumeToken: resume.resumeToken });
+      if (mode === "embed" && embedToken) {
+        params.set("embedToken", embedToken);
+        if (parentOrigin) params.set("parentOrigin", parentOrigin);
+      }
+      fetch(`/api/chat/history?${params.toString()}`)
+        .then((res) => {
+          if (!res.ok) {
+            // Stale/invalid token — forget this conversation, start fresh.
+            if (mode === "embed" && embedToken) clearResumeEntry(embedToken);
+            else removeSession(id);
+            return null;
+          }
+          return res.json() as Promise<{
+            conversationId: string;
+            messages: Array<{
+              id: string;
+              role: "user" | "assistant";
+              content: string;
+              createdAt?: string;
+            }>;
+          }>;
+        })
+        .then((data) => {
+          if (!data) return;
+          setMessages(
+            data.messages.map((m) => ({
+              id: m.id,
+              role: m.role,
+              parts: [{ type: "text" as const, text: m.content }],
+              ...(m.createdAt ? { metadata: { createdAt: m.createdAt } } : {}),
+            })),
+          );
+        })
+        .catch(() => {
+          if (mode === "embed" && embedToken) clearResumeEntry(embedToken);
+          else removeSession(id);
+        });
+    },
+    [mode, embedToken, parentOrigin, setMessages],
+  );
+
+  // Resume the active conversation once on mount.
   useEffect(() => {
-    const key = mode === "embed" ? embedToken : MAIN_RESUME_KEY;
-    if (!key || historyFetchedRef.current) return;
-    const entry = readResumeEntry(key);
-    if (!entry) return;
-
+    if (historyFetchedRef.current) return;
     historyFetchedRef.current = true;
-    let cancelled = false;
-    const params = new URLSearchParams({
-      conversationId: entry.conversationId,
-      resumeToken: entry.resumeToken,
-    });
-    if (mode === "embed" && embedToken) {
-      params.set("embedToken", embedToken);
-      if (parentOrigin) params.set("parentOrigin", parentOrigin);
-    }
-    const url = `/api/chat/history?${params.toString()}`;
-
-    fetch(url)
-      .then((res) => {
-        if (cancelled) return null;
-        if (!res.ok) {
-          // Stale resume token (401), forbidden (403), or other error — clear entry and start fresh.
-          clearResumeEntry(key);
-          return null;
-        }
-        return res.json() as Promise<{
-          conversationId: string;
-          messages: Array<{ id: string; role: "user" | "assistant"; content: string }>;
-        }>;
-      })
-      .then((data) => {
-        if (cancelled || !data) return; // fetch failed or unmounted, already cleared entry
-        // Convert history messages to UIMessage shape for useChat.
-        const uiMessages = data.messages.map((m) => ({
-          id: m.id,
-          role: m.role,
-          parts: [{ type: "text" as const, text: m.content }],
-        }));
-        setMessages(uiMessages);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        // Network error or other failure — clear entry and start fresh.
-        clearResumeEntry(key);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [mode, embedToken, parentOrigin, setMessages]);
+    loadConversation(conversationId);
+    // Mount-only: conversationId/loadConversation are stable for the initial id.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const isStreaming = status === "submitted" || status === "streaming";
   const showThinking = shouldShowThinking(status, messages as MessageWithParts[]);
@@ -485,6 +448,7 @@ export function Chat({
     e.preventDefault();
     const text = input.trim();
     if (!text || isStreaming) return;
+    registerUserTurn(text);
     setLiveSteps([]); // reset stale status from a prior turn
     sendMessage(
       { text },
@@ -496,6 +460,7 @@ export function Chat({
   }
 
   function handleChipClick(chipText: string) {
+    registerUserTurn(chipText);
     setLiveSteps([]);
     sendMessage(
       { text: chipText },
@@ -516,16 +481,19 @@ export function Chat({
       body.embedToken = embedToken;
       body.parentOrigin = parentOrigin;
     } else {
-      // First-party: include the stored resume token (if any) so the server can
-      // verify we have prior access to this conversation before minting a new one.
-      // New conversations (no stored entry) omit the token — the server will
-      // accept the conversationId as new and mint a fresh token.
-      const entry = readResumeEntry(MAIN_RESUME_KEY);
-      if (entry) {
-        body.resumeToken = entry.resumeToken;
-      }
+      // First-party: include the stored resume token for this conversation (if any)
+      // so the server can verify prior access before minting a new one.
+      const session = getSession(conversationId);
+      if (session?.resumeToken) body.resumeToken = session.resumeToken;
     }
     return body;
+  }
+
+  // On the first user turn (normal mode), register the session and set its title.
+  function registerUserTurn(text: string) {
+    if (mode === "embed") return;
+    upsertSession({ conversationId });
+    setSessionTitle(conversationId, text);
   }
 
   return (
