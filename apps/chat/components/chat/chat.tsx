@@ -18,7 +18,9 @@ import {
   upsertSession,
   writeResumeEntry,
 } from "@/lib/chat/sessions";
+import { formatDayLabel, isSameDay } from "@/lib/chat/time";
 import { ConfigRefreshPoller } from "./config-refresh-poller";
+import { MessageMeta } from "./message-meta";
 
 // Re-export the embed single-entry helpers + sentinel so existing importers
 // (chat.test.tsx, chat-embed.test.tsx) keep a stable surface. Implementations
@@ -327,6 +329,97 @@ function ThinkingTrace({ steps }: { steps: string[] }) {
   );
 }
 
+type RenderableMessage = ChatMessageLike & {
+  id: string;
+  parts: Array<{ type?: string; text?: string }>;
+};
+
+/**
+ * One assistant turn: avatar + markdown bubble, then (once answered) the
+ * timestamp/copy line, the dev Sources panel, and the persisted "How I answered"
+ * trace. Extracted from the transcript map to keep that callback simple.
+ */
+function AssistantTurn({
+  message,
+  ts,
+  text,
+  answered,
+}: {
+  message: RenderableMessage;
+  ts: number | undefined;
+  text: string;
+  answered: boolean;
+}) {
+  const sources = extractSources(message);
+  const route = extractRoute(message);
+  const steps = extractSteps(message);
+  return (
+    <>
+      <div
+        data-testid="bot-avatar"
+        className="mr-3 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted"
+      >
+        <Bot className="h-5 w-5 text-foreground" />
+      </div>
+      <div className="min-w-0 space-y-2">
+        <div className="max-w-[85%] rounded-2xl bg-muted px-4 py-2 text-sm text-foreground">
+          {message.parts.map((part, j) =>
+            part.type === "text" ? (
+              <div
+                key={`${message.id}-${j}`}
+                className="prose prose-sm max-w-none font-sans dark:prose-invert"
+              >
+                <ReactMarkdown>{part.text}</ReactMarkdown>
+              </div>
+            ) : null,
+          )}
+        </div>
+        {answered ? <MessageMeta timestamp={ts} text={text} /> : null}
+        {answered && (sources.length > 0 || route) ? (
+          <SourcesPanel
+            sources={sources}
+            route={route}
+            label={groundingLabel(route, sources.length)}
+            corpusVersion={extractCorpusVersion(message)}
+          />
+        ) : null}
+        {answered && steps.length > 0 ? <ThinkingTrace steps={steps} /> : null}
+      </div>
+    </>
+  );
+}
+
+/** One user turn: right-aligned markdown bubble + timestamp/copy line. */
+function UserTurn({
+  message,
+  ts,
+  text,
+}: {
+  message: RenderableMessage;
+  ts: number | undefined;
+  text: string;
+}) {
+  return (
+    <div className="flex flex-col items-end">
+      <div
+        className={cn(
+          "max-w-[85%] rounded-2xl px-4 py-2 text-sm",
+          "bg-primary text-primary-foreground",
+        )}
+      >
+        {message.parts.map((part, j) =>
+          part.type === "text" ? (
+            <div key={`${message.id}-${j}`} className="prose prose-sm max-w-none dark:prose-invert">
+              <ReactMarkdown>{part.text}</ReactMarkdown>
+            </div>
+          ) : null,
+        )}
+      </div>
+      <MessageMeta timestamp={ts} text={text} />
+    </div>
+  );
+}
+
 export function Chat({
   greeting,
   suggestions,
@@ -373,6 +466,27 @@ export function Chat({
   });
   const [input, setInput] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
+  // Stable first-seen time per live message id (UIMessages carry no timestamp).
+  const firstSeenRef = useRef<Map<string, number>>(new Map());
+
+  function messageTimestamp(message: { id: string; metadata?: unknown }): number | undefined {
+    const meta = isRecord(message.metadata) ? message.metadata : null;
+    const created =
+      meta && typeof meta.createdAt === "string" ? Date.parse(meta.createdAt) : Number.NaN;
+    if (Number.isFinite(created)) return created;
+    const cached = firstSeenRef.current.get(message.id);
+    if (cached !== undefined) return cached;
+    const now = Date.now();
+    firstSeenRef.current.set(message.id, now);
+    return now;
+  }
+
+  function messageText(message: { parts?: Array<{ type?: string; text?: string }> }): string {
+    return (message.parts ?? [])
+      .filter((p) => p.type === "text" && p.text)
+      .map((p) => p.text)
+      .join("");
+  }
 
   // Auto-scroll to the latest message as content streams in.
   useEffect(() => {
@@ -532,74 +646,41 @@ export function Chat({
             </div>
           </div>
         )}
-        {messages.map((message) => {
-          if (!shouldRenderMessage(message as MessageWithParts)) return null;
-          const sources = extractSources(message);
-          const route = extractRoute(message);
-          const steps = extractSteps(message);
-          // Hold persisted blocks until answer text begins, so they don't
-          // overlap the live checklist (metadata lands before the first token).
-          const answered = hasRenderedText(message as MessageWithParts);
+        {messages
+          .filter((message) => shouldRenderMessage(message as MessageWithParts))
+          .map((message, i, visible) => {
+            // Hold persisted blocks until answer text begins, so they don't
+            // overlap the live checklist (metadata lands before the first token).
+            const answered = hasRenderedText(message as MessageWithParts);
+            const ts = messageTimestamp(message);
+            const prevTs = i > 0 ? messageTimestamp(visible[i - 1]) : undefined;
+            const showDay = ts !== undefined && (prevTs === undefined || !isSameDay(prevTs, ts));
+            const text = messageText(message);
 
-          return (
-            <div
-              key={message.id}
-              className={cn("flex", message.role === "user" ? "justify-end" : "justify-start")}
-            >
-              {message.role === "assistant" ? (
-                <>
-                  <div
-                    data-testid="bot-avatar"
-                    className="mr-3 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted"
-                  >
-                    <Bot className="h-5 w-5 text-foreground" />
+            return (
+              <div key={message.id}>
+                {showDay ? (
+                  <div className="my-3 text-center font-mono text-[11px] text-muted-foreground">
+                    {formatDayLabel(ts)}
                   </div>
-                  <div className="min-w-0 space-y-2">
-                    <div className="max-w-[85%] rounded-2xl bg-muted px-4 py-2 text-sm text-foreground">
-                      {message.parts.map((part, i) =>
-                        part.type === "text" ? (
-                          <div
-                            key={`${message.id}-${i}`}
-                            className="prose prose-sm max-w-none font-sans dark:prose-invert"
-                          >
-                            <ReactMarkdown>{part.text}</ReactMarkdown>
-                          </div>
-                        ) : null,
-                      )}
-                    </div>
-                    {answered && (sources.length > 0 || route) ? (
-                      <SourcesPanel
-                        sources={sources}
-                        route={route}
-                        label={groundingLabel(route, sources.length)}
-                        corpusVersion={extractCorpusVersion(message)}
-                      />
-                    ) : null}
-                    {answered && steps.length > 0 ? <ThinkingTrace steps={steps} /> : null}
-                  </div>
-                </>
-              ) : (
+                ) : null}
                 <div
-                  className={cn(
-                    "max-w-[85%] rounded-2xl px-4 py-2 text-sm",
-                    "bg-primary text-primary-foreground",
-                  )}
+                  className={cn("flex", message.role === "user" ? "justify-end" : "justify-start")}
                 >
-                  {message.parts.map((part, i) =>
-                    part.type === "text" ? (
-                      <div
-                        key={`${message.id}-${i}`}
-                        className="prose prose-sm max-w-none dark:prose-invert"
-                      >
-                        <ReactMarkdown>{part.text}</ReactMarkdown>
-                      </div>
-                    ) : null,
+                  {message.role === "assistant" ? (
+                    <AssistantTurn
+                      message={message as RenderableMessage}
+                      ts={ts}
+                      text={text}
+                      answered={answered}
+                    />
+                  ) : (
+                    <UserTurn message={message as RenderableMessage} ts={ts} text={text} />
                   )}
                 </div>
-              )}
-            </div>
-          );
-        })}
+              </div>
+            );
+          })}
         {showThinking && <LiveTrace steps={liveSteps} />}
         <div ref={endRef} />
       </div>
