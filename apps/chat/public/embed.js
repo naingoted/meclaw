@@ -206,6 +206,8 @@
       container.style.right = "";
       container.style.bottom = "";
       container.style.width = "100vw";
+      container.style.maxWidth = "100%";
+      container.style.maxHeight = "100%";
       container.style.borderRadius = "0";
       container.style.boxShadow = "none";
       container.style.paddingBottom = "env(safe-area-inset-bottom)";
@@ -228,6 +230,8 @@
       container.style.bottom = "92px";
       container.style.width = "380px";
       container.style.height = "560px";
+      container.style.maxWidth = "calc(100vw - 40px)";
+      container.style.maxHeight = "calc(100vh - 120px)";
       container.style.borderRadius = "12px";
       container.style.boxShadow = "0 8px 24px rgba(0,0,0,0.22)";
       container.style.paddingBottom = "";
