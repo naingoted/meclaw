@@ -3,72 +3,32 @@
 import { useChat } from "@ai-sdk/react";
 import { Button, cn } from "@meclaw/ui";
 import { Bot } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import type { ChatSession } from "@/lib/chat/sessions";
+import {
+  clearResumeEntry,
+  getSession,
+  listSessions,
+  MAIN_RESUME_KEY,
+  migrateLegacyEntry,
+  readResumeEntry,
+  removeSession,
+  setSessionTitle,
+  setSessionToken,
+  upsertSession,
+  writeResumeEntry,
+} from "@/lib/chat/sessions";
+import { formatDayLabel, isSameDay } from "@/lib/chat/time";
+import { ChatToolbar } from "./chat-toolbar";
 import { ConfigRefreshPoller } from "./config-refresh-poller";
+import { HistoryDrawer } from "./history-drawer";
+import { MessageMeta } from "./message-meta";
 
-// --- Embed resume helpers (localStorage) ---
-type ResumeEntry = { conversationId: string; resumeToken: string };
-
-const RESUME_KEY_PREFIX = "meclaw:resume:";
-
-// First-party (main chat) sessions store their resume entry under a fixed key
-// and sign/verify against the matching "__main__" sentinel embedClientId.
-export const MAIN_RESUME_KEY = "__main__";
-
-/**
- * Read a resume entry from localStorage for the given embedToken.
- * Returns null if no entry exists, localStorage is unavailable, or parsing fails.
- * Safe to call in SSR (returns null).
- */
-export function readResumeEntry(embedToken: string): ResumeEntry | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.localStorage.getItem(`${RESUME_KEY_PREFIX}${embedToken}`);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as unknown;
-    if (
-      typeof parsed === "object" &&
-      parsed !== null &&
-      "conversationId" in parsed &&
-      "resumeToken" in parsed &&
-      typeof (parsed as ResumeEntry).conversationId === "string" &&
-      typeof (parsed as ResumeEntry).resumeToken === "string"
-    ) {
-      return parsed as ResumeEntry;
-    }
-    return null;
-  } catch {
-    // private browsing, quota exceeded, or malformed JSON
-    return null;
-  }
-}
-
-/**
- * Write a resume entry to localStorage for the given embedToken.
- * Safe to call in SSR (does nothing).
- */
-export function writeResumeEntry(embedToken: string, entry: ResumeEntry): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(`${RESUME_KEY_PREFIX}${embedToken}`, JSON.stringify(entry));
-  } catch {
-    // private browsing, quota exceeded — silently ignore
-  }
-}
-
-/**
- * Clear a resume entry from localStorage for the given embedToken.
- * Safe to call in SSR (does nothing).
- */
-export function clearResumeEntry(embedToken: string): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.removeItem(`${RESUME_KEY_PREFIX}${embedToken}`);
-  } catch {
-    // private browsing, quota exceeded — silently ignore
-  }
-}
+// Re-export the embed single-entry helpers + sentinel so existing importers
+// (chat.test.tsx, chat-embed.test.tsx) keep a stable surface. Implementations
+// now live in lib/chat/sessions.ts.
+export { clearResumeEntry, MAIN_RESUME_KEY, readResumeEntry, writeResumeEntry };
 
 type SourceMetadata = {
   title?: unknown;
@@ -122,8 +82,8 @@ export function appendStep(steps: string[], label: string): string[] {
 }
 
 /**
- * Persist a data-resume-token SSE event to localStorage. Stores under the
- * embedToken key in embed mode, or under MAIN_RESUME_KEY in normal mode.
+ * Persist a data-resume-token SSE event. Embed mode writes the single entry
+ * keyed on embedToken; normal mode stores the token in the session index.
  * Exported for direct unit testing.
  */
 export function handleResumeTokenEvent(
@@ -131,15 +91,16 @@ export function handleResumeTokenEvent(
   mode: "normal" | "embed",
   embedToken: string | undefined,
 ): void {
-  const key = mode === "embed" ? embedToken : MAIN_RESUME_KEY;
-  if (!key) return;
   if (!isRecord(part) || part.type !== "data-resume-token") return;
   const data = part.data;
   if (!isRecord(data)) return;
   const token = readString(data.token);
   const convId = readString(data.conversationId);
-  if (token && convId) {
-    writeResumeEntry(key, { conversationId: convId, resumeToken: token });
+  if (!token || !convId) return;
+  if (mode === "embed") {
+    if (embedToken) writeResumeEntry(embedToken, { conversationId: convId, resumeToken: token });
+  } else {
+    setSessionToken(convId, token);
   }
 }
 
@@ -213,6 +174,14 @@ export function extractSteps(message: ChatMessageLike): string[] {
   return steps.length === raw.length ? steps : [];
 }
 
+/** Parse an ISO `metadata.createdAt` to epoch ms, or undefined when absent/bad. */
+function readCreatedAt(metadata: unknown): number | undefined {
+  const meta = isRecord(metadata) ? metadata : null;
+  const created =
+    meta && typeof meta.createdAt === "string" ? Date.parse(meta.createdAt) : Number.NaN;
+  return Number.isFinite(created) ? created : undefined;
+}
+
 type MessageWithParts = {
   role?: string;
   parts?: Array<{ type?: string; text?: string }>;
@@ -230,6 +199,16 @@ export function hasRenderedText(message: MessageWithParts): boolean {
     Array.isArray(message.parts) &&
     message.parts.some((p) => p.type === "text" && (p.text?.length ?? 0) > 0)
   );
+}
+
+/**
+ * Whether a message should render in the transcript. Suppresses an assistant
+ * message that has not produced text yet — during that pre-token window
+ * `LiveTrace` is the single visible bot, so rendering the empty bubble too would
+ * show two bot avatars.
+ */
+export function shouldRenderMessage(message: MessageWithParts): boolean {
+  return !(message.role === "assistant" && !hasRenderedText(message));
 }
 
 /**
@@ -266,7 +245,10 @@ function StepDots() {
 export function LiveTrace({ steps }: { steps: string[] }) {
   return (
     <div className="flex items-start gap-3">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted">
+      <div
+        data-testid="bot-avatar"
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted"
+      >
         <Bot className="h-5 w-5 text-foreground" />
       </div>
       <div className="rounded-2xl bg-muted px-4 py-2 text-sm text-muted-foreground">
@@ -361,6 +343,97 @@ function ThinkingTrace({ steps }: { steps: string[] }) {
   );
 }
 
+type RenderableMessage = ChatMessageLike & {
+  id: string;
+  parts: Array<{ type?: string; text?: string }>;
+};
+
+/**
+ * One assistant turn: avatar + markdown bubble, then (once answered) the
+ * timestamp/copy line, the dev Sources panel, and the persisted "How I answered"
+ * trace. Extracted from the transcript map to keep that callback simple.
+ */
+function AssistantTurn({
+  message,
+  ts,
+  text,
+  answered,
+}: {
+  message: RenderableMessage;
+  ts: number | undefined;
+  text: string;
+  answered: boolean;
+}) {
+  const sources = extractSources(message);
+  const route = extractRoute(message);
+  const steps = extractSteps(message);
+  return (
+    <>
+      <div
+        data-testid="bot-avatar"
+        className="mr-3 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted"
+      >
+        <Bot className="h-5 w-5 text-foreground" />
+      </div>
+      <div className="min-w-0 space-y-2">
+        <div className="max-w-[85%] rounded-2xl bg-muted px-4 py-2 text-sm text-foreground">
+          {message.parts.map((part, j) =>
+            part.type === "text" ? (
+              <div
+                key={`${message.id}-${j}`}
+                className="prose prose-sm max-w-none font-sans dark:prose-invert"
+              >
+                <ReactMarkdown>{part.text}</ReactMarkdown>
+              </div>
+            ) : null,
+          )}
+        </div>
+        {answered ? <MessageMeta timestamp={ts} text={text} /> : null}
+        {answered && (sources.length > 0 || route) ? (
+          <SourcesPanel
+            sources={sources}
+            route={route}
+            label={groundingLabel(route, sources.length)}
+            corpusVersion={extractCorpusVersion(message)}
+          />
+        ) : null}
+        {answered && steps.length > 0 ? <ThinkingTrace steps={steps} /> : null}
+      </div>
+    </>
+  );
+}
+
+/** One user turn: right-aligned markdown bubble + timestamp/copy line. */
+function UserTurn({
+  message,
+  ts,
+  text,
+}: {
+  message: RenderableMessage;
+  ts: number | undefined;
+  text: string;
+}) {
+  return (
+    <div className="flex flex-col items-end">
+      <div
+        className={cn(
+          "max-w-[85%] rounded-2xl px-4 py-2 text-sm",
+          "bg-primary text-primary-foreground",
+        )}
+      >
+        {message.parts.map((part, j) =>
+          part.type === "text" ? (
+            <div key={`${message.id}-${j}`} className="prose prose-sm max-w-none dark:prose-invert">
+              <ReactMarkdown>{part.text}</ReactMarkdown>
+            </div>
+          ) : null,
+        )}
+      </div>
+      <MessageMeta timestamp={ts} text={text} />
+    </div>
+  );
+}
+
 export function Chat({
   greeting,
   suggestions,
@@ -382,18 +455,18 @@ export function Chat({
   // the pre-answer gap. The same labels persist per-message via metadata.steps.
   const [liveSteps, setLiveSteps] = useState<string[]>([]);
   // Resume from a stored entry when one exists: embed mode keys on embedToken,
-  // normal mode on MAIN_RESUME_KEY. Otherwise start a fresh conversation.
-  const [conversationId] = useState(() => {
-    const key = mode === "embed" ? embedToken : MAIN_RESUME_KEY;
-    if (key) {
-      const entry = readResumeEntry(key);
-      if (entry) return entry.conversationId;
+  // normal mode uses the session index. Otherwise start a fresh conversation.
+  const [conversationId, setConversationId] = useState(() => {
+    if (mode === "embed") {
+      const entry = embedToken ? readResumeEntry(embedToken) : null;
+      return entry?.conversationId ?? crypto.randomUUID();
     }
-    return crypto.randomUUID();
+    // Normal mode: fold any legacy single entry into the index, then resume the
+    // most-recently-updated session if one exists.
+    migrateLegacyEntry();
+    const latest = listSessions()[0];
+    return latest?.conversationId ?? crypto.randomUUID();
   });
-  // Track whether we've attempted to fetch history in embed mode (to avoid re-fetching).
-  // Using a ref (not state) so that setting it doesn't trigger a re-render which would
-  // run the effect cleanup and cancel the in-flight fetch.
   const historyFetchedRef = useRef(false);
   const { messages, sendMessage, status, setMessages } = useChat({
     onData: (part) => {
@@ -407,66 +480,152 @@ export function Chat({
   });
   const [input, setInput] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
+  // Stable first-seen time per live message id (UIMessages carry no timestamp).
+  // Stamped in an effect (not during render — Date.now/ref access would be
+  // impure); cleared on New chat / switch. Bounded per conversation.
+  const [firstSeen, setFirstSeen] = useState<Map<string, number>>(() => new Map());
+  const [historyOpen, setHistoryOpen] = useState(false);
+  // Snapshot of the session index for the drawer, seeded when it opens and
+  // refreshed after a delete — avoids re-reading localStorage on every render.
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+
+  const openHistory = useCallback(() => {
+    setSessions(listSessions());
+    setHistoryOpen(true);
+  }, []);
+
+  const startNewChat = useCallback(() => {
+    const id = crypto.randomUUID();
+    setConversationId(id);
+    setMessages([]);
+    setLiveSteps([]);
+    setFirstSeen(new Map());
+    setHistoryOpen(false);
+  }, [setMessages]);
+
+  // A message's timestamp: its persisted `createdAt`, else the wall-clock time
+  // it was first seen this session (read from state — stamped by the effect).
+  function messageTimestamp(message: { id: string; metadata?: unknown }): number | undefined {
+    return readCreatedAt(message.metadata) ?? firstSeen.get(message.id);
+  }
+
+  function messageText(message: { parts?: Array<{ type?: string; text?: string }> }): string {
+    return (message.parts ?? [])
+      .filter((p) => p.type === "text" && p.text)
+      .map((p) => p.text)
+      .join("");
+  }
 
   // Auto-scroll to the latest message as content streams in.
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Fetch history on mount when a resume entry exists. Embed mode keys on
-  // embedToken (and forwards embedToken + parentOrigin); normal mode keys on
-  // MAIN_RESUME_KEY (same-origin, no embed params).
+  // Stamp a first-seen time for any new message lacking a persisted createdAt.
+  // Must run in an effect: the wall-clock is impure (no Date.now in render) and
+  // the value drives render output (so it lives in state, not a ref). The
+  // updater is a no-op once every visible id is stamped, so it can't loop.
   useEffect(() => {
-    const key = mode === "embed" ? embedToken : MAIN_RESUME_KEY;
-    if (!key || historyFetchedRef.current) return;
-    const entry = readResumeEntry(key);
-    if (!entry) return;
-
-    historyFetchedRef.current = true;
-    let cancelled = false;
-    const params = new URLSearchParams({
-      conversationId: entry.conversationId,
-      resumeToken: entry.resumeToken,
+    const now = Date.now();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- impure clock value; see above
+    setFirstSeen((prev) => {
+      let next = prev;
+      for (const m of messages) {
+        if (readCreatedAt(m.metadata) !== undefined || prev.has(m.id)) continue;
+        if (next === prev) next = new Map(prev);
+        next.set(m.id, now);
+      }
+      return next;
     });
-    if (mode === "embed" && embedToken) {
-      params.set("embedToken", embedToken);
-      if (parentOrigin) params.set("parentOrigin", parentOrigin);
-    }
-    const url = `/api/chat/history?${params.toString()}`;
+  }, [messages]);
 
-    fetch(url)
-      .then((res) => {
-        if (cancelled) return null;
-        if (!res.ok) {
-          // Stale resume token (401), forbidden (403), or other error — clear entry and start fresh.
-          clearResumeEntry(key);
-          return null;
-        }
-        return res.json() as Promise<{
-          conversationId: string;
-          messages: Array<{ id: string; role: "user" | "assistant"; content: string }>;
-        }>;
-      })
-      .then((data) => {
-        if (cancelled || !data) return; // fetch failed or unmounted, already cleared entry
-        // Convert history messages to UIMessage shape for useChat.
-        const uiMessages = data.messages.map((m) => ({
-          id: m.id,
-          role: m.role,
-          parts: [{ type: "text" as const, text: m.content }],
-        }));
-        setMessages(uiMessages);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        // Network error or other failure — clear entry and start fresh.
-        clearResumeEntry(key);
-      });
+  // Fetch a conversation's history and hydrate the message list. Used on mount
+  // (resume) and by the history drawer (Task 7). Resolves the resume token from
+  // the embed single entry (embed) or the session index (normal).
+  const loadConversation = useCallback(
+    (id: string) => {
+      const resume =
+        mode === "embed" ? (embedToken ? readResumeEntry(embedToken) : null) : getSession(id);
+      if (!resume) {
+        setMessages([]);
+        return;
+      }
+      const params = new URLSearchParams({ conversationId: id, resumeToken: resume.resumeToken });
+      if (mode === "embed" && embedToken) {
+        params.set("embedToken", embedToken);
+        if (parentOrigin) params.set("parentOrigin", parentOrigin);
+      }
+      fetch(`/api/chat/history?${params.toString()}`)
+        .then((res) => {
+          if (!res.ok) {
+            // Stale/invalid token — forget this conversation, start fresh.
+            if (mode === "embed" && embedToken) clearResumeEntry(embedToken);
+            else removeSession(id);
+            return null;
+          }
+          return res.json() as Promise<{
+            conversationId: string;
+            messages: Array<{
+              id: string;
+              role: "user" | "assistant";
+              content: string;
+              createdAt?: string;
+            }>;
+          }>;
+        })
+        .then((data) => {
+          if (!data) return;
+          setMessages(
+            data.messages.map((m) => ({
+              id: m.id,
+              role: m.role,
+              parts: [{ type: "text" as const, text: m.content }],
+              ...(m.createdAt ? { metadata: { createdAt: m.createdAt } } : {}),
+            })),
+          );
+        })
+        .catch(() => {
+          if (mode === "embed" && embedToken) clearResumeEntry(embedToken);
+          else removeSession(id);
+        });
+    },
+    [mode, embedToken, parentOrigin, setMessages],
+  );
 
-    return () => {
-      cancelled = true;
-    };
-  }, [mode, embedToken, parentOrigin, setMessages]);
+  // Switch to a stored conversation from the history drawer: point at its id,
+  // clear transient UI, then fetch + hydrate its transcript.
+  const pickConversation = useCallback(
+    (id: string) => {
+      setConversationId(id);
+      setLiveSteps([]);
+      setFirstSeen(new Map());
+      setHistoryOpen(false);
+      loadConversation(id);
+    },
+    [loadConversation],
+  );
+
+  // Remove a conversation from the local index. If it's the active one, fall
+  // back to a fresh chat (DB rows are untouched — local index only).
+  const deleteConversation = useCallback(
+    (id: string) => {
+      removeSession(id);
+      // Deleting the active chat resets to a fresh one (which also closes the
+      // drawer); deleting another just refreshes the still-open list.
+      if (id === conversationId) startNewChat();
+      else setSessions(listSessions());
+    },
+    [conversationId, startNewChat],
+  );
+
+  // Resume the active conversation once on mount.
+  useEffect(() => {
+    if (historyFetchedRef.current) return;
+    historyFetchedRef.current = true;
+    loadConversation(conversationId);
+    // Mount-only: conversationId/loadConversation are stable for the initial id.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const isStreaming = status === "submitted" || status === "streaming";
   const showThinking = shouldShowThinking(status, messages as MessageWithParts[]);
@@ -475,6 +634,7 @@ export function Chat({
     e.preventDefault();
     const text = input.trim();
     if (!text || isStreaming) return;
+    registerUserTurn(text);
     setLiveSteps([]); // reset stale status from a prior turn
     sendMessage(
       { text },
@@ -486,6 +646,7 @@ export function Chat({
   }
 
   function handleChipClick(chipText: string) {
+    registerUserTurn(chipText);
     setLiveSteps([]);
     sendMessage(
       { text: chipText },
@@ -506,21 +667,25 @@ export function Chat({
       body.embedToken = embedToken;
       body.parentOrigin = parentOrigin;
     } else {
-      // First-party: include the stored resume token (if any) so the server can
-      // verify we have prior access to this conversation before minting a new one.
-      // New conversations (no stored entry) omit the token — the server will
-      // accept the conversationId as new and mint a fresh token.
-      const entry = readResumeEntry(MAIN_RESUME_KEY);
-      if (entry) {
-        body.resumeToken = entry.resumeToken;
-      }
+      // First-party: include the stored resume token for this conversation (if any)
+      // so the server can verify prior access before minting a new one.
+      const session = getSession(conversationId);
+      if (session?.resumeToken) body.resumeToken = session.resumeToken;
     }
     return body;
+  }
+
+  // On the first user turn (normal mode), register the session and set its title.
+  function registerUserTurn(text: string) {
+    if (mode === "embed") return;
+    upsertSession({ conversationId });
+    setSessionTitle(conversationId, text);
   }
 
   return (
     <div className="mx-auto flex h-full w-full max-w-2xl flex-col">
       <ConfigRefreshPoller initialConfigVersion={initialConfigVersion} status={status} />
+      <ChatToolbar mode={mode} onNewChat={startNewChat} onOpenHistory={openHistory} />
       <div className="flex-1 space-y-4 overflow-y-auto p-4">
         {messages.length === 0 && (
           <div className="mt-10 space-y-6">
@@ -554,70 +719,41 @@ export function Chat({
             </div>
           </div>
         )}
-        {messages.map((message) => {
-          const sources = extractSources(message);
-          const route = extractRoute(message);
-          const steps = extractSteps(message);
-          // Hold persisted blocks until answer text begins, so they don't
-          // overlap the live checklist (metadata lands before the first token).
-          const answered = hasRenderedText(message as MessageWithParts);
+        {messages
+          .filter((message) => shouldRenderMessage(message as MessageWithParts))
+          .map((message, i, visible) => {
+            // Hold persisted blocks until answer text begins, so they don't
+            // overlap the live checklist (metadata lands before the first token).
+            const answered = hasRenderedText(message as MessageWithParts);
+            const ts = messageTimestamp(message);
+            const prevTs = i > 0 ? messageTimestamp(visible[i - 1]) : undefined;
+            const showDay = ts !== undefined && (prevTs === undefined || !isSameDay(prevTs, ts));
+            const text = messageText(message);
 
-          return (
-            <div
-              key={message.id}
-              className={cn("flex", message.role === "user" ? "justify-end" : "justify-start")}
-            >
-              {message.role === "assistant" ? (
-                <>
-                  <div className="mr-3 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted">
-                    <Bot className="h-5 w-5 text-foreground" />
+            return (
+              <div key={message.id}>
+                {showDay ? (
+                  <div className="my-3 text-center font-mono text-[11px] text-muted-foreground">
+                    {formatDayLabel(ts)}
                   </div>
-                  <div className="min-w-0 space-y-2">
-                    <div className="max-w-[85%] rounded-2xl bg-muted px-4 py-2 text-sm text-foreground">
-                      {message.parts.map((part, i) =>
-                        part.type === "text" ? (
-                          <div
-                            key={`${message.id}-${i}`}
-                            className="prose prose-sm max-w-none font-sans dark:prose-invert"
-                          >
-                            <ReactMarkdown>{part.text}</ReactMarkdown>
-                          </div>
-                        ) : null,
-                      )}
-                    </div>
-                    {answered && (sources.length > 0 || route) ? (
-                      <SourcesPanel
-                        sources={sources}
-                        route={route}
-                        label={groundingLabel(route, sources.length)}
-                        corpusVersion={extractCorpusVersion(message)}
-                      />
-                    ) : null}
-                    {answered && steps.length > 0 ? <ThinkingTrace steps={steps} /> : null}
-                  </div>
-                </>
-              ) : (
+                ) : null}
                 <div
-                  className={cn(
-                    "max-w-[85%] rounded-2xl px-4 py-2 text-sm",
-                    "bg-primary text-primary-foreground",
-                  )}
+                  className={cn("flex", message.role === "user" ? "justify-end" : "justify-start")}
                 >
-                  {message.parts.map((part, i) =>
-                    part.type === "text" ? (
-                      <div
-                        key={`${message.id}-${i}`}
-                        className="prose prose-sm max-w-none dark:prose-invert"
-                      >
-                        <ReactMarkdown>{part.text}</ReactMarkdown>
-                      </div>
-                    ) : null,
+                  {message.role === "assistant" ? (
+                    <AssistantTurn
+                      message={message as RenderableMessage}
+                      ts={ts}
+                      text={text}
+                      answered={answered}
+                    />
+                  ) : (
+                    <UserTurn message={message as RenderableMessage} ts={ts} text={text} />
                   )}
                 </div>
-              )}
-            </div>
-          );
-        })}
+              </div>
+            );
+          })}
         {showThinking && <LiveTrace steps={liveSteps} />}
         <div ref={endRef} />
       </div>
@@ -637,6 +773,17 @@ export function Chat({
           Send
         </Button>
       </form>
+
+      {mode === "normal" ? (
+        <HistoryDrawer
+          open={historyOpen}
+          sessions={sessions}
+          activeConversationId={conversationId}
+          onSelect={pickConversation}
+          onDelete={deleteConversation}
+          onClose={() => setHistoryOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }

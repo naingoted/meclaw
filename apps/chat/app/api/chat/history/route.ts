@@ -26,7 +26,12 @@ async function firstPartyHistory(
   }
   const db = await getChatDb();
   const rows = await listConversationMessages(db, conversationId, HISTORY_LIMIT);
-  const messages = rows.map((r) => ({ id: r.id, role: r.role, content: r.content }));
+  const messages = rows.map((r) => ({
+    id: r.id,
+    role: r.role,
+    content: r.content,
+    createdAt: new Date(r.createdAt).toISOString(),
+  }));
   return Response.json({ conversationId, messages });
 }
 
@@ -71,7 +76,11 @@ export async function GET(req: Request) {
   }
 
   const rows = await listConversationMessages(db, conversationId, HISTORY_LIMIT);
-  // Strip timestamps from the wire format (the client rebuilds UIMessage shapes).
-  const messages = rows.map((r) => ({ id: r.id, role: r.role, content: r.content }));
+  const messages = rows.map((r) => ({
+    id: r.id,
+    role: r.role,
+    content: r.content,
+    createdAt: new Date(r.createdAt).toISOString(),
+  }));
   return Response.json({ conversationId, messages });
 }

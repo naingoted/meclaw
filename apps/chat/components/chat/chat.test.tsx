@@ -36,9 +36,11 @@ import {
   LiveTrace,
   MAIN_RESUME_KEY,
   readResumeEntry,
+  shouldRenderMessage,
   shouldShowThinking,
   writeResumeEntry,
 } from "@/components/chat/chat";
+import { getSession, removeSession, upsertSession } from "@/lib/chat/sessions";
 
 const CHAT_PROPS = {
   greeting: "Hi! I'm meclaw, Thet's personal bot.",
@@ -142,8 +144,50 @@ describe("hasRenderedText", () => {
   });
 });
 
+describe("shouldRenderMessage", () => {
+  it("renders a user message regardless of text", () => {
+    expect(shouldRenderMessage({ role: "user", parts: [] })).toBe(true);
+  });
+
+  it("renders an assistant message once it has text", () => {
+    expect(shouldRenderMessage({ role: "assistant", parts: [{ type: "text", text: "Hi" }] })).toBe(
+      true,
+    );
+  });
+
+  it("suppresses an assistant message that has no text yet (pre-token)", () => {
+    expect(shouldRenderMessage({ role: "assistant", parts: [] })).toBe(false);
+    expect(shouldRenderMessage({ role: "assistant", parts: [{ type: "text", text: "" }] })).toBe(
+      false,
+    );
+  });
+});
+
+describe("single-bot loading (regression guard)", () => {
+  it("shows exactly one bot avatar during the pre-token window", () => {
+    mockState.status = "streaming";
+    mockState.messages = [
+      { id: "u1", role: "user", parts: [{ type: "text", text: "stack?" }] },
+      { id: "a1", role: "assistant", parts: [] }, // empty pre-token assistant
+    ];
+    render(<Chat {...CHAT_PROPS} />);
+    expect(screen.getAllByTestId("bot-avatar")).toHaveLength(1);
+  });
+
+  it("shows exactly one bot avatar after the answer streams in", () => {
+    mockState.status = "ready";
+    mockState.messages = [
+      { id: "u1", role: "user", parts: [{ type: "text", text: "stack?" }] },
+      { id: "a1", role: "assistant", parts: [{ type: "text", text: "Python." }] },
+    ];
+    render(<Chat {...CHAT_PROPS} />);
+    expect(screen.getAllByTestId("bot-avatar")).toHaveLength(1);
+  });
+});
+
 describe("Chat component — M4 behavioral tests", () => {
   beforeEach(() => {
+    localStorage.clear();
     vi.clearAllMocks();
     vi.unstubAllEnvs();
     // Reset mock state for each test
@@ -656,17 +700,13 @@ describe("Chat main-chat session persistence (normal mode)", () => {
     expect(options?.body?.conversationId).toBe("stored-conv-id");
   });
 
-  it("writes a __main__ resume entry on a valid data-resume-token in normal mode", () => {
+  it("stores the resume token in the session index on a valid token in normal mode", () => {
     handleResumeTokenEvent(
       { type: "data-resume-token", data: { token: "rt-1", conversationId: "conv-1" } },
       "normal",
       undefined,
     );
-
-    expect(readResumeEntry(MAIN_RESUME_KEY)).toEqual({
-      conversationId: "conv-1",
-      resumeToken: "rt-1",
-    });
+    expect(getSession("conv-1")).toMatchObject({ conversationId: "conv-1", resumeToken: "rt-1" });
   });
 });
 
@@ -715,13 +755,95 @@ describe("Chat main-chat history restore (normal mode)", () => {
     ]);
   });
 
-  it("clears the __main__ resume entry when history fetch returns 401", async () => {
+  it("forgets the session when history fetch returns 401 (normal mode)", async () => {
     writeResumeEntry(MAIN_RESUME_KEY, { conversationId: "conv-1", resumeToken: "stale" });
     mockState.setMessages = vi.fn();
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("", { status: 401 })));
 
     render(<Chat {...CHAT_PROPS} />);
 
-    await waitFor(() => expect(readResumeEntry(MAIN_RESUME_KEY)).toBeNull());
+    await waitFor(() => expect(getSession("conv-1")).toBeNull());
+  });
+});
+
+describe("New chat control", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    mockState = { messages: [], sendMessage: vi.fn(), setMessages: vi.fn(), status: "ready" };
+  });
+
+  it("clears the transcript when New chat is clicked", () => {
+    const setMessages = vi.fn();
+    mockState.setMessages = setMessages;
+    mockState.messages = [
+      { id: "u1", role: "user", parts: [{ type: "text", text: "hi" }] },
+      { id: "a1", role: "assistant", parts: [{ type: "text", text: "hello" }] },
+    ];
+    render(<Chat {...CHAT_PROPS} />);
+    // Drop the mount-time loadConversation([]) call so we attribute the clear
+    // strictly to the click, not to the no-session resume on mount.
+    setMessages.mockClear();
+    fireEvent.click(screen.getByRole("button", { name: /new chat/i }));
+    expect(setMessages).toHaveBeenCalledTimes(1);
+    expect(setMessages).toHaveBeenCalledWith([]);
+  });
+});
+
+describe("History drawer wiring (normal mode)", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    mockState = { messages: [], sendMessage: vi.fn(), setMessages: vi.fn(), status: "ready" };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ conversationId: "x", messages: [] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      ),
+    );
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("opens the drawer and lists a stored session", () => {
+    upsertSession({ conversationId: "conv-1", title: "Past chat" });
+    render(<Chat {...CHAT_PROPS} />);
+    fireEvent.click(screen.getByRole("button", { name: /history/i }));
+    expect(screen.getByText("Past chat")).toBeInTheDocument();
+  });
+
+  it("does not render the History button in embed mode", () => {
+    render(<Chat {...CHAT_PROPS} mode="embed" embedToken="pk_a" />);
+    expect(screen.queryByRole("button", { name: /history/i })).not.toBeInTheDocument();
+  });
+
+  it("deletes the active conversation and resets to a fresh chat", () => {
+    upsertSession({ conversationId: "c1", title: "Active" });
+    const setMessages = vi.fn();
+    mockState.setMessages = setMessages;
+    render(<Chat {...CHAT_PROPS} />); // sole session → c1 is the active conversation
+    setMessages.mockClear();
+    fireEvent.click(screen.getByRole("button", { name: /history/i }));
+    fireEvent.click(screen.getByRole("button", { name: /delete conversation/i }));
+    expect(getSession("c1")).toBeNull();
+    expect(setMessages).toHaveBeenCalledWith([]); // startNewChat fired for the active chat
+  });
+
+  it("removes a non-active conversation from the open drawer, keeping the active one", () => {
+    const nowSpy = vi.spyOn(Date, "now");
+    nowSpy.mockReturnValue(1000);
+    upsertSession({ conversationId: "old", title: "Old chat" });
+    nowSpy.mockReturnValue(2000);
+    upsertSession({ conversationId: "current", title: "Current chat" });
+    nowSpy.mockRestore();
+    render(<Chat {...CHAT_PROPS} />); // newest (current) is active on mount
+    fireEvent.click(screen.getByRole("button", { name: /history/i }));
+    // newest-first order: [Current chat, Old chat] — delete the second (non-active) row
+    const delButtons = screen.getAllByRole("button", { name: /delete conversation/i });
+    fireEvent.click(delButtons[1]);
+    expect(getSession("old")).toBeNull();
+    expect(getSession("current")).not.toBeNull();
+    expect(screen.queryByText("Old chat")).not.toBeInTheDocument();
+    expect(screen.getByText("Current chat")).toBeInTheDocument();
   });
 });

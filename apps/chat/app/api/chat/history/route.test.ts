@@ -86,8 +86,8 @@ describe("GET /api/chat/history", () => {
     expect(body).toEqual({
       conversationId: "c-known",
       messages: [
-        { id: "m1", role: "user", content: "hello" },
-        { id: "m2", role: "assistant", content: "hi" },
+        { id: "m1", role: "user", content: "hello", createdAt: new Date(1).toISOString() },
+        { id: "m2", role: "assistant", content: "hi", createdAt: new Date(2).toISOString() },
       ],
     });
     // Verify the HMAC check was invoked with the right binding — a regression
@@ -110,8 +110,8 @@ describe("GET /api/chat/history", () => {
       expect(await res.json()).toEqual({
         conversationId: "c-known",
         messages: [
-          { id: "m1", role: "user", content: "hello" },
-          { id: "m2", role: "assistant", content: "hi" },
+          { id: "m1", role: "user", content: "hello", createdAt: new Date(1).toISOString() },
+          { id: "m2", role: "assistant", content: "hi", createdAt: new Date(2).toISOString() },
         ],
       });
       // HMAC must be checked against the virtual sentinel, not an embed client id.
