@@ -188,6 +188,9 @@ function extractRoute(message: ChatMessageLike): string | undefined {
 const KNOWLEDGE_ROUTES = new Set(["tech", "project", "general"]);
 
 export function groundingLabel(route: string | undefined, sourceCount: number): string {
+  if (route === "gap") {
+    return "saved answer";
+  }
   if (route && KNOWLEDGE_ROUTES.has(route)) {
     return sourceCount > 0 ? `grounded on ${sourceCount} sources` : "no matching corpus content";
   }

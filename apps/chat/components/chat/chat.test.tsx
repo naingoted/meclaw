@@ -494,6 +494,10 @@ describe("groundingLabel", () => {
     expect(groundingLabel("scheduler", 0)).toBe("answered without corpus (intent: scheduler)");
   });
 
+  it("gap route => saved answer", () => {
+    expect(groundingLabel("gap", 1)).toBe("saved answer");
+  });
+
   it("extractCorpusVersion reads metadata.corpus_version", () => {
     const msg = { role: "assistant", metadata: { corpus_version: 7 } } as never;
     expect(extractCorpusVersion(msg)).toBe(7);
