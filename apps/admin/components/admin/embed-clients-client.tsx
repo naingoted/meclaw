@@ -1,9 +1,9 @@
 "use client";
 import {
+  Alert,
   Button,
   EmptyState,
   Input,
-  PageHeader,
   Spinner,
   Table,
   TBody,
@@ -15,6 +15,8 @@ import {
 } from "@meclaw/ui";
 import { Ban, Check, Copy, Plus } from "lucide-react";
 import * as React from "react";
+import { toast } from "sonner";
+import { AdminPage } from "./framework";
 
 type Client = {
   id: string;
@@ -55,6 +57,7 @@ export function EmbedClientsClient({ initial }: { initial: Client[] }) {
       setCreatedToken(created.publicToken);
       setClients((prev) => [created, ...prev]);
       setShowCreate(false);
+      toast.success(`Client "${form.name}" created`);
     } finally {
       setBusy(false);
     }
@@ -73,6 +76,7 @@ export function EmbedClientsClient({ initial }: { initial: Client[] }) {
     if (!confirm("Revoke this client? Existing embeds using this token will stop working.")) return;
     await fetch(`/api/admin/embed-clients/${id}`, { method: "DELETE" });
     await refresh();
+    toast.success("Client revoked");
   }
 
   function copyToken() {
@@ -83,19 +87,17 @@ export function EmbedClientsClient({ initial }: { initial: Client[] }) {
   }
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Embed clients"
-        subtitle="Third-party sites allowed to frame the chat widget. The public token is shown once at creation."
-        action={
-          <Button size="sm" className="gap-2" onClick={() => setShowCreate((v) => !v)}>
-            <Plus className="h-4 w-4" /> New client
-          </Button>
-        }
-      />
-
+    <AdminPage
+      title="Embed clients"
+      subtitle="Third-party sites allowed to frame the chat widget. The public token is shown once at creation."
+      action={
+        <Button size="sm" className="gap-2" onClick={() => setShowCreate((v) => !v)}>
+          <Plus className="h-4 w-4" /> New client
+        </Button>
+      }
+    >
       {createdToken ? (
-        <div className="rounded-lg border border-primary bg-primary/5 p-4 text-sm">
+        <Alert variant="success">
           <p className="mb-2 font-medium">
             New client created. Copy this token now — it will not be shown again:
           </p>
@@ -119,7 +121,7 @@ export function EmbedClientsClient({ initial }: { initial: Client[] }) {
           >
             Dismiss
           </Button>
-        </div>
+        </Alert>
       ) : null}
 
       {showCreate ? (
@@ -151,7 +153,7 @@ export function EmbedClientsClient({ initial }: { initial: Client[] }) {
           </TBody>
         </Table>
       )}
-    </div>
+    </AdminPage>
   );
 }
 
@@ -201,7 +203,7 @@ function ClientRow({
               placeholder={"https://one.com\nhttps://two.com"}
               rows={Math.max(2, draft.split("\n").length)}
             />
-            <div className="flex gap-2">
+            <div className="flex gap-item">
               <Button size="sm" onClick={save}>
                 Save
               </Button>
@@ -281,7 +283,7 @@ function CreateForm({
   }
 
   return (
-    <form onSubmit={submit} className="space-y-3 rounded-lg border border-border p-4">
+    <form onSubmit={submit} className="space-y-section rounded-lg border border-border p-card">
       <div className="grid gap-1.5">
         <label className="text-xs font-medium text-muted-foreground" htmlFor="ec-name">
           Name
@@ -319,7 +321,7 @@ function CreateForm({
           onChange={(e) => setRateLimit(e.target.value)}
         />
       </div>
-      <div className="flex gap-2">
+      <div className="flex gap-item">
         <Button type="submit" disabled={busy || !name.trim()}>
           {busy ? <Spinner /> : null} Create
         </Button>
