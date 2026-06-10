@@ -37,7 +37,9 @@ RUN pnpm --filter @meclaw/chat build
 ##### runner: standalone #####
 FROM node:22-bookworm-slim AS runner
 WORKDIR /app
+ARG GIT_SHA=dev
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
+ENV GIT_SHA=$GIT_SHA
 RUN groupadd --system --gid 1001 nodejs && useradd --system --uid 1001 --gid nodejs nextjs
 COPY --from=builder --chown=nextjs:nodejs /app/apps/chat/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/chat/.next/static ./apps/chat/.next/static
