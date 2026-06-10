@@ -474,6 +474,8 @@ export function Chat({
   });
   const [input, setInput] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const touchingRef = useRef(false);
   // Stable first-seen time per live message id (UIMessages carry no timestamp).
   // Stamped in an effect (not during render — Date.now/ref access would be
   // impure); cleared on New chat / switch. Bounded per conversation.
@@ -511,10 +513,31 @@ export function Chat({
   }
 
   // Auto-scroll to the latest message as content streams in.
+  // Suppressed when the input is focused (keyboard open) — the input
+  // scroll-into-view handler owns the scroll position in that case.
   // biome-ignore lint/correctness/useExhaustiveDependencies: messages is a re-run trigger, not read in the body
   useEffect(() => {
+    if (document.activeElement === inputRef.current) return;
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Mobile keyboard handling: scroll input into view when viewport shrinks
+  // (keyboard opening). Only fires when input is focused and user isn't
+  // actively touching the message area (to avoid fighting manual scroll).
+  useEffect(() => {
+    if (!inputRef.current || !window.visualViewport) return;
+
+    const scrollInputIntoView = () => {
+      if (document.activeElement === inputRef.current && !touchingRef.current) {
+        inputRef.current?.scrollIntoView({ block: "nearest" });
+      }
+    };
+
+    window.visualViewport.addEventListener("resize", scrollInputIntoView);
+    return () => {
+      window.visualViewport?.removeEventListener("resize", scrollInputIntoView);
+    };
+  }, []);
 
   // Stamp a first-seen time for any new message lacking a persisted createdAt.
   // Must run in an effect: the wall-clock is impure (no Date.now in render) and
@@ -710,7 +733,15 @@ export function Chat({
         onOpenHistory={openHistory}
         onClose={handleClose}
       />
-      <div className="flex-1 space-y-4 overflow-y-auto overscroll-contain p-4">
+      <div
+        className="flex-1 space-y-4 overflow-y-auto overscroll-contain p-4"
+        onTouchStart={() => {
+          touchingRef.current = true;
+        }}
+        onTouchEnd={() => {
+          touchingRef.current = false;
+        }}
+      >
         {messages.length === 0 && (
           <div className="mt-10 space-y-6">
             {/* Greeting from meclaw */}
@@ -780,6 +811,7 @@ export function Chat({
 
       <form onSubmit={handleSubmit} className="flex gap-2 border-t border-border p-4">
         <input
+          ref={inputRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Say something…"
