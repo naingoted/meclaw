@@ -44,9 +44,12 @@ jobs:
           file: apps/chat/Dockerfile
           target: runner
           push: true
+          build-args: |
+            GIT_SHA=${{ github.sha }}
           tags: |
             ghcr.io/${{ steps.owner.outputs.lc }}/meclaw-chat:latest
             ghcr.io/${{ steps.owner.outputs.lc }}/meclaw-chat:${{ github.sha }}
+            ghcr.io/${{ steps.owner.outputs.lc }}/meclaw-chat:${{ github.ref_name }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
@@ -63,6 +66,7 @@ jobs:
           tags: |
             ghcr.io/${{ steps.owner.outputs.lc }}/meclaw-admin:latest
             ghcr.io/${{ steps.owner.outputs.lc }}/meclaw-admin:${{ github.sha }}
+            ghcr.io/${{ steps.owner.outputs.lc }}/meclaw-admin:${{ github.ref_name }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
@@ -78,6 +82,7 @@ jobs:
           tags: |
             ghcr.io/${{ steps.owner.outputs.lc }}/meclaw-ai:latest
             ghcr.io/${{ steps.owner.outputs.lc }}/meclaw-ai:${{ github.sha }}
+            ghcr.io/${{ steps.owner.outputs.lc }}/meclaw-ai:${{ github.ref_name }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
@@ -93,6 +98,7 @@ jobs:
           tags: |
             ghcr.io/${{ steps.owner.outputs.lc }}/meclaw-ops:latest
             ghcr.io/${{ steps.owner.outputs.lc }}/meclaw-ops:${{ github.sha }}
+            ghcr.io/${{ steps.owner.outputs.lc }}/meclaw-ops:${{ github.ref_name }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
@@ -104,13 +110,54 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      DOKPLOY_API: https://dokploy.leanior.com/api
+      DOKPLOY_API_TOKEN: ${{ secrets.DOKPLOY_API_TOKEN }}
+      DOKPLOY_COMPOSE_ID: ${{ secrets.DOKPLOY_COMPOSE_ID }}
     steps:
-      - name: Trigger Dokploy deploy
+      - name: Pin IMAGE_TAG in the Dokploy compose env
         env:
-          DOKPLOY_API_TOKEN: ${{ secrets.DOKPLOY_API_TOKEN }}
-          DOKPLOY_COMPOSE_ID: ${{ secrets.DOKPLOY_COMPOSE_ID }}
+          IMAGE_TAG: ${{ github.ref_name }}
         run: |
-          resp=$(curl -sS -X POST "https://dokploy.leanior.com/api/compose.deploy" \
+          set -euo pipefail
+
+          # 1. Read current env. Abort on failure — prod untouched.
+          resp=$(curl -sS "${DOKPLOY_API}/compose.one?composeId=${DOKPLOY_COMPOSE_ID}" \
+            -H "x-api-key: ${DOKPLOY_API_TOKEN}" -w '\n%{http_code}')
+          code=$(printf '%s' "$resp" | tail -n1)
+          body=$(printf '%s' "$resp" | sed '$d')
+          if [ "$code" != "200" ]; then
+            echo "::error::compose.one failed (HTTP ${code}): ${body}"
+            exit 1
+          fi
+          env_text=$(printf '%s' "$body" | jq -r '.env // ""')
+
+          # 2. Upsert the IMAGE_TAG line; every other byte unchanged.
+          if printf '%s\n' "$env_text" | grep -q '^IMAGE_TAG='; then
+            new_env=$(printf '%s\n' "$env_text" | sed "s|^IMAGE_TAG=.*|IMAGE_TAG=${IMAGE_TAG}|")
+          else
+            new_env=$(printf '%s\nIMAGE_TAG=%s\n' "$env_text" "$IMAGE_TAG")
+          fi
+
+          # 3. Partial update — only env touched. Abort on non-200; old version keeps running.
+          payload=$(jq -nc --arg id "$DOKPLOY_COMPOSE_ID" --arg env "$new_env" \
+            '{composeId: $id, env: $env}')
+          resp=$(curl -sS -X POST "${DOKPLOY_API}/compose.update" \
+            -H "x-api-key: ${DOKPLOY_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "$payload" -w '\n%{http_code}')
+          code=$(printf '%s' "$resp" | tail -n1)
+          body=$(printf '%s' "$resp" | sed '$d')
+          if [ "$code" != "200" ]; then
+            echo "::error::compose.update failed (HTTP ${code}): ${body}"
+            exit 1
+          fi
+          echo "IMAGE_TAG pinned to ${IMAGE_TAG}"
+
+      - name: Trigger Dokploy deploy
+        run: |
+          set -euo pipefail
+          resp=$(curl -sS -X POST "${DOKPLOY_API}/compose.deploy" \
             -H "x-api-key: ${DOKPLOY_API_TOKEN}" \
             -H "Content-Type: application/json" \
             -d "{\"composeId\":\"${DOKPLOY_COMPOSE_ID}\"}" \
@@ -122,3 +169,23 @@ jobs:
             echo "::error::Dokploy deploy failed (HTTP ${code})"
             exit 1
           fi
+
+      - name: Verify deploy convergence
+        if: ${{ vars.PROD_CHAT_URL != '' }}
+        env:
+          PROD_CHAT_URL: ${{ vars.PROD_CHAT_URL }}
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          deadline=$(( $(date +%s) + 600 ))   # 10 minutes
+          while [ "$(date +%s)" -lt "$deadline" ]; do
+            got=$(curl -sS "${PROD_CHAT_URL}/api/health" | jq -r '.sha // ""' || true)
+            echo "health sha=${got} expected=${EXPECTED_SHA}"
+            if [ "$got" = "$EXPECTED_SHA" ]; then
+              echo "deploy converged to ${EXPECTED_SHA}"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::deploy did not converge to ${EXPECTED_SHA} within 10m"
+          exit 1

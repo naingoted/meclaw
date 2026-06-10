@@ -17,9 +17,9 @@ writes the `.env` the compose file reads). Rotate any key ever pasted into chat/
 | `push to main` | `quality` (lint + typecheck + test + fallow audit) |
 | `git tag v*` | `quality → build → deploy` |
 
-**`build`** — builds and pushes four `amd64` images to GHCR: `meclaw-chat`, `meclaw-admin`, `meclaw-ai`, `meclaw-ops`, tagged `latest` + the commit SHA.
+**`build`** — builds and pushes four `amd64` images to GHCR: `meclaw-chat`, `meclaw-admin`, `meclaw-ai`, `meclaw-ops`, tagged `latest`, the commit SHA, and the git tag (e.g. `v1.2.3`).
 
-**`deploy`** — calls the Dokploy REST API `POST /api/compose.deploy` (auth `x-api-key`, body `{"composeId"}`) after images land in GHCR. Dokploy pulls fresh `latest` images and restarts containers. The job **fails on any non-200** so a broken deploy can't pass silently.
+**`deploy`** — pins `IMAGE_TAG` to the released git tag, then calls the Dokploy REST API `POST /api/compose.deploy` (auth `x-api-key`, body `{"composeId"}`) to pull that tag and restart containers. Polls the health endpoint until the running chat reports the released commit SHA. The job **fails on any non-200** so a broken deploy can't pass silently.
 
 **Why the API, not a webhook or the GitHub App:** Dokploy's compose **auto-deploy is OFF** on purpose (a push to `main` rebuilds nothing — images only build on tags — so auto-deploy would ship stale `latest`). But that same `autoDeploy` flag *also* gates Dokploy's generic deploy webhook (`/api/deploy/compose/<token>` returns `400 "Automatic deployments are disabled"` when it's off). The REST API deploy endpoint bypasses that gate, so CI deploys explicitly only after the `build` job has pushed fresh images — no race, no stale ship.
 
@@ -156,9 +156,14 @@ $DC ps                                 # status (note Dokploy's container names)
 $DC logs -f chat admin ai              # tail app logs
 $DC restart chat admin                 # bounce after env/migration changes
 ```
-Redeploy / rollback: change `IMAGE_TAG` in the Dokploy env, redeploy the Compose app from the
-panel (it re-pulls). Verify live: `curl -sS -o /dev/null -w "%{http_code} ssl=%{ssl_verify_result}\n" https://meclaw.leanior.com/`
-(expect `200 ssl=0`; admin returns `302` to login).
+**`IMAGE_TAG` is CI-managed.** The `deploy` job pins `IMAGE_TAG` in the Dokploy compose env to the
+released git tag (e.g. `v1.2.3`) before each deploy, then polls `https://meclaw.leanior.com/api/health`
+until the running chat container reports the released commit SHA. Don't hand-edit `IMAGE_TAG` during a
+normal release.
+
+**Rollback:** re-run the *old* tag's `Deploy` workflow from the GitHub Actions UI (re-pins `IMAGE_TAG`
+to that tag and redeploys), **or** set `IMAGE_TAG` to the desired tag in the Dokploy env tab and hit
+Deploy. Verify live: `curl -sS https://meclaw.leanior.com/api/health` shows the expected `sha`.
 
 ## Debugging runbook (hard-won)
 
