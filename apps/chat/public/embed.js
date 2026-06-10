@@ -33,12 +33,40 @@
   var ident = buildIdent();
   console.info(`[meclaw] embed loaded v${ident.version} (${ident.sha})`);
 
+  var currentScript = document.currentScript;
   var scripts = document.getElementsByTagName("script");
-  var thisScript = scripts[scripts.length - 1];
+  var thisScript = currentScript || scripts[scripts.length - 1];
   var token = thisScript?.getAttribute("data-meclaw-token");
   if (!token) {
     console.error("[meclaw] embed.js: missing data-meclaw-token attribute on <script> tag");
     return;
+  }
+
+  // ----- Viewport helpers -----
+  function isMobile() {
+    return window.innerWidth <= 768;
+  }
+
+  function isPWA() {
+    return (
+      window.matchMedia("(display-mode: standalone)").matches ||
+      window.matchMedia("(display-mode: minimal-ui)").matches ||
+      window.navigator.standalone === true
+    );
+  }
+
+  function shouldUseFullscreen() {
+    return isMobile() || isPWA();
+  }
+
+  function debounce(fn, ms) {
+    var timer;
+    return function (...args) {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        fn.apply(this, args);
+      }, ms);
+    };
   }
 
   // Resolve the chat-app origin from the loader's own URL so embed.js works
@@ -85,6 +113,7 @@
     boxShadow: "0 4px 12px rgba(0,0,0,0.18)",
     zIndex: "2147483646",
     transition: "transform 120ms ease",
+    display: shouldUseFullscreen() ? "none" : "block",
   });
   bubble.addEventListener("mouseenter", () => {
     bubble.style.transform = "scale(1.05)";
@@ -96,20 +125,40 @@
   // ----- Iframe container -----
   var container = document.createElement("div");
   container.setAttribute("data-meclaw-container", "true");
+  var fullscreen = shouldUseFullscreen();
+
+  // Determine height with full fallback chain (before Object.assign to avoid flash)
+  var heightValue;
+  if (fullscreen) {
+    if (typeof CSS !== "undefined" && CSS.supports("height", "100dvh")) {
+      heightValue = "100dvh";
+    } else if (typeof CSS !== "undefined" && CSS.supports("height", "-webkit-fill-available")) {
+      heightValue = "-webkit-fill-available";
+    } else {
+      heightValue = "100vh";
+    }
+  } else {
+    heightValue = "560px";
+  }
+
   Object.assign(container.style, {
     position: "fixed",
-    right: "20px",
-    bottom: "92px",
-    width: "380px",
-    height: "560px",
-    maxWidth: "calc(100vw - 40px)",
-    maxHeight: "calc(100vh - 120px)",
-    borderRadius: "12px",
+    top: fullscreen ? "0" : undefined,
+    left: fullscreen ? "0" : undefined,
+    right: fullscreen ? undefined : "20px",
+    bottom: fullscreen ? undefined : "92px",
+    width: fullscreen ? "100vw" : "380px",
+    height: heightValue,
+    maxWidth: fullscreen ? "100%" : "calc(100vw - 40px)",
+    maxHeight: fullscreen ? "100%" : "calc(100vh - 120px)",
+    borderRadius: fullscreen ? "0" : "12px",
     overflow: "hidden",
-    boxShadow: "0 8px 24px rgba(0,0,0,0.22)",
+    boxShadow: fullscreen ? "none" : "0 8px 24px rgba(0,0,0,0.22)",
     zIndex: "2147483646",
-    display: "none",
+    display: fullscreen ? "block" : "none",
     background: "transparent",
+    paddingBottom: fullscreen ? "env(safe-area-inset-bottom)" : undefined,
+    paddingTop: fullscreen ? "env(safe-area-inset-top)" : undefined,
   });
 
   var iframe = document.createElement("iframe");
@@ -139,14 +188,68 @@
     if (e.key === "Escape" && open) toggle();
   });
 
+  // ----- Viewport resize handler (keyboard open/close, orientation change) -----
+  function handleViewportResize() {
+    var fs = shouldUseFullscreen();
+    var viewportHeight;
+
+    // Update bubble visibility
+    bubble.style.display = fs ? "none" : "block";
+
+    // Update container dimensions
+    if (fs) {
+      container.style.top = "0";
+      container.style.left = "0";
+      container.style.right = "";
+      container.style.bottom = "";
+      container.style.width = "100vw";
+      container.style.borderRadius = "0";
+      container.style.boxShadow = "none";
+      container.style.paddingBottom = "env(safe-area-inset-bottom)";
+      container.style.paddingTop = "env(safe-area-inset-top)";
+
+      // Use visualViewport for keyboard handling (modern browsers)
+      if (window.visualViewport) {
+        // Minimum height floor to prevent unusably small widget when keyboard is open
+        viewportHeight = Math.max(window.visualViewport.height, 200);
+        container.style.height = `${viewportHeight}px`;
+      } else {
+        container.style.height = `${window.innerHeight}px`;
+      }
+    } else {
+      container.style.top = "";
+      container.style.left = "";
+      container.style.right = "20px";
+      container.style.bottom = "92px";
+      container.style.width = "380px";
+      container.style.height = "560px";
+      container.style.borderRadius = "12px";
+      container.style.boxShadow = "0 8px 24px rgba(0,0,0,0.22)";
+      container.style.paddingBottom = "";
+      container.style.paddingTop = "";
+    }
+  }
+
+  var debouncedViewportResize = debounce(handleViewportResize, 75);
+
+  // Listen to viewport changes
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", debouncedViewportResize);
+  }
+  window.addEventListener("resize", debouncedViewportResize);
+  window.addEventListener("orientationchange", debouncedViewportResize);
+
   // ----- postMessage resize (the iframe may ask us to grow/shrink) -----
   // fallow-ignore-next-line complexity
   window.addEventListener("message", (event) => {
     if (event.origin !== origin) return;
     var data = event.data;
     if (data?.type !== "meclaw:resize") return;
+    // Only apply postMessage resize in desktop mode (mobile uses visualViewport)
+    if (shouldUseFullscreen()) return;
+    var next;
     if (typeof data.height === "number") {
-      const next = Math.max(200, Math.min(data.height, window.innerHeight - 120));
+      next = Math.max(200, Math.min(data.height, window.innerHeight - 120));
       container.style.height = `${next}px`;
     }
   });
@@ -165,6 +268,12 @@
     },
     toggle: toggle,
     destroy: () => {
+      // Cleanup viewport resize listeners
+      window.removeEventListener("resize", debouncedViewportResize);
+      window.removeEventListener("orientationchange", debouncedViewportResize);
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener("resize", debouncedViewportResize);
+      }
       bubble.remove();
       container.remove();
       delete window.MeclawWidget;
