@@ -5,7 +5,7 @@ description = "meclaw Phase 3 — Python AI sidecar (FastAPI + LangGraph)"
 requires-python = ">=3.12"
 dependencies = [
   "fastapi>=0.115",
-  "uvicorn[standard]>=0.32",
+  "uvicorn[standard]>=0.49.0",
   "langgraph>=0.2.50",
   "langchain-core>=0.3",
   "langchain-anthropic>=0.3",
