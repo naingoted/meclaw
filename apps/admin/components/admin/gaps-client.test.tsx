@@ -73,7 +73,7 @@ describe("GapsClient", () => {
     expect(nav.replace).toHaveBeenCalledWith("/admin/gaps?status=resolved", { scroll: false });
   });
 
-  it("close-loop POSTs a document with origin:'gap'", async () => {
+  it("answer flow POSTs to the atomic resolve endpoint with requestId", async () => {
     const bodies: Record<string, unknown> = {};
     vi.stubGlobal(
       "fetch",
@@ -83,7 +83,7 @@ describe("GapsClient", () => {
             JSON.stringify([
               {
                 id: "c1",
-                exemplarQuery: "fav language?",
+                exemplarQuery: "fav lang?",
                 count: 2,
                 status: "new",
                 updatedAt: new Date().toISOString(),
@@ -95,31 +95,35 @@ describe("GapsClient", () => {
         if (url === "/api/admin/gaps/c1") {
           return new Response(
             JSON.stringify({
-              cluster: { id: "c1", exemplarQuery: "fav language?", count: 2, status: "new" },
+              cluster: { id: "c1", exemplarQuery: "fav lang?", count: 2, status: "new" },
               misses: [],
             }),
           );
         }
-        if (url === "/api/admin/documents" && init?.method === "POST") {
-          bodies.doc = JSON.parse(String(init.body));
-          return new Response(JSON.stringify({ id: "newdoc" }), { status: 201 });
+        if (url === "/api/admin/gaps/c1/resolve" && init?.method === "POST") {
+          bodies.resolve = JSON.parse(String(init.body));
+          return new Response(JSON.stringify({ documentId: "d1", jobId: "j1", corpusVersion: 5 }), {
+            status: 201,
+          });
         }
         return new Response(JSON.stringify({}));
       }),
     );
 
     render(<GapsClient />);
-    await waitFor(() => expect(screen.getByText("fav language?")).toBeInTheDocument());
-    fireEvent.click(screen.getByText("fav language?"));
+    await waitFor(() => expect(screen.getByText("fav lang?")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("fav lang?"));
     await waitFor(() => expect(screen.getByText("Answer this gap")).toBeInTheDocument());
     fireEvent.click(screen.getByText("Answer this gap"));
-    fireEvent.change(screen.getByPlaceholderText("Title"), { target: { value: "Fav language" } });
+    fireEvent.change(screen.getByPlaceholderText("Title"), { target: { value: "Fav lang" } });
     fireEvent.change(screen.getByPlaceholderText("Answer content (markdown)…"), {
       target: { value: "Rust." },
     });
     fireEvent.click(screen.getByText("Save, ingest & resolve"));
-    await waitFor(() =>
-      expect(bodies.doc).toEqual({ title: "Fav language", body: "Rust.", origin: "gap" }),
-    );
+    await waitFor(() => expect(bodies.resolve).toBeDefined());
+    const payload = bodies.resolve as Record<string, string>;
+    expect(payload.title).toBe("Fav lang");
+    expect(payload.body).toBe("Rust.");
+    expect(payload.requestId).toMatch(/^[0-9a-f-]{36}$/);
   });
 });

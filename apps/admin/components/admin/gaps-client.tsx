@@ -3,7 +3,6 @@ import {
   Button,
   EmptyState,
   Input,
-  PageHeader,
   relativeTime,
   Skeleton,
   StatusPill,
@@ -16,7 +15,9 @@ import {
   TR,
 } from "@meclaw/ui";
 import * as React from "react";
+import { toast } from "sonner";
 import { useUrlState } from "@/lib/use-url-state";
+import { AdminPage, useAdminFetch, useAdminMutation } from "./framework";
 
 type ClusterSummary = {
   id: string;
@@ -47,17 +48,22 @@ const reasonSummary = (r: Record<string, number>) =>
 
 export function GapsClient() {
   const [status, setStatus] = useUrlState("status", "new", STATUSES);
-  const [clusters, setClusters] = React.useState<ClusterSummary[] | null>(null);
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
+  const {
+    data: clusters,
+    loading,
+    refetch,
+  } = useAdminFetch<ClusterSummary[]>(`/api/admin/gaps?status=${status}`);
 
-  const load = React.useCallback(async () => {
-    setClusters(await (await fetch(`/api/admin/gaps?status=${status}`)).json());
-  }, [status]);
+  // When a mutation invalidates "gaps", refetch the list
   React.useEffect(() => {
-    void (async () => {
-      await load();
-    })();
-  }, [load]);
+    const handler = (e: Event) => {
+      const { keys } = (e as CustomEvent).detail as { keys: string[] };
+      if (keys.includes("gaps")) refetch();
+    };
+    window.addEventListener("admin-cache-invalidate", handler);
+    return () => window.removeEventListener("admin-cache-invalidate", handler);
+  }, [refetch]);
 
   if (selectedId) {
     return (
@@ -65,29 +71,27 @@ export function GapsClient() {
         id={selectedId}
         onBack={() => {
           setSelectedId(null);
-          void load();
+          refetch();
         }}
       />
     );
   }
 
   return (
-    <div>
-      <PageHeader
-        title="Gaps"
-        subtitle={
-          clusters
-            ? `${clusters.length} ${status} cluster${clusters.length === 1 ? "" : "s"}`
-            : undefined
-        }
-        action={
-          <a href="/api/admin/gaps/export" download>
-            <Button variant="outline">Download CSV</Button>
-          </a>
-        }
-      />
-
-      <div className="mb-4 flex gap-2">
+    <AdminPage
+      title="Gaps"
+      subtitle={
+        clusters
+          ? `${clusters.length} ${status} cluster${clusters.length === 1 ? "" : "s"}`
+          : undefined
+      }
+      action={
+        <a href="/api/admin/gaps/export" download>
+          <Button variant="outline">Download CSV</Button>
+        </a>
+      }
+    >
+      <div className="mb-item flex gap-2">
         {STATUSES.map((s) => (
           <Button
             key={s}
@@ -101,13 +105,13 @@ export function GapsClient() {
         ))}
       </div>
 
-      {clusters === null ? (
+      {loading ? (
         <div className="space-y-2">
           <Skeleton className="h-9" />
           <Skeleton className="h-9" />
           <Skeleton className="h-9" />
         </div>
-      ) : clusters.length === 0 ? (
+      ) : !clusters?.length ? (
         <EmptyState
           title="No gaps here"
           hint="Questions the corpus couldn't answer will cluster here as visitors ask them."
@@ -124,7 +128,7 @@ export function GapsClient() {
             </TR>
           </THead>
           <TBody>
-            {clusters.map((c) => (
+            {clusters!.map((c) => (
               <TR key={c.id}>
                 <TD>
                   <button
@@ -147,69 +151,45 @@ export function GapsClient() {
           </TBody>
         </Table>
       )}
-    </div>
+    </AdminPage>
   );
 }
 
 function GapDetail({ id, onBack }: { id: string; onBack: () => void }) {
-  const [detail, setDetail] = React.useState<Detail | null>(null);
+  const { data: detail, loading } = useAdminFetch<Detail>(`/api/admin/gaps/${id}`);
   const [answering, setAnswering] = React.useState(false);
-  const [busy, setBusy] = React.useState(false);
 
-  React.useEffect(() => {
-    void (async () => {
-      const d = await (await fetch(`/api/admin/gaps/${id}`)).json();
-      setDetail(d);
-    })();
-  }, [id]);
+  const ignoreMutation = useAdminMutation(`/api/admin/gaps/${id}`, {
+    method: "PATCH",
+    successMessage: "Gap ignored",
+    errorMessage: "Failed to ignore gap",
+    invalidateKeys: ["gaps"],
+    onSuccess: () => onBack(),
+  });
 
-  async function ignore() {
-    setBusy(true);
-    try {
-      await fetch(`/api/admin/gaps/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ action: "ignore" }),
-      });
-      onBack();
-    } finally {
-      setBusy(false);
-    }
+  function ignore() {
+    void ignoreMutation.mutate({ action: "ignore" });
   }
 
-  // Close the loop: create a new document from the owner's answer, enqueue ingest,
-  // then mark the cluster resolved + linked. Ingest runs async (best-effort) — the
-  // Documents page shows its status; resolving here records the curation decision.
   async function answer(title: string, body: string) {
-    setBusy(true);
-    try {
-      const doc = await (
-        await fetch("/api/admin/documents", {
-          method: "POST",
-          body: JSON.stringify({ title, body, origin: "gap" }),
-        })
-      ).json();
-      if (!doc?.id) throw new Error("Document creation failed");
-      await fetch("/api/admin/jobs", {
-        method: "POST",
-        body: JSON.stringify({ documentId: doc.id }),
-      });
-      await fetch(`/api/admin/gaps/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ action: "resolve", documentId: doc.id }),
-      });
-      onBack();
-    } finally {
-      setBusy(false);
-    }
+    const requestId = crypto.randomUUID();
+    const res = await fetch(`/api/admin/gaps/${id}/resolve`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ requestId, title, body }),
+    });
+    if (!res.ok) throw new Error(`Resolve failed: ${res.status}`);
   }
 
-  if (!detail) return <Skeleton className="h-40" />;
+  if (loading || !detail) return <Skeleton className="h-40" />;
+
+  const isResolved = detail.cluster.status === "resolved";
+  const answerLabel = isResolved ? "Update this gap" : "Answer this gap";
 
   if (answering) {
     return (
       <AnswerForm
         defaultTitle={detail.cluster.exemplarQuery ?? ""}
-        busy={busy}
         onSubmit={answer}
         onCancel={() => setAnswering(false)}
       />
@@ -217,24 +197,26 @@ function GapDetail({ id, onBack }: { id: string; onBack: () => void }) {
   }
 
   return (
-    <div>
-      <PageHeader
-        title={detail.cluster.exemplarQuery ?? "Gap"}
-        subtitle={`${detail.cluster.count} hits · ${detail.cluster.status}`}
-        action={
-          <div className="flex gap-2">
-            <Button variant="ghost" onClick={onBack}>
-              Back
-            </Button>
-            <Button variant="ghost-danger" loading={busy} onClick={ignore}>
-              Ignore
-            </Button>
-            <Button loading={busy} onClick={() => setAnswering(true)}>
-              Answer this gap
-            </Button>
-          </div>
-        }
-      />
+    <AdminPage
+      title={detail.cluster.exemplarQuery ?? "Gap"}
+      subtitle={`${detail.cluster.count} hits · ${detail.cluster.status}`}
+      action={
+        <div className="flex gap-item">
+          <Button variant="ghost" onClick={onBack}>
+            Back
+          </Button>
+          <Button
+            variant="ghost-danger"
+            loading={ignoreMutation.isPending}
+            onClick={ignore}
+            aria-label="Ignore this gap"
+          >
+            Ignore
+          </Button>
+          <Button onClick={() => setAnswering(true)}>{answerLabel}</Button>
+        </div>
+      }
+    >
       <Table>
         <THead>
           <TR>
@@ -259,48 +241,72 @@ function GapDetail({ id, onBack }: { id: string; onBack: () => void }) {
           ))}
         </TBody>
       </Table>
-    </div>
+    </AdminPage>
   );
 }
 
 function AnswerForm({
   defaultTitle,
-  busy,
   onSubmit,
   onCancel,
 }: {
   defaultTitle: string;
-  busy: boolean;
   onSubmit: (title: string, body: string) => Promise<void>;
   onCancel: () => void;
 }) {
   const [title, setTitle] = React.useState(defaultTitle);
   const [body, setBody] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  const canSubmit = title.trim().length > 0 && body.trim().length > 0;
+
+  async function handleSubmit() {
+    if (!canSubmit) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await onSubmit(title, body);
+      toast.success("Gap resolved — document created and ingest queued");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="max-w-3xl">
       <h1 className="mb-1 text-lg font-bold tracking-tight text-foreground">Answer this gap</h1>
       <p className="mb-4 text-sm text-muted-foreground">
         Write a knowledge document that answers this question. Saving creates the document, queues
-        ingest, and marks the gap resolved.
+        ingest, and marks the gap resolved — all in a single transaction.
       </p>
       <Input
         className="mb-2"
         placeholder="Title"
         value={title}
         onChange={(e) => setTitle(e.target.value)}
+        aria-invalid={title.length === 0 && body.length > 0}
+        aria-label="Document title"
+        required
       />
       <Textarea
         className="mb-2 min-h-[40vh] font-sans"
         placeholder="Answer content (markdown)…"
         value={body}
         onChange={(e) => setBody(e.target.value)}
+        aria-invalid={body.length === 0 && title.length > 0}
+        aria-label="Answer content"
+        required
       />
-      <div className="flex gap-2">
-        <Button
-          loading={busy}
-          disabled={!title.trim() || !body.trim()}
-          onClick={() => onSubmit(title, body)}
-        >
+      {error ? (
+        <p className="mb-2 text-sm text-destructive" role="alert">
+          {error}
+        </p>
+      ) : null}
+      <div className="flex gap-item">
+        <Button loading={busy} disabled={!canSubmit} onClick={handleSubmit}>
           Save, ingest &amp; resolve
         </Button>
         <Button variant="outline" disabled={busy} onClick={onCancel}>
