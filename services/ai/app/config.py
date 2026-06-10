@@ -28,6 +28,11 @@ TRIAGE_CONFIDENCE_THRESHOLD = float(os.getenv("TRIAGE_CONFIDENCE_THRESHOLD", "0.
 RAG_SCORE_FLOOR = float(os.getenv("RAG_SCORE_FLOOR", "0.35"))
 CLUSTER_RADIUS = float(os.getenv("CLUSTER_RADIUS", "0.15"))
 
+# Resolved-gap fast path: a query whose embedding lands within this cosine
+# DISTANCE of a resolved cluster centroid gets the curated answer verbatim.
+# Same scale as CLUSTER_RADIUS.
+GAP_MATCH_THRESHOLD = float(os.getenv("GAP_MATCH_THRESHOLD", "0.15"))
+
 # `answer_used` hot-path heuristic: a draft "used" retrieval iff the share of its
 # distinct word tokens also present in the kept-chunk context >= this ratio.
 # Deliberately approximate (spec §5.2) — authoritative faithfulness is Ragas offline.

@@ -4,6 +4,7 @@ stream tokens we'd have to retract."""
 
 import json
 
+from app.gap_match import ResolvedAnswer
 from app.graph.nodes import TriageResult
 from app.lead import (
     SOFT_OFFER,
@@ -1100,3 +1101,159 @@ def test_tool_route_clarify_retrieval_is_null():
     )
     assert '"retrieval":null' in body
     assert "What do you mean?" in body
+
+
+def _resolved(distance=0.05, answer="Curated answer.", title="Are you sure?"):
+    return ResolvedAnswer(
+        answer=answer,
+        document_id="doc-1",
+        cluster_id="cl-1",
+        title=title,
+        distance=distance,
+    )
+
+
+def _counting_triage(intent="general", confidence=0.9):
+    state = {"called": False}
+
+    def _fn(messages):
+        state["called"] = True
+        return TriageResult(
+            intent=intent, confidence=confidence, clarifying_question=None
+        )
+
+    return _fn, state
+
+
+def test_resolved_gap_match_emits_verbatim_and_skips_triage():
+    triage, tstate = _counting_triage()
+    body = _collect(
+        run_stream(
+            [{"role": "user", "content": "are you sure?"}],
+            triage_fn=triage,
+            retriever_retrieve=lambda q: RetrievalResult([], []),
+            draft_stream_fn=lambda s, m, c: iter(["llm noise"]),
+            schedule_fn=lambda: {},
+            contact_fn=lambda: {},
+            embed_fn=_embed_stub,
+            gap_match_fn=lambda emb: _resolved(distance=0.05),
+            gap_match_threshold=0.15,
+        )
+    )
+    meta = _finish_metadata(body)
+    assert tstate["called"] is False  # LLM router skipped entirely
+    assert '"delta":"Curated answer."' in body  # verbatim, no draft LLM
+    assert '"delta":"llm noise"' not in body
+    assert meta["route"] == "gap"
+    assert meta["intent"] == "gap"
+    assert meta["miss"] is None  # a resolved hit records NO new miss
+    assert meta["sources"] == [
+        {"source": "document:doc-1", "title": "Are you sure?", "score": 0.95}
+    ]
+    retr = meta["retrieval"]
+    assert retr["intent"] == "gap"
+    assert retr["grounded"] is True
+    assert retr["gap_distance"] == 0.05
+    assert "Found a saved answer…" in meta["steps"]
+    assert body.rstrip().endswith("[DONE]")
+
+
+def test_gap_match_outside_threshold_falls_through_to_triage():
+    triage, tstate = _counting_triage(intent="contact")
+    body = _collect(
+        run_stream(
+            [{"role": "user", "content": "unrelated"}],
+            triage_fn=triage,
+            retriever_retrieve=lambda q: RetrievalResult([], []),
+            draft_stream_fn=lambda s, m, c: iter(["from tool"]),
+            schedule_fn=lambda: {},
+            contact_fn=lambda: {"email": "a@b.c"},
+            embed_fn=_embed_stub,
+            gap_match_fn=lambda emb: _resolved(distance=0.4),
+            gap_match_threshold=0.15,
+        )
+    )
+    assert tstate["called"] is True
+    assert '"route":"gap"' not in body
+    assert '"delta":"from tool"' in body
+
+
+def test_gap_match_failure_falls_through_to_triage():
+    def boom(_emb):
+        raise RuntimeError("db down")
+
+    triage, tstate = _counting_triage(intent="contact")
+    body = _collect(
+        run_stream(
+            [{"role": "user", "content": "hi"}],
+            triage_fn=triage,
+            retriever_retrieve=lambda q: RetrievalResult([], []),
+            draft_stream_fn=lambda s, m, c: iter(["ok"]),
+            schedule_fn=lambda: {},
+            contact_fn=lambda: {"email": "a@b.c"},
+            embed_fn=_embed_stub,
+            gap_match_fn=boom,
+            gap_match_threshold=0.15,
+        )
+    )
+    assert tstate["called"] is True
+    assert '"delta":"ok"' in body
+
+
+def test_gap_embed_failure_falls_through_to_triage():
+    def bad_embed(_q):
+        raise RuntimeError("ollama down")
+
+    triage, tstate = _counting_triage(intent="contact")
+    body = _collect(
+        run_stream(
+            [{"role": "user", "content": "hi"}],
+            triage_fn=triage,
+            retriever_retrieve=lambda q: RetrievalResult([], []),
+            draft_stream_fn=lambda s, m, c: iter(["ok"]),
+            schedule_fn=lambda: {},
+            contact_fn=lambda: {"email": "a@b.c"},
+            embed_fn=bad_embed,
+            gap_match_fn=lambda emb: _resolved(),
+            gap_match_threshold=0.15,
+        )
+    )
+    assert tstate["called"] is True
+    assert '"delta":"ok"' in body
+
+
+def test_gap_path_disabled_when_fn_absent():
+    # Back-compat: every pre-existing test calls run_stream without gap_match_fn.
+    triage, tstate = _counting_triage(intent="contact")
+    _collect(
+        run_stream(
+            [{"role": "user", "content": "hi"}],
+            triage_fn=triage,
+            retriever_retrieve=lambda q: RetrievalResult([], []),
+            draft_stream_fn=lambda s, m, c: iter(["ok"]),
+            schedule_fn=lambda: {},
+            contact_fn=lambda: {"email": "a@b.c"},
+            embed_fn=_embed_stub,
+        )
+    )
+    assert tstate["called"] is True
+
+
+def test_lead_capture_still_beats_gap_match():
+    # Pipeline order: capture stays first — a visitor handing over contact info
+    # must be captured even if their text embeds near a resolved cluster.
+    body = _collect(
+        run_stream(
+            [{"role": "user", "content": "sure, it's jane@doe.dev"}],
+            triage_fn=_triage("general", 0.9),
+            retriever_retrieve=lambda q: RetrievalResult([], []),
+            draft_stream_fn=lambda s, m, c: iter(["x"]),
+            schedule_fn=lambda: {},
+            contact_fn=lambda: {},
+            embed_fn=_embed_stub,
+            gap_match_fn=lambda emb: _resolved(distance=0.01),
+            gap_match_threshold=0.15,
+        )
+    )
+    assert '"route":"lead"' in body
+    assert '"route":"gap"' not in body

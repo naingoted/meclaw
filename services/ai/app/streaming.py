@@ -22,7 +22,12 @@ from typing import Callable, Iterator
 from app import stream as sse
 from app.answer_gap import is_missing_fact_answer
 from app.answer_use import compute_answer_used
-from app.config import TRIAGE_CONFIDENCE_THRESHOLD, ANSWER_USE_THRESHOLD
+from app.config import (
+    TRIAGE_CONFIDENCE_THRESHOLD,
+    ANSWER_USE_THRESHOLD,
+    GAP_MATCH_THRESHOLD,
+)
+from app.gap_match import ResolvedAnswer
 from app.graph.nodes import (
     CONTACT_PERSONA,
     PERSONAS,
@@ -114,6 +119,8 @@ def run_stream(
     corpus_text_fn: Callable[[], tuple[str, int]] | None = None,
     embed_fn: Callable[[str], list[float]] | None = None,
     assign_cluster_fn: Callable[[list[float], str], str] | None = None,
+    gap_match_fn: Callable[[list[float]], ResolvedAnswer | None] | None = None,
+    gap_match_threshold: float = GAP_MATCH_THRESHOLD,
 ) -> Iterator[str]:
     # Ordered record of the pipeline steps taken this turn. Each `status` emit
     # both streams a transient data-status part (drives the live checklist) and
@@ -169,6 +176,52 @@ def run_stream(
             },
         )
         return
+
+    # --- Resolved-gap fast path: curated answers beat corpus AND triage. -----
+    # Matches the query embedding against resolved gap-cluster centroids — the
+    # same space the original misses were recorded in — and emits the curated
+    # document VERBATIM (no LLM). Runs before triage so the router can't
+    # misroute or slow down a question the owner has explicitly answered.
+    # Any failure or non-match falls through to the normal pipeline.
+    if gap_match_fn is not None and embed_fn is not None:
+        match: ResolvedAnswer | None = None
+        try:
+            match = gap_match_fn(embed_fn(query))
+        except Exception:
+            logger.warning("Gap match failed; continuing to triage", exc_info=True)
+        if match is not None and match.distance <= gap_match_threshold:
+            yield status("Found a saved answer…", "gap")
+            score = round(1.0 - match.distance, 4)
+            yield from _emit_static(
+                match.answer,
+                {
+                    "sources": [
+                        {
+                            "source": f"document:{match.document_id}",
+                            "title": match.title,
+                            "score": score,
+                        }
+                    ],
+                    "route": "gap",
+                    "intent": "gap",
+                    "steps": list(steps),
+                    "corpus_version": corpus_version,
+                    # A resolved hit is the gap LOOP CLOSING — recording a miss
+                    # here would spawn duplicate clusters for answered questions.
+                    "miss": None,
+                    "retrieval": {
+                        "query": query,
+                        "intent": "gap",
+                        "grounded": True,
+                        "stuffed": False,
+                        "top_score": score,
+                        "answer_used": True,
+                        "chunks": [],
+                        "gap_distance": match.distance,
+                    },
+                },
+            )
+            return
 
     yield status("Routing your question…", "triage")
     triage = triage_fn(messages)
