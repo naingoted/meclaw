@@ -21,4 +21,22 @@ describe("ChatToolbar", () => {
     fireEvent.click(screen.getByRole("button", { name: /history/i }));
     expect(onOpenHistory).toHaveBeenCalledTimes(1);
   });
+
+  it("renders a close button with aria-label in embed mode and fires onClose", () => {
+    const onClose = vi.fn();
+    render(
+      <ChatToolbar mode="embed" onNewChat={vi.fn()} onOpenHistory={vi.fn()} onClose={onClose} />,
+    );
+    const closeBtn = screen.getByRole("button", { name: /close chat/i });
+    expect(closeBtn).toBeInTheDocument();
+    fireEvent.click(closeBtn);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("does NOT render a close button in normal mode", () => {
+    render(
+      <ChatToolbar mode="normal" onNewChat={vi.fn()} onOpenHistory={vi.fn()} onClose={vi.fn()} />,
+    );
+    expect(screen.queryByRole("button", { name: /close chat/i })).not.toBeInTheDocument();
+  });
 });
