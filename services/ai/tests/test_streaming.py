@@ -143,6 +143,55 @@ def test_low_confidence_streams_clarifying_question():
     assert '"route":"respond"' in body
 
 
+def test_low_confidence_still_answers_when_retrieval_grounds():
+    """Regression: a resolved-gap answer must surface even when triage is unsure.
+
+    Low triage confidence must NOT short-circuit before retrieval. A strongly
+    grounded chunk (e.g. a curated answer the owner resolved a gap with) wins
+    over the clarify gate — otherwise resolving a gap can never close it, since
+    the clarify gate runs before retrieval and the curated doc lives in retrieval.
+    """
+    drafted = {"called": False}
+
+    def retrieve(query):
+        return RetrievalResult(
+            chunks=[
+                RetrievedChunk(
+                    id="document:abc:0",
+                    source="document:abc",
+                    title="East shit?",
+                    text="# East shit? No no. you east shit.",
+                    ordinal=0,
+                    score=0.92,
+                )
+            ],
+            sources=[{"source": "document:abc", "title": "East shit?", "score": 0.92}],
+        )
+
+    def draft_stream(system, messages, context):
+        drafted["called"] = True
+        drafted["context"] = context
+        yield "No no. you east shit."
+
+    body = _collect(
+        run_stream(
+            [{"role": "user", "content": "East shit?"}],
+            triage_fn=_triage("general", 0.1, question="Could you clarify?"),
+            retriever_retrieve=retrieve,
+            draft_stream_fn=draft_stream,
+            schedule_fn=lambda: {},
+            contact_fn=lambda: {},
+            score_floor=0.35,
+        )
+    )
+
+    assert drafted["called"] is True  # answered from retrieval, not clarified away
+    assert "Could you clarify?" not in body
+    assert '"delta":"No no. you east shit."' in body
+    assert "east shit" in drafted["context"].lower()
+    assert _finish_metadata(body)["miss"] is None
+
+
 def test_contact_intent_drafts_from_tool_context():
     captured = {}
 
@@ -235,7 +284,10 @@ def test_scheduler_path_metadata_carries_ordered_steps():
     ) in body
 
 
-def test_clarify_path_metadata_carries_single_step():
+def test_clarify_path_carries_routing_and_search_steps():
+    # A low-confidence knowledge query now retrieves BEFORE clarifying — retrieval
+    # gets first crack so a grounded curated answer can win. With empty retrieval
+    # it falls through to the clarifying question, but the search step still ran.
     def draft_stream(system, messages, context):
         yield "x"
 
@@ -250,7 +302,8 @@ def test_clarify_path_metadata_carries_single_step():
         )
     )
 
-    assert '"steps":["Routing your question…"]' in body
+    assert '"steps":["Routing your question…","Searching knowledge base…"]' in body
+    assert "Which project?" in body
 
 
 def test_fallback_path_metadata_carries_routing_and_search_steps():
@@ -1011,7 +1064,10 @@ def test_contact_route_retrieval_is_null():
     assert _finish_metadata(body)["retrieval"] is None
 
 
-def test_clarify_path_retrieval_is_null():
+def test_knowledge_clarify_attaches_ungrounded_retrieval():
+    # A low-confidence KNOWLEDGE query retrieves first; with nothing grounded it
+    # clarifies, but now carries the (ungrounded) retrieval telemetry rather than
+    # null — the search genuinely ran before the clarify decision.
     body = _collect(
         run_stream(
             [{"role": "user", "content": "huh?"}],
@@ -1022,5 +1078,25 @@ def test_clarify_path_retrieval_is_null():
             contact_fn=lambda: {},
         )
     )
-    # clarify uses _emit_static; assert its metadata carries retrieval: null
+    meta = _finish_metadata(body)
+    assert meta["retrieval"] is not None
+    assert meta["retrieval"]["grounded"] is False
+    assert meta["route"] == "respond"
+    assert "What do you mean?" in body
+
+
+def test_tool_route_clarify_retrieval_is_null():
+    # Tool routes (scheduler/contact) still clarify UP FRONT when triage is unsure
+    # — retrieval can't rescue a fixed-context answer — so retrieval stays null.
+    body = _collect(
+        run_stream(
+            [{"role": "user", "content": "huh?"}],
+            triage_fn=_triage("contact", 0.1, question="What do you mean?"),
+            retriever_retrieve=lambda q: RetrievalResult(chunks=[], sources=[]),
+            draft_stream_fn=lambda s, m, c: iter(()),
+            schedule_fn=lambda: {},
+            contact_fn=lambda: {"email": "a@b.c"},
+        )
+    )
     assert '"retrieval":null' in body
+    assert "What do you mean?" in body

@@ -180,14 +180,22 @@ def run_stream(
     # Non-None only on a grounded non-tool route → eligible for answer-gap detection.
     answer_gap_score: float | None = None
 
+    low_confidence = triage.confidence < triage_confidence
+
     def fallback_text() -> str:
         if suppress:
             return NEUTRAL_FALLBACK
         return ESCALATED_OFFER if prior_offer_made(messages) else SOFT_OFFER
 
-    # Low confidence: ask the SPECIFIC clarifying question if the router gave one
-    # (good UX); otherwise the generic dead-end becomes a capture offer.
-    if triage.confidence < triage_confidence:
+    # Low confidence on a TOOL route (scheduler/contact) → clarify up front. Tool
+    # answers come from a fixed context (booking/contact info), so retrieval can't
+    # rescue a misroute. Knowledge intents (tech/project/general) deliberately do
+    # NOT short-circuit here: they retrieve first and only clarify if retrieval
+    # fails to ground (see the groundedness gate below). Otherwise a curated answer
+    # the owner resolved a gap with — which lives in the retrieval corpus — could
+    # never surface for a query triage happens to rate as ambiguous, so resolving
+    # that gap could never close it.
+    if low_confidence and intent in ("scheduler", "contact"):
         text = triage.clarifying_question or fallback_text()
         yield from _emit_static(
             text,
@@ -255,16 +263,29 @@ def run_stream(
             grounded = bool(kept) and top_score >= score_floor
             if not grounded:
                 # Groundedness gate — no usable chunks, or top hit below the floor.
-                reason = "fallback" if not kept else "floor"
+                # If the router was ALSO unsure, this is where the deferred clarify
+                # lands: retrieval got first crack and couldn't ground, so now ask
+                # the clarifying question (route="respond", miss="clarify"). A
+                # confident route that simply found nothing falls back to a capture
+                # offer (route=intent, miss="fallback"/"floor").
+                if low_confidence:
+                    text = triage.clarifying_question or fallback_text()
+                    route = "respond"
+                    miss = detect_miss("clarify", None)
+                else:
+                    text = fallback_text()
+                    route = intent
+                    reason = "fallback" if not kept else "floor"
+                    miss = detect_miss(reason, None if not kept else top_score)
                 yield from _emit_static(
-                    fallback_text(),
+                    text,
                     {
                         "sources": [],
-                        "route": intent,
+                        "route": route,
                         "intent": intent,
                         "steps": list(steps),
                         "corpus_version": corpus_version,
-                        "miss": detect_miss(reason, None if not kept else top_score),
+                        "miss": miss,
                         "retrieval": _retrieval_meta(
                             query,
                             intent,
