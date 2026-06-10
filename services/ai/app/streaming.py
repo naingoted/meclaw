@@ -80,7 +80,6 @@ def _retrieval_meta(
     intent: str,
     *,
     grounded: bool,
-    stuffed: bool,
     candidates: list,
     kept_ids: set[str],
     top_score: float | None,
@@ -88,12 +87,13 @@ def _retrieval_meta(
 ) -> dict:
     """Build the `retrieval` metadata object (spec §5.1). `candidates` are the
     RetrievedChunk objects the retriever returned; `kept_ids` are those that
-    survived the score threshold."""
+    survived the score threshold. `stuffed` is a retained telemetry key — the
+    tiny-corpus stuffed path was removed, so it is always False."""
     return {
         "query": query,
         "intent": intent,
         "grounded": grounded,
-        "stuffed": stuffed,
+        "stuffed": False,
         "top_score": top_score,
         "answer_used": answer_used,
         "chunks": [
@@ -118,10 +118,8 @@ def run_stream(
     persona_prefix: str = "",
     score_floor: float = 0.0,
     score_threshold: float = 0.0,
-    tiny_corpus_threshold: int = 0,
     triage_confidence: float = TRIAGE_CONFIDENCE_THRESHOLD,
     answer_use_threshold: float = ANSWER_USE_THRESHOLD,
-    corpus_text_fn: Callable[[], tuple[str, int]] | None = None,
     embed_fn: Callable[[str], list[float]] | None = None,
     assign_cluster_fn: Callable[[list[float], str], str] | None = None,
     gap_match_fn: Callable[[list[float]], ResolvedAnswer | None] | None = None,
@@ -281,102 +279,75 @@ def run_stream(
         sources = []
     else:
         # tech | project | general all retrieve from the knowledge base.
-        # Tiny-corpus shortcut: if the whole corpus is smaller than the
-        # threshold, skip retrieval and stuff it all into context. Guard on
-        # token_count > 0 so an empty/unavailable corpus falls through to normal
-        # retrieval instead of stuffing an empty context.
-        stuffed = False
-        if corpus_text_fn is not None and tiny_corpus_threshold > 0:
-            full_text, token_count = corpus_text_fn()
-            if 0 < token_count < tiny_corpus_threshold:
-                yield status("Using full corpus…", "retrieval")
-                context = full_text
-                system = knowledge_system or PERSONAS.get(intent, PERSONAS["general"])
-                sources = []
-                stuffed = True
-                # Stuffed path: record telemetry with no per-chunk scores.
-                retrieval_meta = _retrieval_meta(
-                    query,
-                    intent,
-                    grounded=True,
-                    stuffed=True,
-                    candidates=[],
-                    kept_ids=set(),
-                    top_score=None,
-                    answer_used=False,
-                )
-
-        if not stuffed:
-            yield status("Searching knowledge base…", "retrieval")
-            try:
-                retrieval = retriever_retrieve(query)
-            except Exception:
-                logger.warning("Retrieval failed; falling back", exc_info=True)
-                retrieval = RetrievalResult(chunks=[], sources=[])
-            # Per-chunk include filter: drop sub-threshold chunks BEFORE the gate.
-            # Distinct from score_floor, which gates grounded-vs-miss on the
-            # surviving top score.
-            kept = [c for c in retrieval.chunks if c.score >= score_threshold]
-            top_score = max((c.score for c in kept), default=0.0)
-            grounded = bool(kept) and top_score >= score_floor
-            if not grounded:
-                # Groundedness gate — no usable chunks, or top hit below the floor.
-                # If the router was ALSO unsure, this is where the deferred clarify
-                # lands: retrieval got first crack and couldn't ground, so now ask
-                # the clarifying question (route="respond", miss="clarify"). A
-                # confident route that simply found nothing falls back to a capture
-                # offer (route=intent, miss="fallback"/"floor").
-                if low_confidence:
-                    text = triage.clarifying_question or fallback_text()
-                    route = "respond"
-                    miss = detect_miss("clarify", None)
-                else:
-                    text = fallback_text()
-                    route = intent
-                    reason = "fallback" if not kept else "floor"
-                    miss = detect_miss(reason, None if not kept else top_score)
-                yield from _emit_static(
-                    text,
-                    {
-                        "sources": [],
-                        "route": route,
-                        "intent": intent,
-                        "steps": list(steps),
-                        "corpus_version": corpus_version,
-                        "miss": miss,
-                        "retrieval": _retrieval_meta(
-                            query,
-                            intent,
-                            grounded=False,
-                            stuffed=False,
-                            candidates=retrieval.chunks,
-                            kept_ids={c.id for c in kept},
-                            # None when no chunk passed threshold; otherwise the kept top score.
-                            top_score=None if not kept else top_score,
-                            answer_used=False,
-                        ),
-                    },
-                )
-                return
-            context = "\n\n".join(chunk.text for chunk in kept)
-            system = knowledge_system or PERSONAS.get(intent, PERSONAS["general"])
-            kept_sources = {c.source for c in kept}
-            sources = [s for s in retrieval.sources if s.get("source") in kept_sources]
-            # Grounded retrieval route → eligible for answer-gap detection. The
-            # tiny-corpus stuffed path above has no per-chunk score, so it stays
-            # out (answer_gap_score remains None there).
-            answer_gap_score = top_score
-            # answer_used is filled after drafting (needs the draft text).
-            retrieval_meta = _retrieval_meta(
-                query,
-                intent,
-                grounded=True,
-                stuffed=False,
-                candidates=retrieval.chunks,
-                kept_ids={c.id for c in kept},
-                top_score=top_score,
-                answer_used=False,
+        # Retrieval ALWAYS runs — curated gap-resolution docs live in the
+        # corpus, so any bypass (the old tiny-corpus stuffing) silently
+        # breaks resolved-gap pickup.
+        yield status("Searching knowledge base…", "retrieval")
+        try:
+            retrieval = retriever_retrieve(query)
+        except Exception:
+            logger.warning("Retrieval failed; falling back", exc_info=True)
+            retrieval = RetrievalResult(chunks=[], sources=[])
+        # Per-chunk include filter: drop sub-threshold chunks BEFORE the gate.
+        # Distinct from score_floor, which gates grounded-vs-miss on the
+        # surviving top score.
+        kept = [c for c in retrieval.chunks if c.score >= score_threshold]
+        top_score = max((c.score for c in kept), default=0.0)
+        grounded = bool(kept) and top_score >= score_floor
+        if not grounded:
+            # Groundedness gate — no usable chunks, or top hit below the floor.
+            # If the router was ALSO unsure, this is where the deferred clarify
+            # lands: retrieval got first crack and couldn't ground, so now ask
+            # the clarifying question (route="respond", miss="clarify"). A
+            # confident route that simply found nothing falls back to a capture
+            # offer (route=intent, miss="fallback"/"floor").
+            if low_confidence:
+                text = triage.clarifying_question or fallback_text()
+                route = "respond"
+                miss = detect_miss("clarify", None)
+            else:
+                text = fallback_text()
+                route = intent
+                reason = "fallback" if not kept else "floor"
+                miss = detect_miss(reason, None if not kept else top_score)
+            yield from _emit_static(
+                text,
+                {
+                    "sources": [],
+                    "route": route,
+                    "intent": intent,
+                    "steps": list(steps),
+                    "corpus_version": corpus_version,
+                    "miss": miss,
+                    "retrieval": _retrieval_meta(
+                        query,
+                        intent,
+                        grounded=False,
+                        candidates=retrieval.chunks,
+                        kept_ids={c.id for c in kept},
+                        # None when no chunk passed threshold; otherwise the kept top score.
+                        top_score=None if not kept else top_score,
+                        answer_used=False,
+                    ),
+                },
             )
+            return
+        context = "\n\n".join(chunk.text for chunk in kept)
+        system = knowledge_system or PERSONAS.get(intent, PERSONAS["general"])
+        kept_sources = {c.source for c in kept}
+        sources = [s for s in retrieval.sources if s.get("source") in kept_sources]
+        # Grounded retrieval route → eligible for answer-gap detection.
+        answer_gap_score = top_score
+        # answer_used is filled after drafting (needs the draft text).
+        retrieval_meta = _retrieval_meta(
+            query,
+            intent,
+            grounded=True,
+            candidates=retrieval.chunks,
+            kept_ids={c.id for c in kept},
+            top_score=top_score,
+            answer_used=False,
+        )
 
     # Apply persona prefix if configured
     if persona_prefix:

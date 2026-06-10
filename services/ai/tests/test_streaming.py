@@ -757,65 +757,6 @@ def test_score_threshold_filtering_can_trigger_fallback():
     assert SOFT_OFFER in body  # fallback offer emitted
 
 
-def test_tiny_corpus_stuffs_full_corpus_and_skips_retrieval():
-    captured = {"retrieved": False}
-
-    def retrieve(_query):
-        captured["retrieved"] = True
-        return RetrievalResult(chunks=[], sources=[])
-
-    def draft_stream(system, messages, context):
-        captured["context"] = context
-        yield "ok"
-
-    body = _collect(
-        run_stream(
-            [{"role": "user", "content": "stack?"}],
-            triage_fn=_triage("tech", 0.9),
-            retriever_retrieve=retrieve,
-            draft_stream_fn=draft_stream,
-            schedule_fn=lambda: {},
-            contact_fn=lambda: {},
-            tiny_corpus_threshold=10000,
-            corpus_text_fn=lambda: ("THE WHOLE CORPUS", 5),  # 5 < 10000
-        )
-    )
-
-    assert captured["retrieved"] is False  # retrieval skipped
-    assert captured["context"] == "THE WHOLE CORPUS"
-    assert '"stage":"retrieval"' in body
-    assert body.rstrip().endswith("[DONE]")
-
-
-def test_tiny_corpus_disabled_when_corpus_exceeds_threshold():
-    captured = {"retrieved": False}
-
-    def retrieve(_query):
-        captured["retrieved"] = True
-        return RetrievalResult(
-            chunks=[
-                RetrievedChunk(
-                    id="d#0", source="a.md", title="A", text="hit", ordinal=0, score=0.9
-                )
-            ],
-            sources=[{"source": "a.md", "title": "A", "score": 0.9}],
-        )
-
-    _collect(
-        run_stream(
-            [{"role": "user", "content": "stack?"}],
-            triage_fn=_triage("tech", 0.9),
-            retriever_retrieve=retrieve,
-            draft_stream_fn=lambda s, m, c: iter(["ok"]),
-            schedule_fn=lambda: {},
-            contact_fn=lambda: {},
-            tiny_corpus_threshold=3,
-            corpus_text_fn=lambda: ("big corpus text", 100),  # 100 > 3
-        )
-    )
-    assert captured["retrieved"] is True
-
-
 def test_triage_confidence_param_gates_clarify():
     # confidence 0.6 passes the default 0.5 gate but fails a stricter 0.8 gate.
     body = _collect(
@@ -1027,28 +968,6 @@ def test_zero_kept_miss_records_null_top_score():
     assert retr["grounded"] is False
     assert retr["top_score"] is None
     assert retr["chunks"][0]["kept"] is False
-
-
-def test_stuffed_path_attaches_stuffed_retrieval():
-    body = _collect(
-        run_stream(
-            [{"role": "user", "content": "q"}],
-            triage_fn=_triage("general", 0.9),
-            retriever_retrieve=lambda q: RetrievalResult(chunks=[], sources=[]),
-            draft_stream_fn=lambda s, m, c: iter(["Full ", "corpus ", "answer."]),
-            schedule_fn=lambda: {},
-            contact_fn=lambda: {},
-            corpus_text_fn=lambda: ("Full corpus answer text", 5),
-            tiny_corpus_threshold=100,
-            answer_use_threshold=0.3,
-        )
-    )
-    retr = _finish_metadata(body)["retrieval"]
-    assert retr["stuffed"] is True
-    assert retr["grounded"] is True
-    assert retr["top_score"] is None
-    assert retr["chunks"] == []
-    assert retr["answer_used"] is True
 
 
 def test_contact_route_retrieval_is_null():
@@ -1302,3 +1221,23 @@ def test_short_conversation_passes_all_messages_to_triage():
         )
     )
     assert captured["messages"] == msgs
+
+
+def test_run_stream_no_longer_accepts_stuffing_params():
+    # The tiny-corpus stuffed path is deleted; retrieval always runs.
+    try:
+        list(
+            run_stream(
+                [{"role": "user", "content": "q"}],
+                triage_fn=_triage("tech", 0.9),
+                retriever_retrieve=lambda q: RetrievalResult([], []),
+                draft_stream_fn=lambda s, m, c: iter(["x"]),
+                schedule_fn=lambda: {},
+                contact_fn=lambda: {},
+                tiny_corpus_threshold=10000,
+                corpus_text_fn=lambda: ("CORPUS", 5),
+            )
+        )
+        raise AssertionError("expected TypeError for removed params")
+    except TypeError:
+        pass
