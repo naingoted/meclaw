@@ -32,6 +32,9 @@ FROM deps AS builder
 COPY --from=prune /app/out/full/ ./
 COPY tsconfig.base.json ./
 ENV NEXT_TELEMETRY_DISABLED=1
+ARG MECLAW_VERSION=dev
+ARG GIT_SHA=dev
+ENV MECLAW_VERSION=${MECLAW_VERSION} GIT_SHA=${GIT_SHA}
 RUN pnpm --filter @meclaw/admin build
 
 ##### runner: standalone #####

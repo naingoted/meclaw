@@ -64,6 +64,9 @@ jobs:
           file: apps/admin/Dockerfile
           target: runner
           push: true
+          build-args: |
+            GIT_SHA=${{ github.sha }}
+            MECLAW_VERSION=${{ github.ref_name }}
           tags: |
             ghcr.io/${{ steps.owner.outputs.lc }}/meclaw-admin:latest
             ghcr.io/${{ steps.owner.outputs.lc }}/meclaw-admin:${{ github.sha }}
