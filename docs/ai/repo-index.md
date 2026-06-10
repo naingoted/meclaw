@@ -7,14 +7,18 @@ meclaw/
 ├─ apps/
 │  ├─ chat/                          # @meclaw/chat — public chat app (port 3000)
 │  │  ├─ app/{layout,page,api/chat/route}.tsx
+│  │  ├─ app/api/chat/history/       # resume-token-gated transcript rehydration
+│  │  ├─ app/widget/                 # embedded-iframe chat surface
 │  │  ├─ app/resume/route.ts         # markdown resume download
-│  │  ├─ components/chat/*           # message list, input, chips, markdown, dev sources, live trace
-│  │  ├─ lib/ai/provider.ts          # ai sdk config (proxies to sidecar at AI_SERVICE_URL)
+│  │  ├─ components/chat/*           # message list, input, chips, markdown, live trace, history drawer
+│  │  ├─ lib/{ai,chat,embed}/        # provider proxy · session index/timestamps · embed auth + HMAC resume tokens
+│  │  ├─ public/embed.js             # third-party widget loader (bubble + iframe)
 │  │  └─ next.config.ts
-│  └─ admin/                         # @meclaw/admin — content/ingest console (port 3001, Auth.js protected)
-│     ├─ app/{layout,page,api}/
-│     ├─ lib/{auth,actions}/         # Auth.js v5 config, scrypt password verification, JWT
-│     ├─ scripts/gen-admin-hash.ts   # mint admin password hash (salt:hash)
+│  └─ admin/                         # @meclaw/admin — console (port 3001, Auth.js protected)
+│     ├─ app/admin/{documents,config,gaps,embed-clients,research,jobs,audit}/   # console pages
+│     ├─ app/{login,api}/            # Auth.js login wall + /api/admin/* mutations
+│     ├─ lib/{admin,research}/       # services (incl. in-process ingest + corpus state) · research SSE hook
+│     ├─ scripts/{gen-admin-hash,seed-documents}.ts
 │     └─ next.config.ts
 ├─ packages/
 │  ├─ core/                          # @meclaw/core — db, content loader, settings
@@ -37,17 +41,23 @@ meclaw/
 │     └─ package.json
 ├─ services/
 │  └─ ai/                            # Python sidecar (port 8000)
-│     ├─ app/{main.py,triage,provider,streaming,retriever}.py
+│     ├─ app/{main,streaming,runner,provider,retriever,runtime_config}.py   # chat pipeline
+│     ├─ app/{gaps,gap_match,answer_gap,lead,corpus,tools}.py               # miss/gap/lead detection
+│     ├─ app/graph/                  # LangGraph triage graph
+│     ├─ app/eval/                   # Ragas eval harness (generate → run → report)
+│     ├─ app/research/               # multi-agent research graph (Spec C)
+│     ├─ eval/interview.yaml         # eval dataset
 │     ├─ tests/*.py
 │     ├─ pyproject.toml
 │     └─ Dockerfile (built by docker-compose)
 ├─ infra/                            # Deploy config & compose files
 │  ├─ docker-compose.yml             # dev: postgres + ollama + ai sidecar + chat + admin
-│  ├─ docker-compose.prod.yml        # prod: chat + admin + ai + ops (migrate/ingest runner)
-│  ├─ Dockerfile.ops                 # one-shot migrate + ingest runner
-│  ├─ Caddyfile                      # reverse proxy: apex → chat, admin.* → admin
-│  ├─ .env.example                   # dev env placeholders; copy to root .env for compose
-│  └─ .env.prod.example              # prod env + secret names (.env/.env.* excluded by root .gitignore)
+│  ├─ docker-compose.dokploy.yml     # PROD (live): Dokploy/Traefik stack — see docs/ai/deploy.md
+│  ├─ .env.dokploy.example           # prod env template (real values live in Dokploy's Environment tab)
+│  ├─ docker-compose.prod.yml        # legacy self-managed-VPS alternative (+ Caddyfile)
+│  ├─ Caddyfile                      # (legacy) reverse proxy: apex → chat, admin.* → admin
+│  ├─ Dockerfile.ops                 # one-shot migrate + ingest runner image
+│  └─ .env.example                   # dev env placeholders; copy to root .env for compose
 ├─ content/                          # owner's knowledge corpus (markdown + PDF)
 │  ├─ personal.example.md · resume.md
 │  ├─ projects/*.md
@@ -69,12 +79,12 @@ meclaw/
 ## Key entry points
 
 - **Chat page:** `apps/chat/app/page.tsx` + `useChat` client component.
-- **Admin console:** `apps/admin/app/page.tsx` (Auth.js login wall + content form).
+- **Admin console:** `apps/admin/app/admin/*` pages behind the Auth.js login wall (`app/login`): documents, config, gaps, embed clients, research, jobs, audit.
 - **Chat API (proxy):** `apps/chat/app/api/chat/route.ts` → Python sidecar at `AI_SERVICE_URL` (default `http://localhost:8000`).
 - **LLM calls (host):** `lib/ai/provider.ts` in each app (Vercel AI SDK config).
-- **LLM calls (sidecar):** `services/ai/app/provider.py` + `triage.py` (glm-4.7 non-stream routing, then qwen3.6-plus streaming draft).
-- **Knowledge corpus:** markdown in `content/` → loaded by `@meclaw/core`'s `lib/content.ts` → full-corpus or retrieved prompt via `@meclaw/rag`'s ingestion (`scripts/ingest.ts`) and Python sidecar retrieval (`services/ai/app/retriever.py`).
+- **LLM calls (sidecar):** `services/ai/app/provider.py` + `app/graph/` (glm-4.7 non-stream triage routing, then qwen3.6-plus streaming draft — both thinking-off).
+- **Knowledge corpus:** the `documents` table is the source of truth (admin-edited); `content/` markdown is the first-run seed. Ingest (`@meclaw/rag` `scripts/ingest.ts` for bulk, admin in-process per-doc) embeds into `rag_chunks`; the sidecar retrieves via `services/ai/app/retriever.py`.
 - **Database:** PostgreSQL via `@meclaw/core` (Drizzle ORM + `postgres-js`). Persistence (conversations, messages) + RAG vectors (`rag_chunks`, pgvector, HNSW cosine) in the same store. Migrations live in `packages/core/drizzle/`.
 - **RAG infra:** local Ollama (`nomic-embed-text`) + PostgreSQL (pgvector) configured by `infra/docker-compose.yml`. Ingestion runs on-demand (`pnpm ingest` = `pnpm --filter @meclaw/rag ingest`). Retrieval happens in Python sidecar (`services/ai/app/retriever.py`) via psycopg cosine kNN over `rag_chunks`.
-- **Deploy config:** four Docker images → pushed to GHCR → pulled and run by `infra/docker-compose.prod.yml`. Build sources: chat → `apps/chat/Dockerfile` (target `runner`), admin → `apps/admin/Dockerfile` (target `runner`), ai → `services/ai/Dockerfile`, ops → `infra/Dockerfile.ops` (one-shot migrations + ingest). Caddy reverse proxy (`infra/Caddyfile`) routes apex domain → chat, `admin.<domain>` → admin.
-- **Environment variables:** Each app reads `.env` / `.env.local` (dev) or env secrets (prod). See `infra/.env.example` (dev) + `infra/.env.prod.example` (prod) and `docs/ai/setup.md` for details.
+- **Deploy config:** `git tag v*` → CI builds four GHCR images (chat → `apps/chat/Dockerfile`, admin → `apps/admin/Dockerfile`, ai → `services/ai/Dockerfile`, ops → `infra/Dockerfile.ops`) → Dokploy API deploys `infra/docker-compose.dokploy.yml` (Traefik subdomain routing, auto-migrations). Guide: `docs/ai/deploy.md`.
+- **Environment variables:** Each app reads `.env` / `.env.local` (dev) or the Dokploy Environment tab (prod). See `infra/.env.example` (dev) + `infra/.env.dokploy.example` (prod) and `docs/ai/setup.md` for details.

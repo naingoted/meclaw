@@ -3,9 +3,9 @@
 ## Code style
 
 - TypeScript strict. No `any` without a comment justifying it.
-- Path alias `@/*` → repo root (e.g. `@/lib/utils`, `@/components/ui/button`).
+- Path alias `@/*` is **app-local** (each app maps it to its own root). Inside `packages/*` (`@meclaw/*`) use relative or package-name imports only — `@/` there breaks the Next build.
 - Server code (route handlers, content/db loaders) stays out of client components. Mark client components with `"use client"`.
-- Tailwind 4 utility-first. Compose class names with `cn()` from `@/lib/utils`. Use shadcn primitives in `components/ui/*`; app-specific composites go in `components/chat/*`.
+- Tailwind 4 utility-first. Compose class names with `cn()` from `@meclaw/ui`. Use shadcn primitives from `@meclaw/ui`; app-specific composites live in the app (e.g. `apps/chat/components/chat/*`).
 
 ## UI / component rules
 
@@ -22,13 +22,13 @@
 
 - Vitest. Write a **failing test first** for any logic: persona builder, content loader, tools, route handler.
 - Mock the LLM provider in tests — never hit the live gateway.
-- Test files live beside source as `*.test.ts(x)` (see `lib/utils.test.ts`).
+- Test files live beside source as `*.test.ts(x)`.
 
 ## Browser verification (Playwright MCP)
 
 Each milestone must render in the browser before moving on. Verify with the **Playwright MCP via the Docker MCP toolkit** (already connected — `MCP_DOCKER` `browser_*` tools), not a hand-run browser:
 
-1. `pnpm dev` (background) → app at `http://localhost:3000`.
+1. Start the stack (`pnpm dev:full`, or `pnpm services` + per-app dev servers) → chat at `http://localhost:3000`, admin at `:3001`.
 2. `browser_navigate` to the page, `browser_snapshot` for the a11y tree, `browser_take_screenshot` for visual proof.
 3. For chat: `browser_type` into the input, submit, `browser_wait_for` the streamed reply, snapshot to confirm.
 

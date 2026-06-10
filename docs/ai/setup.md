@@ -18,26 +18,9 @@
 
 ## Quick start
 
-**Full stack in Docker (recommended):**
-```bash
-cp infra/.env.example .env        # compose reads .env; fill ANTHROPIC_API_KEY
-pnpm dev:full                     # builds + boots postgres, ollama, ai sidecar, chat, admin
-```
-Chat at http://localhost:3000 · Admin at http://localhost:3001.
+Two paths — **full stack in Docker** (`pnpm dev:full`) or **host dev** (`pnpm services` + `pnpm dev:ai` + per-app dev servers). Both are spelled out step-by-step in the root [`README.md`](../../README.md) Quickstart A/B; this file covers the env vars, scripts, and tooling behind them.
 
-**Host dev (fast UI loop):**
-```bash
-pnpm install
-cp infra/.env.example .env.local              # Next reads .env.local
-cp services/ai/.env.example services/ai/.env  # sidecar reads this; fill ANTHROPIC_API_KEY
-pnpm services                     # postgres + ollama (data plane)
-pnpm db:migrate                   # create tables
-pnpm dev:ai                       # Python sidecar :8000 (needs uv)
-
-# In another terminal:
-pnpm --filter @meclaw/chat dev    # chat :3000
-pnpm --filter @meclaw/admin dev   # admin :3001
-```
+Chat at http://localhost:3000 · Admin at http://localhost:3001 · Sidecar at http://localhost:8000.
 
 ## Environment variables
 
@@ -57,16 +40,18 @@ pnpm --filter @meclaw/admin dev   # admin :3001
 | `AUTH_SECRET` | Auth.js secret. Random 32-byte hex. Only needed for admin (next-auth). |
 | `ADMIN_PASSWORD_HASH` | scrypt hash in `salt:hash` format. Mint via `pnpm --filter @meclaw/admin gen:admin-hash <password>` |
 
-### Prod (VPS `infra/.env`)
+### Prod (Dokploy Environment tab)
 
-See `infra/.env.prod.example`. Keys:
-- `DOMAIN` — apex domain (e.g., `yourdomain.com`)
-- `IMAGE_TAG` — GHCR image tag (git commit SHA or `latest`)
+Production env lives in the Dokploy app's Environment tab (never in a committed file). Template: `infra/.env.dokploy.example`. Keys beyond dev:
+
+- `IMAGE_TAG` — GHCR image tag. **CI-managed**: the deploy job pins it to the released git tag; don't hand-edit during a normal release.
 - `GHCR_OWNER` — GitHub username for `ghcr.io/<owner>/meclaw-*`
-- `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `ANTHROPIC_MODEL` — same as dev
+- `AUTH_URL` — admin host (e.g. `https://meclaw-admin.<domain>`)
+- `POSTGRES_PASSWORD` — mint on-box (`openssl rand -base64 24`), mirror into `DATABASE_URL`
 - `AUTH_SECRET` — mint: `openssl rand -hex 32`
 - `ADMIN_PASSWORD_HASH` — mint: `pnpm --filter @meclaw/admin gen:admin-hash <password>`
-- `OLLAMA_EMBED_MODEL` — `nomic-embed-text`
+
+Full provisioning + debugging runbook: `docs/ai/deploy.md`. (`infra/.env.prod.example` belongs to the legacy self-managed compose path.)
 
 ## Key differences: `.env` vs `.env.local`
 
@@ -99,7 +84,7 @@ Keep both if switching between paths, or symlink one to the other.
 | `pnpm coverage` | Run all package tests with Istanbul coverage, merge → `coverage/coverage-final.json`. |
 | `pnpm fallow:cov` | `pnpm coverage` then `fallow health --coverage` — **exact** per-function CRAP from real test coverage. |
 | `docker compose -f infra/docker-compose.yml config -q` | Validate dev compose. |
-| `docker compose -f infra/docker-compose.prod.yml config -q` | Validate prod compose. |
+| `docker compose -f infra/docker-compose.dokploy.yml config -q` | Validate prod (Dokploy) compose. |
 
 ## Git hooks (Fallow + Husky)
 
@@ -172,28 +157,11 @@ pnpm --filter @meclaw/admin seed:docs                     # import content/**/*.
 pnpm --filter @meclaw/rag ingest                           # embed corpus → Postgres
 ```
 
-If Ollama or Postgres is down, chat falls back to full-corpus prompt. App stays usable.
+If Ollama or Postgres is down, retrieval can't ground answers — the bot defers conservatively and records misses. App stays usable.
 
 ## Knowledge corpus
 
-`content/` ships with public-safe starter files (`personal.example.md`, `resume.md`, `projects/`) + samples
-in `content/knowledge/` so chat works immediately. Your own `content/personal.md`,
-real `content/knowledge/**`, `content/private/**`, and `data/**` payloads are
-gitignored (local-only). See `content/README.md` for details.
-
-First-run ingest folders:
-
-- `content/personal.md` — copy from `content/personal.example.md`; markdown profile/contact details.
-- `content/knowledge/**` — main private markdown/PDF corpus.
-- `content/private/**` — local-only sensitive markdown/PDF notes that are still ingestable.
-- `data/work_impact_<company>/04_rag_entries.json` — optional structured employer-impact pack; start from `data/work_impact_example/04_rag_entries.example.json`.
-
-Then run:
-
-```bash
-pnpm --filter @meclaw/admin seed:docs  # imports content/**/*.md into Documents
-pnpm --filter @meclaw/rag ingest       # embeds markdown, PDFs, and work-impact packs
-```
+Folder layout, first-run ingest paths, and privacy rules are documented in the root [`README.md`](../../README.md) ("Knowledge & privacy") and `content/README.md`. Short version: the `documents` table is the source of truth; `content/` is the gitignored local corpus that gets seeded once (`seed:docs`) and embedded (`pnpm ingest`).
 
 ## Adding a shadcn component
 
