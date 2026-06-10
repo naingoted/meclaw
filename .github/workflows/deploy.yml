@@ -2,7 +2,6 @@ name: Deploy
 
 on:
   push:
-    branches: [main]
     tags: ['v*']
 
 concurrency:
@@ -19,6 +18,7 @@ jobs:
     needs: quality
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
       packages: write
@@ -103,6 +103,7 @@ jobs:
     needs: build
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Trigger Dokploy deploy
         env:
