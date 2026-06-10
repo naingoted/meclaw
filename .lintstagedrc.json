@@ -1,4 +1,8 @@
 {
   "*.{js,jsx,ts,tsx,json,jsonc,css}": ["biome check --write --no-errors-on-unmatched"],
+  "*.py": [
+    "uv run --project services/ai ruff check --fix",
+    "uv run --project services/ai ruff format"
+  ],
   "*": ["secretlint --maskSecrets --secretlintignore .secretlintignore"]
 }
