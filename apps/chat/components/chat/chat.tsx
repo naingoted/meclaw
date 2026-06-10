@@ -2,7 +2,6 @@
 
 import { useChat } from "@ai-sdk/react";
 import { Button, cn } from "@meclaw/ui";
-import { Bot } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import type { ChatSession } from "@/lib/chat/sessions";
@@ -244,14 +243,11 @@ function StepDots() {
  */
 export function LiveTrace({ steps }: { steps: string[] }) {
   return (
-    <div className="flex items-start gap-3">
-      <div
-        data-testid="bot-avatar"
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted"
+    <div>
+      <section
+        aria-label="Assistant says"
+        className="rounded-2xl bg-muted px-4 py-2 text-sm text-muted-foreground"
       >
-        <Bot className="h-5 w-5 text-foreground" />
-      </div>
-      <div className="rounded-2xl bg-muted px-4 py-2 text-sm text-muted-foreground">
         {steps.length === 0 ? (
           <div className="flex items-center gap-2">
             <StepDots />
@@ -276,7 +272,7 @@ export function LiveTrace({ steps }: { steps: string[] }) {
             })}
           </ul>
         )}
-      </div>
+      </section>
     </div>
   );
 }
@@ -368,38 +364,30 @@ function AssistantTurn({
   const route = extractRoute(message);
   const steps = extractSteps(message);
   return (
-    <>
-      <div
-        data-testid="bot-avatar"
-        className="mr-3 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted"
-      >
-        <Bot className="h-5 w-5 text-foreground" />
+    <section aria-label="Assistant says" className="min-w-0 space-y-2">
+      <div className="max-w-[calc(100%-16px)] rounded-2xl bg-muted px-4 py-2 text-sm text-foreground">
+        {message.parts.map((part, j) =>
+          part.type === "text" ? (
+            <div
+              key={`${message.id}-${j}`}
+              className="prose prose-sm max-w-none overflow-hidden break-words font-sans dark:prose-invert"
+            >
+              <ReactMarkdown>{part.text}</ReactMarkdown>
+            </div>
+          ) : null,
+        )}
       </div>
-      <div className="min-w-0 space-y-2">
-        <div className="max-w-[85%] rounded-2xl bg-muted px-4 py-2 text-sm text-foreground">
-          {message.parts.map((part, j) =>
-            part.type === "text" ? (
-              <div
-                key={`${message.id}-${j}`}
-                className="prose prose-sm max-w-none font-sans dark:prose-invert"
-              >
-                <ReactMarkdown>{part.text}</ReactMarkdown>
-              </div>
-            ) : null,
-          )}
-        </div>
-        {answered ? <MessageMeta timestamp={ts} text={text} /> : null}
-        {answered && (sources.length > 0 || route) ? (
-          <SourcesPanel
-            sources={sources}
-            route={route}
-            label={groundingLabel(route, sources.length)}
-            corpusVersion={extractCorpusVersion(message)}
-          />
-        ) : null}
-        {answered && steps.length > 0 ? <ThinkingTrace steps={steps} /> : null}
-      </div>
-    </>
+      {answered ? <MessageMeta timestamp={ts} text={text} /> : null}
+      {answered && (sources.length > 0 || route) ? (
+        <SourcesPanel
+          sources={sources}
+          route={route}
+          label={groundingLabel(route, sources.length)}
+          corpusVersion={extractCorpusVersion(message)}
+        />
+      ) : null}
+      {answered && steps.length > 0 ? <ThinkingTrace steps={steps} /> : null}
+    </section>
   );
 }
 
@@ -414,23 +402,26 @@ function UserTurn({
   text: string;
 }) {
   return (
-    <div className="flex flex-col items-end">
+    <section aria-label="You said" className="flex flex-col items-end">
       <div
         className={cn(
-          "max-w-[85%] rounded-2xl px-4 py-2 text-sm",
+          "max-w-[calc(100%-16px)] rounded-2xl px-4 py-2 text-sm",
           "bg-primary text-primary-foreground",
         )}
       >
         {message.parts.map((part, j) =>
           part.type === "text" ? (
-            <div key={`${message.id}-${j}`} className="prose prose-sm max-w-none dark:prose-invert">
+            <div
+              key={`${message.id}-${j}`}
+              className="prose prose-sm max-w-none overflow-hidden break-words dark:prose-invert"
+            >
               <ReactMarkdown>{part.text}</ReactMarkdown>
             </div>
           ) : null,
         )}
       </div>
       <MessageMeta timestamp={ts} text={text} />
-    </div>
+    </section>
   );
 }
 
@@ -719,20 +710,15 @@ export function Chat({
         onOpenHistory={openHistory}
         onClose={handleClose}
       />
-      <div className="flex-1 space-y-4 overflow-y-auto p-4">
+      <div className="flex-1 space-y-4 overflow-y-auto overscroll-contain p-4">
         {messages.length === 0 && (
           <div className="mt-10 space-y-6">
             {/* Greeting from meclaw */}
-            <div className="flex items-start gap-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted">
-                <Bot className="h-5 w-5 text-foreground" />
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm font-medium">{greeting}</p>
-                <p className="text-sm text-muted-foreground">
-                  Ask me anything about his work, skills, or projects.
-                </p>
-              </div>
+            <div className="space-y-1">
+              <p className="text-sm font-medium">{greeting}</p>
+              <p className="text-sm text-muted-foreground">
+                Ask me anything about his work, skills, or projects.
+              </p>
             </div>
 
             {/* Suggestion chips */}
