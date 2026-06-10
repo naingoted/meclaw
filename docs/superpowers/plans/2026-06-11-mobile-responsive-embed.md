@@ -198,6 +198,21 @@ Find the container styling block (lines 99-113). Replace it with branching logic
 **After:**
 ```javascript
   var fullscreen = shouldUseFullscreen();
+
+  // Determine height with full fallback chain (before Object.assign to avoid flash)
+  var heightValue;
+  if (fullscreen) {
+    if (typeof CSS !== "undefined" && CSS.supports("height", "100dvh")) {
+      heightValue = "100dvh";
+    } else if (typeof CSS !== "undefined" && CSS.supports("height", "-webkit-fill-available")) {
+      heightValue = "-webkit-fill-available";
+    } else {
+      heightValue = "100vh";
+    }
+  } else {
+    heightValue = "560px";
+  }
+
   Object.assign(container.style, {
     position: "fixed",
     top: fullscreen ? "0" : undefined,
@@ -205,7 +220,7 @@ Find the container styling block (lines 99-113). Replace it with branching logic
     right: fullscreen ? undefined : "20px",
     bottom: fullscreen ? undefined : "92px",
     width: fullscreen ? "100vw" : "380px",
-    height: fullscreen ? "100dvh" : "560px",
+    height: heightValue,
     maxWidth: fullscreen ? "100%" : "calc(100vw - 40px)",
     maxHeight: fullscreen ? "100%" : "calc(100vh - 120px)",
     borderRadius: fullscreen ? "0" : "12px",
@@ -217,18 +232,17 @@ Find the container styling block (lines 99-113). Replace it with branching logic
     paddingBottom: fullscreen ? "env(safe-area-inset-bottom)" : undefined,
     paddingTop: fullscreen ? "env(safe-area-inset-top)" : undefined,
   });
-
-  // Fallback for browsers that don't support 100dvh
-  if (fullscreen && typeof CSS !== "undefined" && !CSS.supports("height", "100dvh")) {
-    container.style.height = "100vh";
-  }
 ```
 
 **Notes:**
 - `fullscreen ? "0" : undefined` — setting to `undefined` removes the property (falls back to CSS default)
-- `100dvh` (dynamic viewport height) works on iOS Safari 15.4+ and modern browsers
-- Fallback chain: `100dvh` → `100vh` (via CSS.supports check)
+- Height fallback chain (determined **before** Object.assign to avoid flash/reflow):
+  - `100dvh` — iOS Safari 15.4+, Chrome 108+, Firefox 101+ (dynamic viewport height)
+  - `-webkit-fill-available` — iOS Safari <15 (fills available viewport)
+  - `100vh` — final fallback for older browsers
 - `env(safe-area-inset-*)` adds padding for notched devices (iPhone X+, etc.)
+  - **Dependency:** Requires parent site to have `<meta name="viewport" content="viewport-fit=cover">`
+  - If parent site lacks this meta tag, safe-area insets are ignored (no padding, but embed still works)
 - On mobile: container auto-opens (`display: "block"`) — no bubble to click
 - On desktop: container hidden by default (`display: "none"`) — existing behavior
 
@@ -250,7 +264,8 @@ Mobile mode (≤768px or PWA):
 - No border-radius or shadow
 - Auto-opens (no bubble to click)
 - Safe-area padding for notched devices
-- 100dvh → 100vh fallback for older browsers
+- Height fallback chain: 100dvh → -webkit-fill-available → 100vh
+  (determined before Object.assign to avoid flash/reflow)
 
 Desktop mode unchanged (380×560px floating widget).
 
@@ -305,10 +320,12 @@ Find the postMessage resize block (lines 142-152). Insert the viewport resize ha
       container.style.paddingTop = "env(safe-area-inset-top)";
 
       // Use visualViewport for keyboard handling (modern browsers)
+      // Note: visualViewport.height automatically adjusts when keyboard opens/closes
+      // When keyboard is closed, visualViewport.height equals full viewport height
       if (window.visualViewport) {
         container.style.height = window.visualViewport.height + "px";
       } else {
-        // Fallback for older browsers
+        // Fallback for older browsers (less accurate keyboard detection)
         container.style.height = window.innerHeight + "px";
       }
     } else {
@@ -467,6 +484,18 @@ With mobile viewport active:
 - [ ] Rotate device (click the rotation icon in DevTools)
 - [ ] Container adjusts to new orientation (portrait → landscape or vice versa)
 - [ ] Layout remains full-screen in both orientations
+
+- [ ] **Step 6b: Test compound scenario — keyboard open + rotation**
+
+With mobile viewport active:
+- [ ] Click chat input → keyboard opens
+- [ ] While keyboard is open, rotate device (portrait → landscape)
+- [ ] Container adjusts to landscape orientation
+- [ ] Chat input remains visible above keyboard
+- [ ] Close keyboard → container expands to full-screen landscape
+- [ ] Rotate back to portrait → container adjusts to full-screen portrait
+
+**Note:** This is a common real-world scenario where bugs surface (e.g., visualViewport dimensions getting stuck).
 
 - [ ] **Step 7: Test desktop mode (>768px)**
 
