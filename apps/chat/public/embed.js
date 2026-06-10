@@ -189,6 +189,7 @@
   });
 
   // ----- Viewport resize handler (keyboard open/close, orientation change) -----
+  // fallow-ignore-next-line complexity
   function handleViewportResize() {
     var fs = shouldUseFullscreen();
     var viewportHeight;
@@ -198,6 +199,8 @@
 
     // Update container dimensions
     if (fs) {
+      // Fullscreen mode: always visible
+      container.style.display = "block";
       container.style.top = "0";
       container.style.left = "0";
       container.style.right = "";
@@ -217,6 +220,8 @@
         container.style.height = `${window.innerHeight}px`;
       }
     } else {
+      // Desktop mode: respect open state
+      container.style.display = open ? "block" : "none";
       container.style.top = "";
       container.style.left = "";
       container.style.right = "20px";
