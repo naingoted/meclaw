@@ -230,6 +230,16 @@ export function hasRenderedText(message: MessageWithParts): boolean {
 }
 
 /**
+ * Whether a message should render in the transcript. Suppresses an assistant
+ * message that has not produced text yet — during that pre-token window
+ * `LiveTrace` is the single visible bot, so rendering the empty bubble too would
+ * show two bot avatars.
+ */
+export function shouldRenderMessage(message: MessageWithParts): boolean {
+  return !(message.role === "assistant" && !hasRenderedText(message));
+}
+
+/**
  * Whether to show the "thinking" indicator: true from the moment a question is
  * sent until the first assistant token arrives. Once the assistant message has
  * text, the streamed answer replaces the indicator.
@@ -263,7 +273,10 @@ function StepDots() {
 export function LiveTrace({ steps }: { steps: string[] }) {
   return (
     <div className="flex items-start gap-3">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted">
+      <div
+        data-testid="bot-avatar"
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted"
+      >
         <Bot className="h-5 w-5 text-foreground" />
       </div>
       <div className="rounded-2xl bg-muted px-4 py-2 text-sm text-muted-foreground">
@@ -552,6 +565,7 @@ export function Chat({
           </div>
         )}
         {messages.map((message) => {
+          if (!shouldRenderMessage(message as MessageWithParts)) return null;
           const sources = extractSources(message);
           const route = extractRoute(message);
           const steps = extractSteps(message);
@@ -566,7 +580,10 @@ export function Chat({
             >
               {message.role === "assistant" ? (
                 <>
-                  <div className="mr-3 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted">
+                  <div
+                    data-testid="bot-avatar"
+                    className="mr-3 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted"
+                  >
                     <Bot className="h-5 w-5 text-foreground" />
                   </div>
                   <div className="min-w-0 space-y-2">

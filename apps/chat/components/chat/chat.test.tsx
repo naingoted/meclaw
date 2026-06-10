@@ -36,6 +36,7 @@ import {
   LiveTrace,
   MAIN_RESUME_KEY,
   readResumeEntry,
+  shouldRenderMessage,
   shouldShowThinking,
   writeResumeEntry,
 } from "@/components/chat/chat";
@@ -139,6 +140,47 @@ describe("hasRenderedText", () => {
     expect(hasRenderedText({ parts: [] })).toBe(false);
     expect(hasRenderedText({ parts: [{ type: "text", text: "" }] })).toBe(false);
     expect(hasRenderedText({})).toBe(false);
+  });
+});
+
+describe("shouldRenderMessage", () => {
+  it("renders a user message regardless of text", () => {
+    expect(shouldRenderMessage({ role: "user", parts: [] })).toBe(true);
+  });
+
+  it("renders an assistant message once it has text", () => {
+    expect(shouldRenderMessage({ role: "assistant", parts: [{ type: "text", text: "Hi" }] })).toBe(
+      true,
+    );
+  });
+
+  it("suppresses an assistant message that has no text yet (pre-token)", () => {
+    expect(shouldRenderMessage({ role: "assistant", parts: [] })).toBe(false);
+    expect(shouldRenderMessage({ role: "assistant", parts: [{ type: "text", text: "" }] })).toBe(
+      false,
+    );
+  });
+});
+
+describe("single-bot loading (regression guard)", () => {
+  it("shows exactly one bot avatar during the pre-token window", () => {
+    mockState.status = "streaming";
+    mockState.messages = [
+      { id: "u1", role: "user", parts: [{ type: "text", text: "stack?" }] },
+      { id: "a1", role: "assistant", parts: [] }, // empty pre-token assistant
+    ];
+    render(<Chat {...CHAT_PROPS} />);
+    expect(screen.getAllByTestId("bot-avatar")).toHaveLength(1);
+  });
+
+  it("shows exactly one bot avatar after the answer streams in", () => {
+    mockState.status = "ready";
+    mockState.messages = [
+      { id: "u1", role: "user", parts: [{ type: "text", text: "stack?" }] },
+      { id: "a1", role: "assistant", parts: [{ type: "text", text: "Python." }] },
+    ];
+    render(<Chat {...CHAT_PROPS} />);
+    expect(screen.getAllByTestId("bot-avatar")).toHaveLength(1);
   });
 });
 
