@@ -61,4 +61,15 @@ describe("listConversationMessages", () => {
     const rows = await listConversationMessages(db as never, "does-not-exist", 50);
     expect(rows).toEqual([]);
   });
+
+  it("handles postgres-js execute results (bare array, no .rows wrapper)", async () => {
+    // drizzle-orm/postgres-js returns the row array directly from db.execute(),
+    // unlike PGlite (used by makeTestDb) which wraps rows in { rows: [...] }.
+    const createdAt = new Date("2026-06-10T00:00:00Z");
+    const stubDb = {
+      execute: async () => [{ id: "m1", role: "user", content: "hi", createdAt }],
+    };
+    const rows = await listConversationMessages(stubDb as never, "conv-pgjs", 10);
+    expect(rows).toEqual([{ id: "m1", role: "user", content: "hi", createdAt }]);
+  });
 });

@@ -248,16 +248,11 @@ export async function listConversationMessages(
     ORDER BY "createdAt" asc, case when role = 'user' then 0 else 1 end, id asc
   `);
 
-  const rows = (
-    result as unknown as {
-      rows: Array<{
-        id: string;
-        role: string;
-        content: string;
-        createdAt: Date;
-      }>;
-    }
-  ).rows;
+  // postgres-js returns the row array directly; PGlite wraps it in { rows }.
+  type Row = { id: string; role: string; content: string; createdAt: Date };
+  const rows = Array.isArray(result)
+    ? (result as unknown as Row[])
+    : (result as unknown as { rows: Row[] }).rows;
 
   return rows.map((r) => ({
     id: r.id,
