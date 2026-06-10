@@ -1,4 +1,5 @@
 // meclaw embed loader — drop-in chat widget for third-party sites.
+// Mobile-responsive: auto-switches to full-screen on mobile (≤768px) and PWA mode.
 //
 // Usage:
 //   <script src="https://chat.example.com/embed.js" data-meclaw-token="pk_xxx" async></script>
