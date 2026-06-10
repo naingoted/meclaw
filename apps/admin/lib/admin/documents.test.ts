@@ -1,5 +1,7 @@
+import { gapClusters } from "@meclaw/core/db/schema";
 import { makeTestDb } from "@meclaw/core/db/test-db";
 import { recentAudit } from "@meclaw/core/settings";
+import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import {
   createDocument,
@@ -61,5 +63,53 @@ describe("document service", () => {
     expect(gapOnly.map((d) => d.title)).toEqual(["G"]);
     const all = await listDocuments(db);
     expect(all.length).toBe(2);
+  });
+
+  it("deleting a gap-resolution document flips its resolved cluster back to 'new'", async () => {
+    const { db } = await makeTestDb();
+    const doc = await createDocument(db, { title: "Q?", body: "A.", origin: "gap" }, "ip");
+    const other = await createDocument(db, { title: "Other", body: "B.", origin: "gap" }, "ip");
+    const now = new Date();
+    const linked = "33333333-3333-4333-8333-333333333333";
+    const untouched = "44444444-4444-4444-8444-444444444444";
+    await db
+      .insert(gapClusters)
+      .values([
+        {
+          id: linked,
+          centroid: Array(768).fill(0),
+          count: 1,
+          status: "resolved",
+          exemplarQuery: "Q?",
+          resolvedDocumentId: doc.id,
+          resolvedAt: now,
+          createdAt: now,
+          updatedAt: now,
+        },
+        {
+          id: untouched,
+          centroid: Array(768).fill(0),
+          count: 1,
+          status: "resolved",
+          exemplarQuery: "Other?",
+          resolvedDocumentId: other.id,
+          resolvedAt: now,
+          createdAt: now,
+          updatedAt: now,
+        },
+      ])
+      .execute();
+
+    await deleteDocument(db, doc.id, "ip");
+
+    const [flipped] = await db.select().from(gapClusters).where(eq(gapClusters.id, linked));
+    expect(flipped.status).toBe("new");
+    expect(flipped.resolvedDocumentId).toBeNull();
+    expect(flipped.resolvedAt).toBeNull();
+    const [kept] = await db.select().from(gapClusters).where(eq(gapClusters.id, untouched));
+    expect(kept.status).toBe("resolved");
+    // delete is still audited
+    const audit = await recentAudit(db, 10);
+    expect(audit[0].action).toBe("document.delete");
   });
 });

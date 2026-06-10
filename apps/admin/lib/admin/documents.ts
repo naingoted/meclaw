@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { documents } from "@meclaw/core/db/schema";
+import { documents, gapClusters } from "@meclaw/core/db/schema";
 import type { Db } from "@meclaw/core/db/types";
 import { logAudit } from "@meclaw/core/settings";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { contentHash } from "./hash";
 
 export type DocumentRow = typeof documents.$inferSelect;
@@ -89,6 +89,14 @@ export async function updateDocument(
 
 export async function deleteDocument(db: Db, id: string, actorIp: string): Promise<void> {
   const existing = await getDocument(db, id);
+  // A resolved gap cluster pointing at this document would dangle (the chat's
+  // resolved-gap fast path treats it as no-match) — flip it back to 'new' so
+  // the owner can re-answer it from /admin/gaps.
+  await db
+    .update(gapClusters)
+    .set({ status: "new", resolvedDocumentId: null, resolvedAt: null, updatedAt: new Date() })
+    .where(and(eq(gapClusters.resolvedDocumentId, id), eq(gapClusters.status, "resolved")))
+    .execute();
   await db.delete(documents).where(eq(documents.id, id)).execute();
   await logAudit(db, {
     action: "document.delete",
