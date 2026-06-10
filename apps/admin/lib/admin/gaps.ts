@@ -1,7 +1,9 @@
-import { chatMisses, gapClusters } from "@meclaw/core/db/schema";
+import { randomUUID } from "node:crypto";
+import { chatMisses, documents, gapClusters, ingestionJobs } from "@meclaw/core/db/schema";
 import type { Db } from "@meclaw/core/db/types";
 import { logAudit } from "@meclaw/core/settings";
 import { desc, eq, inArray, sql } from "drizzle-orm";
+import { contentHash } from "./hash";
 
 export type GapClusterRow = typeof gapClusters.$inferSelect;
 export type ChatMissRow = typeof chatMisses.$inferSelect;
@@ -88,6 +90,117 @@ export async function resolveCluster(
     entityId: id,
     summary: `resolved gap → document ${documentId}`,
     actorIp,
+  });
+}
+
+/**
+ * Idempotent gap resolution: create document + enqueue ingest + resolve cluster
+ * in a single transaction. Retries with the same requestId return the existing result.
+ */
+export async function resolveGapAtomic(
+  db: Db,
+  clusterId: string,
+  input: {
+    requestId: string;
+    title: string;
+    body: string;
+    actorIp: string;
+  },
+): Promise<{ documentId: string; jobId: string; corpusVersion: number }> {
+  // Idempotency: check for existing document with same requestId
+  const existing = await db
+    .select({ id: documents.id })
+    .from(documents)
+    .where(eq(documents.requestId, input.requestId))
+    .limit(1);
+
+  if (existing[0]) {
+    const jobs = await db
+      .select({ id: ingestionJobs.id })
+      .from(ingestionJobs)
+      .where(eq(ingestionJobs.documentId, existing[0].id))
+      .limit(1);
+    const cluster = await db
+      .select({ resolvedAtCorpusVersion: gapClusters.resolvedAtCorpusVersion })
+      .from(gapClusters)
+      .where(eq(gapClusters.id, clusterId))
+      .limit(1);
+    return {
+      documentId: existing[0].id,
+      jobId: jobs[0]?.id ?? "",
+      corpusVersion: cluster[0]?.resolvedAtCorpusVersion ?? 0,
+    };
+  }
+
+  // Get current corpus version (count of succeeded jobs)
+  const [{ value: corpusVersion }] = await db
+    .select({ value: sql<number>`count(*)::int` })
+    .from(ingestionJobs)
+    .where(eq(ingestionJobs.status, "succeeded"));
+
+  return db.transaction(async (tx) => {
+    const now = new Date();
+    const documentId = randomUUID();
+
+    // 1. Create document with requestId for idempotency
+    await tx
+      .insert(documents)
+      .values({
+        id: documentId,
+        title: input.title,
+        body: input.body,
+        kind: "markdown",
+        category: null,
+        origin: "gap",
+        status: "draft",
+        contentHash: contentHash(input.body),
+        createdAt: now,
+        updatedAt: now,
+        lastIngestedAt: null,
+        corpusVersion: null,
+        requestId: input.requestId,
+      })
+      .execute();
+
+    // 2. Queue ingest job
+    const jobId = randomUUID();
+    await tx
+      .insert(ingestionJobs)
+      .values({
+        id: jobId,
+        documentId,
+        kind: "single",
+        status: "queued",
+        error: null,
+        chunksWritten: null,
+        createdAt: now,
+        startedAt: null,
+        finishedAt: null,
+      })
+      .execute();
+
+    // 3. Resolve cluster
+    await tx
+      .update(gapClusters)
+      .set({
+        status: "resolved",
+        resolvedDocumentId: documentId,
+        resolvedAt: now,
+        resolvedAtCorpusVersion: corpusVersion,
+        updatedAt: now,
+      })
+      .where(eq(gapClusters.id, clusterId))
+      .execute();
+
+    await logAudit(tx, {
+      action: "gap.resolve",
+      entityType: "gap",
+      entityId: clusterId,
+      summary: `resolved gap → document ${documentId} (atomic)`,
+      actorIp: input.actorIp,
+    });
+
+    return { documentId, jobId, corpusVersion };
   });
 }
 
