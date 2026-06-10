@@ -171,6 +171,14 @@ export function extractSteps(message: ChatMessageLike): string[] {
   return steps.length === raw.length ? steps : [];
 }
 
+/** Parse an ISO `metadata.createdAt` to epoch ms, or undefined when absent/bad. */
+function readCreatedAt(metadata: unknown): number | undefined {
+  const meta = isRecord(metadata) ? metadata : null;
+  const created =
+    meta && typeof meta.createdAt === "string" ? Date.parse(meta.createdAt) : Number.NaN;
+  return Number.isFinite(created) ? created : undefined;
+}
+
 type MessageWithParts = {
   role?: string;
   parts?: Array<{ type?: string; text?: string }>;
@@ -470,8 +478,9 @@ export function Chat({
   const [input, setInput] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
   // Stable first-seen time per live message id (UIMessages carry no timestamp).
-  // Bounded per conversation: cleared on New chat / switch (kept small in practice).
-  const firstSeenRef = useRef<Map<string, number>>(new Map());
+  // Stamped in an effect (not during render — Date.now/ref access would be
+  // impure); cleared on New chat / switch. Bounded per conversation.
+  const [firstSeen, setFirstSeen] = useState<Map<string, number>>(() => new Map());
   const [historyOpen, setHistoryOpen] = useState(false);
   // Snapshot of the session index for the drawer, seeded when it opens and
   // refreshed after a delete — avoids re-reading localStorage on every render.
@@ -487,20 +496,14 @@ export function Chat({
     setConversationId(id);
     setMessages([]);
     setLiveSteps([]);
-    firstSeenRef.current.clear();
+    setFirstSeen(new Map());
     setHistoryOpen(false);
   }, [setMessages]);
 
+  // A message's timestamp: its persisted `createdAt`, else the wall-clock time
+  // it was first seen this session (read from state — stamped by the effect).
   function messageTimestamp(message: { id: string; metadata?: unknown }): number | undefined {
-    const meta = isRecord(message.metadata) ? message.metadata : null;
-    const created =
-      meta && typeof meta.createdAt === "string" ? Date.parse(meta.createdAt) : Number.NaN;
-    if (Number.isFinite(created)) return created;
-    const cached = firstSeenRef.current.get(message.id);
-    if (cached !== undefined) return cached;
-    const now = Date.now();
-    firstSeenRef.current.set(message.id, now);
-    return now;
+    return readCreatedAt(message.metadata) ?? firstSeen.get(message.id);
   }
 
   function messageText(message: { parts?: Array<{ type?: string; text?: string }> }): string {
@@ -513,6 +516,24 @@ export function Chat({
   // Auto-scroll to the latest message as content streams in.
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  // Stamp a first-seen time for any new message lacking a persisted createdAt.
+  // Must run in an effect: the wall-clock is impure (no Date.now in render) and
+  // the value drives render output (so it lives in state, not a ref). The
+  // updater is a no-op once every visible id is stamped, so it can't loop.
+  useEffect(() => {
+    const now = Date.now();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- impure clock value; see above
+    setFirstSeen((prev) => {
+      let next = prev;
+      for (const m of messages) {
+        if (readCreatedAt(m.metadata) !== undefined || prev.has(m.id)) continue;
+        if (next === prev) next = new Map(prev);
+        next.set(m.id, now);
+      }
+      return next;
+    });
   }, [messages]);
 
   // Fetch a conversation's history and hydrate the message list. Used on mount
@@ -574,7 +595,7 @@ export function Chat({
     (id: string) => {
       setConversationId(id);
       setLiveSteps([]);
-      firstSeenRef.current.clear();
+      setFirstSeen(new Map());
       setHistoryOpen(false);
       loadConversation(id);
     },
