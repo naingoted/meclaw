@@ -384,13 +384,14 @@ function createRefusalStream(): ReturnType<typeof createUIMessageStream> {
         id: "refusal-1",
       });
 
+      const owner = process.env.BOT_OWNER_NAME ?? "Thet";
       writer.write({
         type: "text-delta",
         id: "refusal-1",
         delta:
           "I appreciate your interest, but I can't respond to that request. " +
-          "I'm designed to answer questions about Thet and help facilitate introductions. " +
-          "Feel free to ask about his work, projects, or how to get in touch!",
+          `I'm designed to answer questions about ${owner} and help facilitate introductions. ` +
+          "Feel free to ask about their work, projects, or how to get in touch!",
       });
 
       writer.write({

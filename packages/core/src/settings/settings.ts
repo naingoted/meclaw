@@ -38,6 +38,21 @@ export const SettingsSchema = z.object({
     githubUrl: z.string(),
     /** Default backfills legacy rows; seeds from the former hardcoded OWNER_EMAIL. */
     contactEmail: z.string().default("naingoted@gmail.com"),
+    /** Branding (D5): product name shown in the header + metadata. */
+    botName: z.string().default("meclaw"),
+    botTagline: z.string().default(""),
+    brandLogoUrl: z
+      .string()
+      .default("")
+      .refine((v) => v === "" || /^https?:\/\/[^\s"'<>]+$/.test(v), {
+        message: "must be empty or http(s) URL",
+      }),
+    brandAccent: z
+      .string()
+      .default("")
+      .refine((v) => v === "" || /^#[0-9a-fA-F]{3,8}$/.test(v), {
+        message: "must be empty or hex color (#rgb, #rgba, #rrggbbaa)",
+      }),
   }),
 });
 export type AgentConfig = z.infer<typeof AgentConfigSchema>;
@@ -47,30 +62,30 @@ export type SettingsValue = z.infer<typeof SettingsSchema>;
 export function defaultSettings(): SettingsValue {
   const triage = process.env.TRIAGE_MODEL ?? "glm-4.7";
   const draft = process.env.DRAFT_MODEL ?? "qwen3.6-plus";
-  return {
+  const owner = process.env.BOT_OWNER_NAME ?? "Thet";
+  const botName = process.env.BOT_NAME ?? "meclaw";
+  const raw = {
     agents: {
       triage: {
         model: triage,
         thinking: false,
         confidence: 0.5,
-        prompt: "You are a triage router for a chatbot answering questions about Thet.",
+        prompt: `You are a triage router for a chatbot answering questions about ${owner}.`,
       },
       knowledge: {
         model: draft,
         thinking: false,
-        prompt:
-          "You answer in a warm third-person voice about Thet, grounded in the provided context.",
+        prompt: `You answer in a warm third-person voice about ${owner}, grounded in the provided context.`,
       },
       scheduler: {
         model: draft,
         thinking: false,
-        prompt:
-          "The visitor wants to schedule a call with Thet. Use the booking link in the context.",
+        prompt: `The visitor wants to schedule a call with ${owner}. Use the booking link in the context.`,
       },
       contact: {
         model: draft,
         thinking: false,
-        prompt: "The visitor wants Thet's contact details. Use the contact info in the context.",
+        prompt: `The visitor wants ${owner}'s contact details. Use the contact info in the context.`,
       },
     },
     shared: { persona: "" },
@@ -82,17 +97,25 @@ export function defaultSettings(): SettingsValue {
       clusterRadius: 0.15,
     },
     public: {
-      greeting: "Hi! I'm meclaw, Thet's personal bot.",
+      greeting: `Hi! I'm ${botName}, ${owner}'s personal bot.`,
       suggestions: [
-        "What's Thet's tech stack?",
+        `What's ${owner}'s tech stack?`,
         "Walk me through a recent project",
         "How do I get in touch?",
       ],
       calUrl: process.env.NEXT_PUBLIC_CAL_URL ?? "",
       githubUrl: process.env.NEXT_PUBLIC_GITHUB_URL ?? "",
-      contactEmail: "naingoted@gmail.com",
+      contactEmail: process.env.BOT_CONTACT_EMAIL ?? "naingoted@gmail.com",
+      botName,
+      botTagline: process.env.BOT_TAGLINE ?? "",
+      brandLogoUrl: process.env.BRAND_LOGO_URL ?? "",
+      brandAccent: process.env.BRAND_ACCENT ?? "",
     },
   };
+  // Env values flow into the seeded row without any other validation pass. Run
+  // them through the schema so a bad BRAND_LOGO_URL / BRAND_ACCENT env value
+  // fails fast at boot instead of reaching the UI un-sanitized.
+  return SettingsSchema.parse(raw) as SettingsValue;
 }
 
 function toSettingsVersion(updatedAt: Date | string): string {

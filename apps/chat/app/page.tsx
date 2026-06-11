@@ -24,10 +24,18 @@ export default async function Home() {
     initialConfigVersion = "default";
   }
 
-  const { greeting, suggestions, calUrl, githubUrl } = settings.public;
+  const { greeting, suggestions, calUrl, githubUrl, botName, brandLogoUrl, brandAccent } =
+    settings.public;
   return (
     <main className="bg-background">
-      <ChatLayout calUrl={calUrl} githubUrl={githubUrl} versionLabel={VERSION_LABEL}>
+      <ChatLayout
+        calUrl={calUrl}
+        githubUrl={githubUrl}
+        versionLabel={VERSION_LABEL}
+        botName={botName}
+        brandLogoUrl={brandLogoUrl}
+        brandAccent={brandAccent}
+      >
         <Chat
           greeting={greeting}
           suggestions={suggestions}

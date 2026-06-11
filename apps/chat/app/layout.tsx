@@ -6,9 +6,14 @@ import "./globals.css";
 const mono = JetBrains_Mono({ variable: "--font-jetbrains-mono", subsets: ["latin"] });
 const sans = Hanken_Grotesk({ variable: "--font-hanken", subsets: ["latin"] });
 
+const BOT_NAME = process.env.BOT_NAME ?? "meclaw";
+const BOT_TAGLINE = process.env.BOT_TAGLINE ?? "Thet Naing's personal bot";
+
 export const metadata: Metadata = {
-  title: "meclaw · Thet Naing's personal bot",
-  description: "Chat with meclaw, Thet Naing's personal bot for answers, scheduling, and contact.",
+  title: BOT_TAGLINE ? `${BOT_NAME} · ${BOT_TAGLINE}` : BOT_NAME,
+  description: BOT_TAGLINE
+    ? `Chat with ${BOT_NAME}, ${BOT_TAGLINE}, for answers, scheduling, and contact.`
+    : `Chat with ${BOT_NAME} for answers, scheduling, and contact.`,
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

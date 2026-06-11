@@ -181,3 +181,113 @@ describe("version-aware settings cache", () => {
     await expect(getSettingsVersion(db)).resolves.toBe("2026-06-03T08:09:10.002Z");
   });
 });
+
+describe("branding settings", () => {
+  it("defaults brand fields for legacy rows missing them", () => {
+    const legacy = defaultSettings();
+    const { botName, botTagline, brandLogoUrl, brandAccent, ...oldPublic } =
+      legacy.public as Record<string, unknown>;
+    const parsed = SettingsSchema.parse({ ...legacy, public: oldPublic });
+    expect(parsed.public.botName).toBe("meclaw");
+    expect(parsed.public.brandLogoUrl).toBe("");
+    expect(parsed.public.brandAccent).toBe("");
+  });
+
+  it("seeds branding from env", () => {
+    vi.stubEnv("BOT_NAME", "acmebot");
+    vi.stubEnv("BOT_OWNER_NAME", "Alice");
+    vi.stubEnv("BOT_TAGLINE", "Acme's assistant");
+    try {
+      const s = defaultSettings();
+      expect(s.public.botName).toBe("acmebot");
+      expect(s.public.botTagline).toBe("Acme's assistant");
+      expect(s.public.greeting).toContain("acmebot");
+      expect(s.public.greeting).toContain("Alice");
+      expect(s.agents.knowledge.prompt).toContain("Alice");
+      expect(s.public.suggestions.join(" ")).not.toContain("Thet");
+      expect(s.public.suggestions[0]).toContain("Alice");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("accepts valid http(s) URLs for brandLogoUrl", () => {
+    const base = defaultSettings();
+    expect(() =>
+      SettingsSchema.parse({
+        ...base,
+        public: { ...base.public, brandLogoUrl: "https://example.com/logo.png" },
+      }),
+    ).not.toThrow();
+    expect(() =>
+      SettingsSchema.parse({
+        ...base,
+        public: { ...base.public, brandLogoUrl: "http://cdn.test/img.svg?v=1&q=2" },
+      }),
+    ).not.toThrow();
+    expect(() =>
+      SettingsSchema.parse({
+        ...base,
+        public: { ...base.public, brandLogoUrl: "" },
+      }),
+    ).not.toThrow();
+  });
+
+  it("rejects brandLogoUrl bypass vectors (quote injection, javascript:, whitespace)", () => {
+    const base = defaultSettings();
+    const bad = [
+      `https://x" onload=alert(1)`,
+      `https://x' onload=alert(1)`,
+      "javascript:alert(1)",
+      "https://evil with space",
+      `https://evil\ttab`,
+      "https://evil<script>",
+      "ftp://not-http.example.com/img.png",
+    ];
+    for (const url of bad) {
+      expect(() =>
+        SettingsSchema.parse({
+          ...base,
+          public: { ...base.public, brandLogoUrl: url },
+        }),
+      ).toThrow();
+    }
+  });
+
+  it("accepts hex colors for brandAccent", () => {
+    const base = defaultSettings();
+    for (const color of ["#fff", "#FFF", "#abcd", "#aabbcc", "#aabbcc88"]) {
+      expect(() =>
+        SettingsSchema.parse({
+          ...base,
+          public: { ...base.public, brandAccent: color },
+        }),
+      ).not.toThrow();
+    }
+  });
+
+  it("rejects brandAccent bypass vectors (color function injection, named colors, trailing junk)", () => {
+    const base = defaultSettings();
+    const bad = [
+      "rgb(expression(alert(1)))",
+      "rgb(255, 0, 0)",
+      "hsl(120, 50%, 50%)",
+      "oklch(0.5 0.2 240)",
+      "#fff; background:url(evil)",
+      "#gg0000",
+      "red",
+      "blue",
+      "transparent",
+      "#123456789", // too many hex digits
+      "#12", // too few
+    ];
+    for (const color of bad) {
+      expect(() =>
+        SettingsSchema.parse({
+          ...base,
+          public: { ...base.public, brandAccent: color },
+        }),
+      ).toThrow();
+    }
+  });
+});
