@@ -1,7 +1,7 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import { Button, cn } from "@meclaw/ui";
+import { Button, cn, useTheme } from "@meclaw/ui";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import type { ChatSession } from "@/lib/chat/sessions";
@@ -433,6 +433,7 @@ export function Chat({
   embedToken,
   parentOrigin,
   onClose,
+  initialTheme,
 }: {
   greeting: string;
   suggestions: string[];
@@ -443,11 +444,35 @@ export function Chat({
   parentOrigin?: string;
   /** Called when the user closes the widget (embed mode only). */
   onClose?: () => void;
+  /** Initial theme from the parent page ("dark" | "light"). Drives the widget's ThemeProvider. */
+  initialTheme?: "dark" | "light";
 }) {
   // `liveSteps` accumulates the backend's transient `data-status` labels into an
   // ordered checklist ("Routing…" → "Searching…" → "Writing…") shown live during
   // the pre-answer gap. The same labels persist per-message via metadata.steps.
   const [liveSteps, setLiveSteps] = useState<string[]>([]);
+
+  // ----- Theme sync (embed mode) -----
+  // Apply the parent page's theme to the widget's ThemeProvider, then keep it
+  // in sync via postMessage. embed.js relays the parent's `meclaw:theme`
+  // messages into the iframe; we listen here and call setTheme().
+  const { setTheme } = useTheme();
+  useEffect(() => {
+    if (mode !== "embed") return;
+    if (initialTheme) setTheme(initialTheme);
+
+    const handler = (e: MessageEvent) => {
+      if (e.origin !== parentOrigin && e.source !== window.parent) return;
+      const data = e.data;
+      if (!data || data.type !== "meclaw:theme") return;
+      if (data.theme === "dark" || data.theme === "light") {
+        setTheme(data.theme);
+      }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, [mode, initialTheme, parentOrigin, setTheme]);
+
   // Resume from a stored entry when one exists: embed mode keys on embedToken,
   // normal mode uses the session index. Otherwise start a fresh conversation.
   const [conversationId, setConversationId] = useState(() => {

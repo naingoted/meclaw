@@ -5,11 +5,12 @@ import { VERSION_LABEL } from "@/lib/version";
 export const dynamic = "force-dynamic";
 
 type Props = {
-  searchParams: Promise<{ embedToken?: string; parentOrigin?: string }>;
+  searchParams: Promise<{ embedToken?: string; parentOrigin?: string; theme?: string }>;
 };
 
 export default async function WidgetPage({ searchParams }: Props) {
-  const { embedToken, parentOrigin } = await searchParams;
+  const { embedToken, parentOrigin, theme } = await searchParams;
+  const initialTheme = theme === "light" || theme === "dark" ? theme : undefined;
 
   if (!embedToken) {
     return (
@@ -39,6 +40,7 @@ export default async function WidgetPage({ searchParams }: Props) {
         mode="embed"
         embedToken={embedToken}
         parentOrigin={parentOrigin}
+        initialTheme={initialTheme}
       />
       <div
         data-testid="widget-version"

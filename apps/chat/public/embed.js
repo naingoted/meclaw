@@ -85,12 +85,26 @@
   // verify it against the embed client's allowlist (defense-in-depth; the
   // CSP frame-ancestors on /widget is the primary enforcement).
   var parentOrigin = window.location.origin;
+
+  // ----- Theme detection -----
+  // Read the parent page's light/dark theme so the widget can match it.
+  // Priority: explicit data-meclaw-theme attribute > .dark class on <html>.
+  // The host can also push live updates via postMessage({ type: "meclaw:theme", theme }).
+  function detectParentTheme() {
+    var attr = thisScript?.getAttribute("data-meclaw-theme");
+    if (attr === "dark" || attr === "light") return attr;
+    return document.documentElement.classList.contains("dark") ? "dark" : "light";
+  }
+
+  var initialTheme = detectParentTheme();
   var widgetUrl =
     origin +
     "/widget?embedToken=" +
     encodeURIComponent(token) +
     "&parentOrigin=" +
-    encodeURIComponent(parentOrigin);
+    encodeURIComponent(parentOrigin) +
+    "&theme=" +
+    encodeURIComponent(initialTheme);
 
   // ----- Floating bubble -----
   var bubble = document.createElement("button");
@@ -268,6 +282,21 @@
     }
   });
 
+  // ----- Parent → iframe theme sync -----
+  // The host page can push live theme changes via postMessage. We validate the
+  // sender's origin matches the parent page (not the iframe) and relay into
+  // the iframe so the widget's ThemeProvider can apply it.
+  function isThemePayload(data) {
+    return (
+      data && data.type === "meclaw:theme" && (data.theme === "dark" || data.theme === "light")
+    );
+  }
+  function relayThemeToIframe(event) {
+    if (event.origin !== parentOrigin || !isThemePayload(event.data)) return;
+    iframe.contentWindow?.postMessage(event.data, origin);
+  }
+  window.addEventListener("message", relayThemeToIframe);
+
   // ----- Mount -----
   document.body.appendChild(container);
   document.body.appendChild(bubble);
@@ -288,6 +317,7 @@
       if (window.visualViewport) {
         window.visualViewport.removeEventListener("resize", debouncedViewportResize);
       }
+      window.removeEventListener("message", relayThemeToIframe);
       bubble.remove();
       container.remove();
       delete window.MeclawWidget;

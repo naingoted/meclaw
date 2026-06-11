@@ -8,6 +8,8 @@ import {
 import * as React from "react";
 import { cn } from "../utils";
 
+export { useTheme };
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   // next-themes@0.4.6 declares `ThemeProviderProps extends React.PropsWithChildren`
   // (no type arg); under @types/react@19 that collapses to `unknown` and drops
