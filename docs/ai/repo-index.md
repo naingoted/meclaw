@@ -52,7 +52,10 @@ meclaw/
 │     └─ Dockerfile (built by docker-compose)
 ├─ infra/                            # Deploy config & compose files
 │  ├─ docker-compose.yml             # dev: postgres + ollama + ai sidecar + chat + admin
-│  ├─ docker-compose.dokploy.yml     # PROD (live): Dokploy/Traefik stack — see docs/ai/deploy.md
+│  ├─ docker-compose.dokploy.yml     # PROD (live): owner Dokploy/Traefik stack — see docs/ai/deploy.md
+│  ├─ docker-compose.customer.yml     # PROD: per-customer (multi-tenant) stack — see docs/ai/customer-ops.md
+│  ├─ {provision,upgrade,teardown}-customer.sh # customer lifecycle via Dokploy API
+│  ├─ .env.customer.example          # per-customer env template (rendered by provision script)
 │  ├─ .env.dokploy.example           # prod env template (real values live in Dokploy's Environment tab)
 │  ├─ docker-compose.prod.yml        # legacy self-managed-VPS alternative (+ Caddyfile)
 │  ├─ Caddyfile                      # (legacy) reverse proxy: apex → chat, admin.* → admin
@@ -68,6 +71,7 @@ meclaw/
 ├─ docs/ai/
 │  ├─ HANDOFF.md                     # current build state (read first)
 │  ├─ {repo-index,architecture,setup,deploy,conventions}.md
+│  ├─ customer-ops.md                # per-customer (multi-tenant) provision/upgrade/teardown runbook
 │  └─ ...
 ├─ .github/workflows/{ci,deploy}.yml
 ├─ .github/pull_request_template.md
@@ -87,4 +91,5 @@ meclaw/
 - **Database:** PostgreSQL via `@meclaw/core` (Drizzle ORM + `postgres-js`). Persistence (conversations, messages) + RAG vectors (`rag_chunks`, pgvector, HNSW cosine) in the same store. Migrations live in `packages/core/drizzle/`.
 - **RAG infra:** local Ollama (`nomic-embed-text`) + PostgreSQL (pgvector) configured by `infra/docker-compose.yml`. Ingestion runs on-demand (`pnpm ingest` = `pnpm --filter @meclaw/rag ingest`). Retrieval happens in Python sidecar (`services/ai/app/retriever.py`) via psycopg cosine kNN over `rag_chunks`.
 - **Deploy config:** `git tag v*` → CI builds four GHCR images (chat → `apps/chat/Dockerfile`, admin → `apps/admin/Dockerfile`, ai → `services/ai/Dockerfile`, ops → `infra/Dockerfile.ops`) → Dokploy API deploys `infra/docker-compose.dokploy.yml` (Traefik subdomain routing, auto-migrations). Guide: `docs/ai/deploy.md`.
+- **Multi-tenant (customer stacks):** isolated per-customer stacks (`infra/docker-compose.customer.yml`) provisioned/upgraded/torn-down one at a time via `infra/{provision,upgrade,teardown}-customer.sh` (Dokploy API). Not touched by tag-push CD. Shared Ollama + gateway key; isolated Postgres/content. Runbook: `docs/ai/customer-ops.md`.
 - **Environment variables:** Each app reads `.env` / `.env.local` (dev) or the Dokploy Environment tab (prod). See `infra/.env.example` (dev) + `infra/.env.dokploy.example` (prod) and `docs/ai/setup.md` for details.
