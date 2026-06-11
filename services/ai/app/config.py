@@ -12,6 +12,7 @@ DRAFT_MODEL = os.getenv("DRAFT_MODEL", "qwen3.6-plus")
 # Admin-editable prompts (settings.agents.*.prompt) override the persona
 # fallbacks; this env only feeds module-level templates and fallbacks.
 OWNER_NAME = os.getenv("BOT_OWNER_NAME", "Thet")
+CONTACT_EMAIL = os.getenv("BOT_CONTACT_EMAIL", "naingoted@gmail.com")
 
 # Retrieval contract — keep identical to lib/rag ingest config.
 DATABASE_URL = os.getenv(

@@ -12,7 +12,7 @@ from typing import Callable
 
 from pydantic import BaseModel, Field
 
-from app.config import OWNER_NAME, TRIAGE_CONFIDENCE_THRESHOLD
+from app.config import CONTACT_EMAIL, OWNER_NAME, TRIAGE_CONFIDENCE_THRESHOLD
 from app.graph.state import GraphState
 from app.retriever import RetrievalResult
 
@@ -273,8 +273,8 @@ def contact_node(
 # --- Review (groundedness check) --------------------------------------------
 
 FALLBACK_TEXT = (
-    "I'm not certain about that one. You can reach Thet directly at "
-    "naingoted@gmail.com, and he'll be happy to help."
+    f"I'm not certain about that one. You can reach {OWNER_NAME} directly at "
+    f"{CONTACT_EMAIL}, and they'll be happy to help."
 )
 
 # Intents whose answers come from tools, not retrieval — empty chunks is expected.
