@@ -88,6 +88,25 @@ describe("session index", () => {
   });
 });
 
+describe("indexKey (internal, tested via listSessions)", () => {
+  beforeEach(() => localStorage.clear());
+
+  it("writes namespaced index under meclaw:sessions:<scope>", () => {
+    upsertSession({ conversationId: "a", scope: "pk_abc" });
+    // The entry lives in the namespaced key, NOT the global key
+    expect(localStorage.getItem("meclaw:sessions:pk_abc")).toBeTruthy();
+    expect(localStorage.getItem("meclaw:sessions")).toBeNull();
+    expect(listSessions({ scope: "pk_abc" })).toHaveLength(1);
+    expect(listSessions()).toEqual([]);
+  });
+
+  it("omitting scope routes to the global meclaw:sessions key", () => {
+    upsertSession({ conversationId: "a" });
+    expect(localStorage.getItem("meclaw:sessions")).toBeTruthy();
+    expect(localStorage.getItem("meclaw:sessions:pk_abc")).toBeNull();
+  });
+});
+
 describe("degradation (never throws)", () => {
   afterEach(() => vi.restoreAllMocks());
 

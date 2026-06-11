@@ -28,6 +28,10 @@ const RESUME_KEY_PREFIX = "meclaw:resume:";
 const SESSIONS_KEY = "meclaw:sessions";
 const TITLE_MAX = 80;
 
+function indexKey(scope: string | undefined): string {
+  return scope ? `meclaw:sessions:${scope}` : SESSIONS_KEY;
+}
+
 // First-party HMAC sentinel (server-side embedClientId) and legacy single-entry
 // localStorage key for the main chat.
 export const MAIN_RESUME_KEY = "__main__";
@@ -106,8 +110,8 @@ function isChatSession(value: unknown): value is ChatSession {
   );
 }
 
-function readIndex(): SessionIndex {
-  const raw = readRaw(SESSIONS_KEY);
+function readIndex(scope: string | undefined): SessionIndex {
+  const raw = readRaw(indexKey(scope));
   if (!raw) return { sessions: [] };
   try {
     const parsed = JSON.parse(raw) as unknown;
@@ -124,61 +128,66 @@ function readIndex(): SessionIndex {
   }
 }
 
-function writeIndex(index: SessionIndex): void {
-  writeRaw(SESSIONS_KEY, JSON.stringify(index));
+function writeIndex(scope: string | undefined, index: SessionIndex): void {
+  writeRaw(indexKey(scope), JSON.stringify(index));
 }
 
 /** All sessions, newest `updatedAt` first. */
-export function listSessions(): ChatSession[] {
-  return readIndex()
+export function listSessions(options?: { scope?: string }): ChatSession[] {
+  return readIndex(options?.scope)
     .sessions.slice()
     .sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
-export function getSession(conversationId: string): ChatSession | null {
-  return readIndex().sessions.find((s) => s.conversationId === conversationId) ?? null;
+export function getSession(conversationId: string, scope?: string): ChatSession | null {
+  return readIndex(scope).sessions.find((s) => s.conversationId === conversationId) ?? null;
 }
 
 /**
  * Create or merge a session by conversationId, bumping `updatedAt` to now.
  * Unspecified fields keep their existing value (or defaults on create).
  */
-export function upsertSession(partial: Partial<ChatSession> & { conversationId: string }): void {
+export function upsertSession(
+  partial: Partial<ChatSession> & { conversationId: string; scope?: string },
+): void {
+  const { scope, ...fields } = partial;
   const now = Date.now();
-  const index = readIndex();
-  const existing = index.sessions.find((s) => s.conversationId === partial.conversationId);
+  const index = readIndex(scope);
+  const existing = index.sessions.find((s) => s.conversationId === fields.conversationId);
   if (existing) {
-    Object.assign(existing, partial, { updatedAt: now });
+    Object.assign(existing, fields, { updatedAt: now });
   } else {
     index.sessions.push({
-      conversationId: partial.conversationId,
-      resumeToken: partial.resumeToken ?? "",
-      title: partial.title ?? "",
-      createdAt: partial.createdAt ?? now,
+      conversationId: fields.conversationId,
+      resumeToken: fields.resumeToken ?? "",
+      title: fields.title ?? "",
+      createdAt: fields.createdAt ?? now,
       updatedAt: now,
     });
   }
-  writeIndex(index);
+  writeIndex(scope, index);
 }
 
 /** Store/refresh the resume token for a conversation (from the SSE handler). */
-export function setSessionToken(conversationId: string, resumeToken: string): void {
-  upsertSession({ conversationId, resumeToken });
+export function setSessionToken(conversationId: string, resumeToken: string, scope?: string): void {
+  upsertSession({ conversationId, resumeToken, scope });
 }
 
 /** Set the title once, on the first user message, only if currently empty. */
-export function setSessionTitle(conversationId: string, title: string): void {
+export function setSessionTitle(conversationId: string, title: string, scope?: string): void {
   const trimmed = title.trim().slice(0, TITLE_MAX);
   if (!trimmed) return;
-  const existing = getSession(conversationId);
+  const existing = getSession(conversationId, scope);
   if (existing && existing.title.trim().length > 0) return;
-  upsertSession({ conversationId, title: trimmed });
+  upsertSession({ conversationId, title: trimmed, scope });
 }
 
 /** Remove a session from the index (client-only; DB rows untouched). */
-export function removeSession(conversationId: string): void {
-  const index = readIndex();
-  writeIndex({ sessions: index.sessions.filter((s) => s.conversationId !== conversationId) });
+export function removeSession(conversationId: string, scope?: string): void {
+  const index = readIndex(scope);
+  writeIndex(scope, {
+    sessions: index.sessions.filter((s) => s.conversationId !== conversationId),
+  });
 }
 
 /**
@@ -186,7 +195,7 @@ export function removeSession(conversationId: string): void {
  * the index when the index is empty, then drop the legacy key.
  */
 export function migrateLegacyEntry(): void {
-  if (readIndex().sessions.length > 0) return;
+  if (readIndex(undefined).sessions.length > 0) return;
   const legacy = readResumeEntry(MAIN_RESUME_KEY);
   if (!legacy) return;
   const now = Date.now();
