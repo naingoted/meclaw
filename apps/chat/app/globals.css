@@ -6,7 +6,7 @@
    deps reached via node_modules by default. */
 @source "../../../packages/ui/src";
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:is(.dark, .dark *));
 
 @theme inline {
   --color-background: var(--background);
