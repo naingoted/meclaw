@@ -54,6 +54,13 @@ ANTHROPIC_MODEL=qwen3.6-plus
 - Embed multi-session history — namespaced localStorage index per embedToken, legacy migration, History drawer in embed mode
 - Pre-commit/CI hardening; auto-migration on deploy (CI-proven)
 
+**In progress on `worktree-first-customer-readiness`** (instance-per-customer multi-tenancy, see `docs/ai/customer-ops.md` + `docs/ai/secrets-rotation.md`):
+
+- History cap in sidecar (D8) · Telegram lead notify (D6) · Shared Ollama network (D1)
+- Customer compose template + env (D2+D4) · Provision/upgrade/teardown scripts (D3)
+- Per-customer ops runbook · Secrets-rotation runbook · Owner-name parameterization in sidecar
+- Remaining: branding settings + chat UI (D5), global rate ceiling (D7.2), nightly backups (D7.3), final verification drill.
+
 **Open items:**
 
 - Spec A **U3** (chat-agent graph → MCP-client ReAct node) — deferred.

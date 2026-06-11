@@ -8,6 +8,9 @@ This public guide is the deployment source of truth; internal planning notes are
 **No secrets live in this file** — real values go in the Dokploy app's Environment tab (which
 writes the `.env` the compose file reads). Rotate any key ever pasted into chat/logs.
 
+Related runbooks: per-customer (multi-tenant) lifecycle — [customer-ops.md](customer-ops.md);
+post-leak rotation checklist — [secrets-rotation.md](secrets-rotation.md).
+
 ## CI/CD pipeline
 
 `.github/workflows/deploy.yml` has two modes depending on the git ref:
