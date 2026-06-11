@@ -1,0 +1,115 @@
+# Per-customer meclaw stack for Dokploy. Parameterized by env (Dokploy writes
+# the .env this file reads): CUSTOMER_SLUG drives Traefik router names and
+# hostnames; compose project scoping isolates volumes/DNS per stack.
+#
+# Differences from the owner stack (docker-compose.dokploy.yml):
+#   - NO ollama service: ai + admin reach the shared instance over the external
+#     meclaw-shared network (OLLAMA_BASE_URL=http://meclaw-ollama-shared:11434).
+#   - NO ops service (owner-only tooling).
+#   - content is a NAMED VOLUME, not a repo mount: starts EMPTY by design — the
+#     owner's content/ must never leak into a customer stack (spec D4). The
+#     documents table (admin uploads) is the knowledge source of truth.
+#
+# Provisioned by infra/provision-customer.sh — not deployed by the tag-push CD.
+name: meclaw-${CUSTOMER_SLUG}
+services:
+  chat:
+    image: ghcr.io/${GHCR_OWNER}/meclaw-chat:${IMAGE_TAG}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      MECLAW_CONTENT_DIR: /app/content
+    expose: ["3000"]
+    volumes:
+      - content:/app/content:ro
+    networks: [internal, dokploy-network]
+    depends_on:
+      ai:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=dokploy-network
+      - traefik.http.routers.${CUSTOMER_SLUG}-chat.rule=Host(`${CUSTOMER_SLUG}.leanior.com`)
+      - traefik.http.routers.${CUSTOMER_SLUG}-chat.entrypoints=websecure
+      - traefik.http.routers.${CUSTOMER_SLUG}-chat.tls.certresolver=letsencrypt
+      - traefik.http.services.${CUSTOMER_SLUG}-chat.loadbalancer.server.port=3000
+      - traefik.http.routers.${CUSTOMER_SLUG}-chat-web.rule=Host(`${CUSTOMER_SLUG}.leanior.com`)
+      - traefik.http.routers.${CUSTOMER_SLUG}-chat-web.entrypoints=web
+      - traefik.http.routers.${CUSTOMER_SLUG}-chat-web.middlewares=${CUSTOMER_SLUG}-https
+      - traefik.http.middlewares.${CUSTOMER_SLUG}-https.redirectscheme.scheme=https
+
+  admin:
+    image: ghcr.io/${GHCR_OWNER}/meclaw-admin:${IMAGE_TAG}
+    restart: unless-stopped
+    env_file: .env
+    expose: ["3000"]
+    networks: [internal, dokploy-network, meclaw-shared]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=dokploy-network
+      - traefik.http.routers.${CUSTOMER_SLUG}-admin.rule=Host(`${CUSTOMER_SLUG}-admin.leanior.com`)
+      - traefik.http.routers.${CUSTOMER_SLUG}-admin.entrypoints=websecure
+      - traefik.http.routers.${CUSTOMER_SLUG}-admin.tls.certresolver=letsencrypt
+      - traefik.http.services.${CUSTOMER_SLUG}-admin.loadbalancer.server.port=3000
+      - traefik.http.routers.${CUSTOMER_SLUG}-admin-web.rule=Host(`${CUSTOMER_SLUG}-admin.leanior.com`)
+      - traefik.http.routers.${CUSTOMER_SLUG}-admin-web.entrypoints=web
+      - traefik.http.routers.${CUSTOMER_SLUG}-admin-web.middlewares=${CUSTOMER_SLUG}-https
+
+  ai:
+    image: ghcr.io/${GHCR_OWNER}/meclaw-ai:${IMAGE_TAG}
+    restart: unless-stopped
+    env_file: .env
+    expose: ["8000"]
+    networks: [internal, meclaw-shared]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-meclaw}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-meclaw}
+    expose: ["5432"]
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-meclaw} -d ${POSTGRES_DB:-meclaw}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+
+  migrations:
+    image: ghcr.io/${GHCR_OWNER}/meclaw-ops:${IMAGE_TAG}
+    restart: "no"
+    env_file: .env
+    command: ["pnpm", "--filter", "@meclaw/core", "db:migrate"]
+    networks: [internal]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+networks:
+  internal: {}
+  dokploy-network:
+    external: true
+  meclaw-shared:
+    external: true
+
+volumes:
+  pgdata:
+  content:
