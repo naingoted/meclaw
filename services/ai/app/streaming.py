@@ -26,8 +26,11 @@ from app.config import (
     TRIAGE_CONFIDENCE_THRESHOLD,
     ANSWER_USE_THRESHOLD,
     GAP_MATCH_THRESHOLD,
+    HISTORY_MAX_MESSAGES,
+    HISTORY_TOKEN_BUDGET,
 )
 from app.gap_match import ResolvedAnswer
+from app.history import cap_history, estimate_tokens
 from app.graph.nodes import (
     CONTACT_PERSONA,
     PERSONAS,
@@ -124,6 +127,8 @@ def run_stream(
     assign_cluster_fn: Callable[[list[float], str], str] | None = None,
     gap_match_fn: Callable[[list[float]], ResolvedAnswer | None] | None = None,
     gap_match_threshold: float = GAP_MATCH_THRESHOLD,
+    history_max_messages: int = HISTORY_MAX_MESSAGES,
+    history_token_budget: int = HISTORY_TOKEN_BUDGET,
 ) -> Iterator[str]:
     # Ordered record of the pipeline steps taken this turn. Each `status` emit
     # both streams a transient data-status part (drives the live checklist) and
@@ -226,8 +231,25 @@ def run_stream(
             )
             return
 
+    # History cap (D8): bound what the LLMs see. Lead/offer-marker scans below
+    # deliberately keep using the FULL `messages` — markers may be older than
+    # the window. Spend telemetry: the log line lets the acceptance drill
+    # verify input tokens plateau on long conversations.
+    llm_messages = cap_history(
+        messages,
+        max_messages=history_max_messages,
+        token_budget=history_token_budget,
+    )
+    if len(llm_messages) < len(messages):
+        logger.info(
+            "history_cap: kept=%d dropped=%d est_tokens=%d",
+            len(llm_messages),
+            len(messages) - len(llm_messages),
+            sum(estimate_tokens(str(m.get("content", ""))) for m in llm_messages),
+        )
+
     yield status("Routing your question…", "triage")
-    triage = triage_fn(messages[-_TRIAGE_WINDOW:])
+    triage = triage_fn(llm_messages[-_TRIAGE_WINDOW:])
     intent = triage.intent if triage.intent in VALID_INTENTS else "general"
 
     # Don't nag for contact again once it's been captured this conversation.
@@ -365,7 +387,7 @@ def run_stream(
     yield sse.sse_start(metadata)
     yield sse.sse_text_start(_TEXT_ID)
     draft_text = ""
-    for delta in draft_stream_fn(system, messages, context):
+    for delta in draft_stream_fn(system, llm_messages, context):
         if delta:
             draft_text += delta
             yield sse.sse_text_delta(_TEXT_ID, delta)

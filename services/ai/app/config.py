@@ -21,6 +21,12 @@ RAG_TOP_K = int(os.getenv("RAG_TOP_K", "4"))
 # Triage confidence threshold below which we ask a clarifying question.
 TRIAGE_CONFIDENCE_THRESHOLD = float(os.getenv("TRIAGE_CONFIDENCE_THRESHOLD", "0.5"))
 
+# History cap (caching spec lever 1): bound the per-request prompt sent to the
+# LLM. Window of most-recent messages plus an estimated-token budget — drop
+# oldest when over. The full history still feeds lead-marker scanning.
+HISTORY_MAX_MESSAGES = int(os.getenv("HISTORY_MAX_MESSAGES", "10"))
+HISTORY_TOKEN_BUDGET = int(os.getenv("HISTORY_TOKEN_BUDGET", "2000"))
+
 # RAG gap feedback loop. RAG_SCORE_FLOOR: a retrieval is grounded iff its top
 # cosine score >= this; below floor → miss (reason='floor'). CLUSTER_RADIUS:
 # max cosine distance for a miss to fold into an existing gap cluster.
