@@ -14,6 +14,11 @@
 - **Interactive state:** every interactive element needs accessible, visible state — a `focus-visible` ring, `active` feedback, and `aria-busy`/spinner (or `disabled`) during async work. Icon-only controls need an `aria-label`.
 - **Tailwind v4 + workspace packages:** Tailwind does not scan workspace deps in `node_modules` by default. `@source "../../../packages/ui/src"` must stay in each app's `globals.css`, or classes used only inside `@meclaw/ui` silently fail to emit (the class is in the DOM but the rule never exists).
 
+## Typography
+
+- **Font size — scale only.** Use the Tailwind scale (`text-xs` `text-sm` `text-base` `text-lg` `text-xl`). **Never** arbitrary px (`text-[11px]`, `text-[10px]`): they drift into one-off micro-sizes that read as inconsistent. The smallest allowed step is `text-xs` (0.75rem). Enforced by `scripts/check-typography.sh` (a grep gate wired into `pnpm verify` / CI and `pre-push`); it hard-fails on `text-[…px]`.
+- **Font family — content vs chrome.** The body base is `font-mono` (JetBrains Mono). **Content** the bot or user "says" — chat answers, the live trace/thinking, the greeting, user bubbles — must carry `font-sans` (Hanken Grotesk) so it reads as prose, not terminal. Reserve mono for **chrome**: timestamps, version stamp, day labels, eyebrow labels, chips, badges, status pills. Mono and sans have different metrics, so mixing them in one bubble looks like mismatched sizes even at equal px.
+
 ## Validation
 
 - Validate all external input (request bodies, env) with **Zod**. Parse env once at module load; fail loud on missing required vars.

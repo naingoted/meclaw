@@ -14,7 +14,7 @@ export function PageHeader({
       <div className="min-w-0">
         <h1 className="text-lg font-bold tracking-tight text-foreground">{title}</h1>
         {subtitle ? (
-          <p className="mt-0.5 text-[11px] uppercase tracking-wider text-muted-foreground">
+          <p className="mt-0.5 text-xs uppercase tracking-wider text-muted-foreground">
             {subtitle}
           </p>
         ) : null}

@@ -39,7 +39,7 @@ export function BriefingReportView({
       <header className="space-y-3 border-b border-border pb-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 space-y-1">
-            <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted-foreground">
+            <p className="font-mono text-xs uppercase tracking-[0.28em] text-muted-foreground">
               Intelligence briefing
             </p>
             <h2 className="text-lg font-bold tracking-tight">{title || "Briefing report"}</h2>
@@ -87,7 +87,7 @@ function FitScore({ score }: { score: number | null }) {
   return (
     <div className="space-y-2">
       <div className="flex items-baseline justify-between gap-3">
-        <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted-foreground">
+        <p className="font-mono text-xs uppercase tracking-[0.28em] text-muted-foreground">
           Fit score
         </p>
         <p className="font-mono text-sm text-foreground">
@@ -109,7 +109,7 @@ function FitScore({ score }: { score: number | null }) {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted-foreground">
+    <p className="font-mono text-xs uppercase tracking-[0.28em] text-muted-foreground">
       {children}
     </p>
   );
@@ -129,14 +129,14 @@ function SourceChip({ source }: { source: { kind: SourceKind; ref: string; title
   return (
     <span
       className={cn(
-        "inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-[10px] uppercase tracking-wide",
+        "inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-xs uppercase tracking-wide",
         tone.chip,
       )}
       title={source.ref}
     >
       <span className={cn("h-1.5 w-1.5 rounded-full", tone.dot)} />
       <span className="truncate">{source.title ?? source.ref}</span>
-      <span className="text-[9px] opacity-70">{tone.label}</span>
+      <span className="text-xs opacity-70">{tone.label}</span>
     </span>
   );
 }
@@ -207,7 +207,7 @@ function TalkingPointsList({ items }: { items: BriefingReport["talking_points"] 
     <ol className="list-decimal space-y-2 pl-5 text-sm leading-6 text-foreground">
       {items.map((point) => (
         <li key={point} className="pl-1">
-          <span className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">
+          <span className="font-mono text-xs uppercase tracking-wide text-muted-foreground">
             {point}
           </span>
         </li>

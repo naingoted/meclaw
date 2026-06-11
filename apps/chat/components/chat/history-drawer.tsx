@@ -77,7 +77,7 @@ export function HistoryDrawer({
                   <span className="block truncate text-sm text-foreground">
                     {s.title.trim() || "New conversation"}
                   </span>
-                  <span className="block font-mono text-[11px] text-muted-foreground">
+                  <span className="block font-mono text-xs text-muted-foreground">
                     {formatDayLabel(s.updatedAt)} · {formatTime(s.updatedAt)}
                   </span>
                 </button>

@@ -32,7 +32,7 @@ export function ResearchTrace({
 }) {
   return (
     <div className="rounded-sm border border-border bg-card font-mono text-xs">
-      <div className="flex items-center gap-2 border-b border-border px-3 py-1.5 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+      <div className="flex items-center gap-2 border-b border-border px-3 py-1.5 text-xs uppercase tracking-[0.18em] text-muted-foreground">
         <span className="text-primary">▮</span> trace
       </div>
       <ul aria-live="polite" className="space-y-1 p-3">

@@ -73,7 +73,7 @@ export function JobsClient() {
       <div className="mb-5 flex items-end justify-between gap-3 border-b border-border pb-3">
         <div>
           <h1 className="text-lg font-bold tracking-tight text-foreground">Ingestion</h1>
-          <p className="mt-0.5 text-[11px] uppercase tracking-wider text-muted-foreground">
+          <p className="mt-0.5 text-xs uppercase tracking-wider text-muted-foreground">
             {stats?.lastIngest ? `last run ${relativeTime(stats.lastIngest)}` : "no runs yet"}
           </p>
         </div>
@@ -114,7 +114,7 @@ export function JobsClient() {
         />
       ) : (
         <div className="overflow-hidden rounded-md border border-border">
-          <div className="grid grid-cols-[100px_1fr_70px_60px] gap-3 border-b border-border bg-card px-3 py-2 text-[10px] uppercase tracking-wider text-muted-foreground">
+          <div className="grid grid-cols-[100px_1fr_70px_60px] gap-3 border-b border-border bg-card px-3 py-2 text-xs uppercase tracking-wider text-muted-foreground">
             <span>Status</span>
             <span>Document</span>
             <span>Chunks</span>

@@ -43,7 +43,7 @@ const isActive = (j?: Job) => j?.status === "queued" || j?.status === "running";
 function GapOriginPill({ origin }: { origin?: string }) {
   if (origin !== "gap") return null;
   return (
-    <span className="ml-2 rounded-sm bg-muted px-1.5 py-0.5 align-middle font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
+    <span className="ml-2 rounded-sm bg-muted px-1.5 py-0.5 align-middle font-mono text-xs uppercase tracking-wide text-muted-foreground">
       gap
     </span>
   );

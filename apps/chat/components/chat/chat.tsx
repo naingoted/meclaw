@@ -246,7 +246,7 @@ export function LiveTrace({ steps }: { steps: string[] }) {
     <div>
       <section
         aria-label="Assistant says"
-        className="rounded-2xl bg-muted px-4 py-2 text-sm text-muted-foreground"
+        className="rounded-2xl bg-muted px-4 py-2 font-sans text-sm text-muted-foreground"
       >
         {steps.length === 0 ? (
           <div className="flex items-center gap-2">
@@ -299,7 +299,7 @@ function SourcesPanel({
       <div className="flex items-center justify-between gap-2">
         <p className="font-medium text-foreground">Sources used</p>
         {route ? (
-          <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] font-medium text-foreground">
+          <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-xs font-medium text-foreground">
             Routed: {route}
           </span>
         ) : null}
@@ -308,10 +308,10 @@ function SourcesPanel({
         {sources.map((source, index) => (
           <li key={`${source.location}-${index}`} className="space-y-0.5">
             <p className="font-medium text-foreground">{source.title}</p>
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] leading-4">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs leading-4">
               <span className="break-words">{source.location}</span>
               {source.score && (
-                <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] font-medium text-foreground">
+                <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-xs font-medium text-foreground">
                   Score {source.score}
                 </span>
               )}
@@ -413,7 +413,7 @@ function UserTurn({
           part.type === "text" ? (
             <div
               key={`${message.id}-${j}`}
-              className="prose prose-sm max-w-none overflow-hidden break-words dark:prose-invert"
+              className="prose prose-sm max-w-none overflow-hidden break-words font-sans dark:prose-invert"
             >
               <ReactMarkdown>{part.text}</ReactMarkdown>
             </div>
@@ -770,7 +770,7 @@ export function Chat({
         {messages.length === 0 && (
           <div className="mt-10 space-y-6">
             {/* Greeting from meclaw */}
-            <div className="space-y-1">
+            <div className="space-y-1 font-sans">
               <p className="text-sm font-medium">{greeting}</p>
               <p className="text-sm text-muted-foreground">
                 Ask me anything about his work, skills, or projects.
@@ -809,7 +809,7 @@ export function Chat({
             return (
               <div key={message.id}>
                 {showDay ? (
-                  <div className="my-3 text-center font-mono text-[11px] text-muted-foreground">
+                  <div className="my-3 text-center font-mono text-xs text-muted-foreground">
                     {formatDayLabel(ts)}
                   </div>
                 ) : null}

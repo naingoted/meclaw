@@ -16,6 +16,7 @@ next-env.d.ts
 infra/.env
 .env.local
 .env.*.local
+.playwright-mcp
 
 # local db + personal corpus (local only — never commit)
 data/*

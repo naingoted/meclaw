@@ -55,7 +55,7 @@ export function AdminSidebar() {
       <div className="flex-1">
         {GROUPS.map((g) => (
           <div key={g.label} className="mb-5">
-            <div className="mb-1.5 px-2 text-[10px] uppercase tracking-wider text-muted-foreground">
+            <div className="mb-1.5 px-2 text-xs uppercase tracking-wider text-muted-foreground">
               {g.label}
             </div>
             {g.items.map(({ label, href, Icon }) => {

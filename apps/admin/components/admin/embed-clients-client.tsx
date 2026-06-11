@@ -184,7 +184,7 @@ function ClientRow({
       <TD>
         <span className="font-medium">{client.name}</span>
         {revoked ? (
-          <span className="ml-2 rounded-sm bg-destructive/10 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-destructive">
+          <span className="ml-2 rounded-sm bg-destructive/10 px-1.5 py-0.5 font-mono text-xs uppercase tracking-wide text-destructive">
             revoked
           </span>
         ) : null}
@@ -227,7 +227,7 @@ function ClientRow({
               client.allowedOrigins.map((o) => (
                 <span
                   key={o}
-                  className="rounded-full border border-border bg-muted px-2 py-0.5 font-mono text-[11px]"
+                  className="rounded-full border border-border bg-muted px-2 py-0.5 font-mono text-xs"
                 >
                   {o}
                 </span>
