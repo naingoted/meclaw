@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Configurable mock state for useChat — hoisted to module scope
@@ -213,19 +213,16 @@ describe("Chat component — embed mode resume integration", () => {
     expect(options?.body?.parentOrigin).toBe(parentOrigin);
   });
 
-  it("history fetch clears localStorage entry on failure", async () => {
+  it("history fetch handles failure without clearing legacy entry (migration owns cleanup)", async () => {
     const embedToken = "pk_fail";
     const parentOrigin = "https://acme.com";
     const entry = { conversationId: "conv-fail", resumeToken: "rt-fail" };
     localStorage.setItem(`meclaw:resume:${embedToken}`, JSON.stringify(entry));
 
-    // Mock fetch to return 401 (stale resume token)
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(() =>
-        Promise.resolve(new Response(JSON.stringify({ error: "invalid" }), { status: 401 })),
-      ),
+    const fetchMock = vi.fn(() =>
+      Promise.resolve(new Response(JSON.stringify({ error: "invalid" }), { status: 401 })),
     );
+    vi.stubGlobal("fetch", fetchMock);
 
     render(
       <Chat
@@ -238,23 +235,13 @@ describe("Chat component — embed mode resume integration", () => {
       />,
     );
 
-    // Poll until localStorage entry is cleared (effect + fetch are async)
-    await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(
-        () => reject(new Error("timeout waiting for localStorage clear")),
-        2000,
-      );
-      const interval = setInterval(() => {
-        if (localStorage.getItem(`meclaw:resume:${embedToken}`) === null) {
-          clearInterval(interval);
-          clearTimeout(timeout);
-          resolve();
-        }
-      }, 10);
-    });
+    // Wait for the async fetch to complete
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
 
     // setMessages should not have been called (fetch failed)
     expect(mockState.setMessages).not.toHaveBeenCalled();
+    // Legacy key is NOT cleared by loadConversation anymore — migration (Task 6) owns cleanup
+    expect(localStorage.getItem(`meclaw:resume:${embedToken}`)).not.toBeNull();
   });
 
   it("history fetch populates messages on success", async () => {

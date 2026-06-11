@@ -711,7 +711,10 @@ describe("Chat main-chat session persistence (normal mode)", () => {
       "normal",
       undefined,
     );
-    expect(getSession("conv-1")).toMatchObject({ conversationId: "conv-1", resumeToken: "rt-1" });
+    expect(getSession({ conversationId: "conv-1" })).toMatchObject({
+      conversationId: "conv-1",
+      resumeToken: "rt-1",
+    });
   });
 });
 
@@ -767,7 +770,7 @@ describe("Chat main-chat history restore (normal mode)", () => {
 
     render(<Chat {...CHAT_PROPS} />);
 
-    await waitFor(() => expect(getSession("conv-1")).toBeNull());
+    await waitFor(() => expect(getSession({ conversationId: "conv-1" })).toBeNull());
   });
 });
 
@@ -830,7 +833,7 @@ describe("History drawer wiring (normal mode)", () => {
     setMessages.mockClear();
     fireEvent.click(screen.getByRole("button", { name: /history/i }));
     fireEvent.click(screen.getByRole("button", { name: /delete conversation/i }));
-    expect(getSession("c1")).toBeNull();
+    expect(getSession({ conversationId: "c1" })).toBeNull();
     expect(setMessages).toHaveBeenCalledWith([]); // startNewChat fired for the active chat
   });
 
@@ -846,8 +849,8 @@ describe("History drawer wiring (normal mode)", () => {
     // newest-first order: [Current chat, Old chat] — delete the second (non-active) row
     const delButtons = screen.getAllByRole("button", { name: /delete conversation/i });
     fireEvent.click(delButtons[1]);
-    expect(getSession("old")).toBeNull();
-    expect(getSession("current")).not.toBeNull();
+    expect(getSession({ conversationId: "old" })).toBeNull();
+    expect(getSession({ conversationId: "current" })).not.toBeNull();
     expect(screen.queryByText("Old chat")).not.toBeInTheDocument();
     expect(screen.getByText("Current chat")).toBeInTheDocument();
   });

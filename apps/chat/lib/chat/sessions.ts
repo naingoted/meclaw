@@ -139,8 +139,10 @@ export function listSessions(options?: { scope?: string }): ChatSession[] {
     .sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
-export function getSession(conversationId: string, scope?: string): ChatSession | null {
-  return readIndex(scope).sessions.find((s) => s.conversationId === conversationId) ?? null;
+export function getSession(opts: { scope?: string; conversationId: string }): ChatSession | null {
+  return (
+    readIndex(opts.scope).sessions.find((s) => s.conversationId === opts.conversationId) ?? null
+  );
 }
 
 /**
@@ -169,24 +171,40 @@ export function upsertSession(
 }
 
 /** Store/refresh the resume token for a conversation (from the SSE handler). */
-export function setSessionToken(conversationId: string, resumeToken: string, scope?: string): void {
-  upsertSession({ conversationId, resumeToken, scope });
+export function setSessionToken(opts: {
+  scope?: string;
+  conversationId: string;
+  resumeToken: string;
+}): void {
+  upsertSession({
+    scope: opts.scope,
+    conversationId: opts.conversationId,
+    resumeToken: opts.resumeToken,
+  });
 }
 
 /** Set the title once, on the first user message, only if currently empty. */
-export function setSessionTitle(conversationId: string, title: string, scope?: string): void {
-  const trimmed = title.trim().slice(0, TITLE_MAX);
+export function setSessionTitle(opts: {
+  scope?: string;
+  conversationId: string;
+  title: string;
+}): void {
+  const trimmed = opts.title.trim().slice(0, TITLE_MAX);
   if (!trimmed) return;
-  const existing = getSession(conversationId, scope);
+  const existing = getSession({ scope: opts.scope, conversationId: opts.conversationId });
   if (existing && existing.title.trim().length > 0) return;
-  upsertSession({ conversationId, title: trimmed, scope });
+  upsertSession({
+    scope: opts.scope,
+    conversationId: opts.conversationId,
+    title: trimmed,
+  });
 }
 
 /** Remove a session from the index (client-only; DB rows untouched). */
-export function removeSession(conversationId: string, scope?: string): void {
-  const index = readIndex(scope);
-  writeIndex(scope, {
-    sessions: index.sessions.filter((s) => s.conversationId !== conversationId),
+export function removeSession(opts: { scope?: string; conversationId: string }): void {
+  const index = readIndex(opts.scope);
+  writeIndex(opts.scope, {
+    sessions: index.sessions.filter((s) => s.conversationId !== opts.conversationId),
   });
 }
 

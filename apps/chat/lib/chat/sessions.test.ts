@@ -34,7 +34,7 @@ describe("embed single-entry helpers", () => {
   });
 });
 
-describe("session index", () => {
+describe("session index (options-object API)", () => {
   beforeEach(() => localStorage.clear());
 
   it("upserts and lists newest-updated first", () => {
@@ -49,34 +49,72 @@ describe("session index", () => {
   it("merges fields and bumps updatedAt on re-upsert", () => {
     upsertSession({ conversationId: "a", title: "first" });
     upsertSession({ conversationId: "a", resumeToken: "rt" });
-    expect(getSession("a")).toMatchObject({ title: "first", resumeToken: "rt" });
+    expect(getSession({ conversationId: "a" })).toMatchObject({
+      title: "first",
+      resumeToken: "rt",
+    });
     expect(listSessions()).toHaveLength(1);
   });
 
   it("setSessionToken stores the token", () => {
-    setSessionToken("a", "rt-9");
-    expect(getSession("a")?.resumeToken).toBe("rt-9");
+    setSessionToken({ conversationId: "a", resumeToken: "rt-9" });
+    expect(getSession({ conversationId: "a" })?.resumeToken).toBe("rt-9");
   });
 
   it("setSessionTitle sets once, ignores later/empty values", () => {
     upsertSession({ conversationId: "a" });
-    setSessionTitle("a", "   ");
-    expect(getSession("a")?.title).toBe("");
-    setSessionTitle("a", "Hello world");
-    setSessionTitle("a", "later title");
-    expect(getSession("a")?.title).toBe("Hello world");
+    setSessionTitle({ conversationId: "a", title: "   " });
+    expect(getSession({ conversationId: "a" })?.title).toBe("");
+    setSessionTitle({ conversationId: "a", title: "Hello world" });
+    setSessionTitle({ conversationId: "a", title: "later title" });
+    expect(getSession({ conversationId: "a" })?.title).toBe("Hello world");
   });
 
   it("removeSession drops the entry", () => {
     upsertSession({ conversationId: "a" });
-    removeSession("a");
-    expect(getSession("a")).toBeNull();
+    removeSession({ conversationId: "a" });
+    expect(getSession({ conversationId: "a" })).toBeNull();
+  });
+
+  it("isolates sessions by scope — no cross-contamination", () => {
+    upsertSession({ conversationId: "main-1" }); // global
+    upsertSession({ conversationId: "embed-1", scope: "pk_a" });
+    upsertSession({ conversationId: "embed-2", scope: "pk_b" });
+
+    expect(listSessions().map((s) => s.conversationId)).toEqual(["main-1"]);
+    expect(listSessions({ scope: "pk_a" }).map((s) => s.conversationId)).toEqual(["embed-1"]);
+    expect(listSessions({ scope: "pk_b" }).map((s) => s.conversationId)).toEqual(["embed-2"]);
+
+    // getSession is scoped
+    expect(getSession({ conversationId: "embed-1" })).toBeNull(); // not in global
+    expect(getSession({ scope: "pk_a", conversationId: "embed-1" })).not.toBeNull();
+    expect(getSession({ scope: "pk_b", conversationId: "embed-1" })).toBeNull(); // wrong scope
+
+    // removeSession is scoped
+    removeSession({ scope: "pk_a", conversationId: "embed-1" });
+    expect(listSessions({ scope: "pk_a" })).toEqual([]);
+    expect(listSessions({ scope: "pk_b" })).toHaveLength(1); // untouched
+  });
+
+  it("setSessionToken and setSessionTitle respect scope", () => {
+    upsertSession({ conversationId: "a", scope: "pk_x" });
+    setSessionToken({ scope: "pk_x", conversationId: "a", resumeToken: "rt-s-scope" });
+    setSessionTitle({ scope: "pk_x", conversationId: "a", title: "scoped title" });
+    expect(getSession({ scope: "pk_x", conversationId: "a" })).toMatchObject({
+      resumeToken: "rt-s-scope",
+      title: "scoped title",
+    });
+    // not in global
+    expect(getSession({ conversationId: "a" })).toBeNull();
   });
 
   it("migrates a legacy __main__ entry into an empty index and drops the legacy key", () => {
     writeResumeEntry(MAIN_RESUME_KEY, { conversationId: "old", resumeToken: "rt-old" });
     migrateLegacyEntry();
-    expect(getSession("old")).toMatchObject({ conversationId: "old", resumeToken: "rt-old" });
+    expect(getSession({ conversationId: "old" })).toMatchObject({
+      conversationId: "old",
+      resumeToken: "rt-old",
+    });
     expect(readResumeEntry(MAIN_RESUME_KEY)).toBeNull();
   });
 
@@ -84,7 +122,7 @@ describe("session index", () => {
     upsertSession({ conversationId: "existing" });
     writeResumeEntry(MAIN_RESUME_KEY, { conversationId: "old", resumeToken: "rt-old" });
     migrateLegacyEntry();
-    expect(getSession("old")).toBeNull();
+    expect(getSession({ conversationId: "old" })).toBeNull();
   });
 });
 
