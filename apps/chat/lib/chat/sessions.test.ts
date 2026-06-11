@@ -210,4 +210,30 @@ describe("migrateEmbedLegacy", () => {
     expect(listSessions().map((s) => s.conversationId)).toEqual(["main-session"]);
     expect(listSessions({ scope: "pk_def" }).map((s) => s.conversationId)).toEqual(["other-embed"]);
   });
+
+  it("preserves the legacy key when the indexed write silently fails", () => {
+    writeResumeEntry("pk_fail", { conversationId: "legacy-x", resumeToken: "rt-x" });
+
+    // Make setItem throw so the indexed write becomes a no-op, but getItem
+    // still works (so readResumeEntry returns the legacy entry).
+    const realSetItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key: string) {
+      // Only fail for the index key — allow the legacy key reads to work.
+      if (key.startsWith("meclaw:sessions")) throw new Error("Quota exceeded");
+      realSetItem.call(this, key, arguments[1]);
+    };
+
+    try {
+      migrateEmbedLegacy("pk_fail");
+
+      // Indexed write failed — legacy key must survive for future recovery.
+      expect(listSessions({ scope: "pk_fail" })).toEqual([]);
+      expect(readResumeEntry("pk_fail")).toEqual({
+        conversationId: "legacy-x",
+        resumeToken: "rt-x",
+      });
+    } finally {
+      Storage.prototype.setItem = realSetItem;
+    }
+  });
 });

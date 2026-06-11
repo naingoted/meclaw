@@ -252,5 +252,11 @@ export function migrateEmbedLegacy(embedToken: string): void {
     createdAt: now,
     updatedAt: now,
   });
-  clearResumeEntry(embedToken);
+  // Only clear the legacy key if the indexed write actually persisted —
+  // writeRaw swallows localStorage errors (quota, private browsing), so
+  // verify the session is present before removing the fallback copy.
+  const migrated = getSession({ scope: embedToken, conversationId: legacy.conversationId });
+  if (migrated && migrated.resumeToken === legacy.resumeToken) {
+    clearResumeEntry(embedToken);
+  }
 }

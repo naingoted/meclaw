@@ -34,6 +34,7 @@ import {
   hasRenderedText,
   LiveTrace,
   MAIN_RESUME_KEY,
+  readResumeEntry,
   shouldRenderMessage,
   shouldShowThinking,
   writeResumeEntry,
@@ -715,6 +716,20 @@ describe("Chat main-chat session persistence (normal mode)", () => {
       conversationId: "conv-1",
       resumeToken: "rt-1",
     });
+  });
+
+  it("stores the resume token in the scoped index in embed mode", () => {
+    handleResumeTokenEvent(
+      { type: "data-resume-token", data: { token: "rt-embed", conversationId: "conv-e1" } },
+      "embed",
+      "pk_test",
+    );
+    expect(getSession({ scope: "pk_test", conversationId: "conv-e1" })).toMatchObject({
+      conversationId: "conv-e1",
+      resumeToken: "rt-embed",
+    });
+    // Legacy key is NOT written — embed uses the scoped index exclusively.
+    expect(readResumeEntry("pk_test")).toBeNull();
   });
 });
 

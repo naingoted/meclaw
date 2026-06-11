@@ -98,7 +98,9 @@ export function handleResumeTokenEvent(
   const convId = readString(data.conversationId);
   if (!token || !convId) return;
   if (mode === "embed") {
-    if (embedToken) writeResumeEntry(embedToken, { conversationId: convId, resumeToken: token });
+    // Write to the scoped session index — loadConversation reads from here.
+    if (embedToken)
+      setSessionToken({ scope: embedToken, conversationId: convId, resumeToken: token });
   } else {
     setSessionToken({ conversationId: convId, resumeToken: token });
   }
