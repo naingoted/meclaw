@@ -41,7 +41,7 @@ export function ChatToolbar({
           aria-label="Close chat"
           className="ml-auto inline-flex items-center justify-center rounded-sm p-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <X className="h-4 w-4" />
+          <X className="h-6 w-6" />
         </button>
       ) : null}
     </div>

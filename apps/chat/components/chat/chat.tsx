@@ -246,7 +246,7 @@ export function LiveTrace({ steps }: { steps: string[] }) {
     <div>
       <section
         aria-label="Assistant says"
-        className="rounded-2xl bg-muted px-4 py-2 font-sans text-sm text-muted-foreground"
+        className="rounded-2xl bg-muted px-4 py-2 text-sm text-muted-foreground"
       >
         {steps.length === 0 ? (
           <div className="flex items-center gap-2">
@@ -344,6 +344,10 @@ type RenderableMessage = ChatMessageLike & {
   parts: Array<{ type?: string; text?: string }>;
 };
 
+// Shared markdown-bubble class. No `font-sans` — chat content inherits the
+// JetBrains Mono base (`html { font-mono }`) so the whole widget is one family.
+const PROSE_BUBBLE = "prose prose-sm max-w-none overflow-hidden break-words dark:prose-invert";
+
 /**
  * One assistant turn: avatar + markdown bubble, then (once answered) the
  * timestamp/copy line, the dev Sources panel, and the persisted "How I answered"
@@ -368,10 +372,7 @@ function AssistantTurn({
       <div className="max-w-[calc(100%-16px)] rounded-2xl bg-muted px-4 py-2 text-sm text-foreground">
         {message.parts.map((part, j) =>
           part.type === "text" ? (
-            <div
-              key={`${message.id}-${j}`}
-              className="prose prose-sm max-w-none overflow-hidden break-words font-sans dark:prose-invert"
-            >
+            <div key={`${message.id}-${j}`} className={PROSE_BUBBLE}>
               <ReactMarkdown>{part.text}</ReactMarkdown>
             </div>
           ) : null,
@@ -411,10 +412,7 @@ function UserTurn({
       >
         {message.parts.map((part, j) =>
           part.type === "text" ? (
-            <div
-              key={`${message.id}-${j}`}
-              className="prose prose-sm max-w-none overflow-hidden break-words font-sans dark:prose-invert"
-            >
+            <div key={`${message.id}-${j}`} className={PROSE_BUBBLE}>
               <ReactMarkdown>{part.text}</ReactMarkdown>
             </div>
           ) : null,
@@ -759,6 +757,10 @@ export function Chat({
         onClose={handleClose}
       />
       <div
+        // role="log" marks this as a live transcript: screen readers announce
+        // new messages as they stream in. It also implies aria-live="polite".
+        role="log"
+        aria-label="Conversation"
         className="flex-1 space-y-4 overflow-y-auto overscroll-contain p-4"
         onTouchStart={() => {
           touchingRef.current = true;
@@ -770,7 +772,7 @@ export function Chat({
         {messages.length === 0 && (
           <div className="mt-10 space-y-6">
             {/* Greeting from meclaw */}
-            <div className="space-y-1 font-sans">
+            <div className="space-y-1">
               <p className="text-sm font-medium">{greeting}</p>
               <p className="text-sm text-muted-foreground">
                 Ask me anything about his work, skills, or projects.
@@ -840,7 +842,10 @@ export function Chat({
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Say something…"
-          className="flex-1 rounded-sm border border-input bg-card px-3 py-2 font-mono text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label="Message"
+          enterKeyHint="send"
+          autoComplete="off"
+          className="flex-1 rounded-sm border border-input bg-card px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
         />
         <Button
           type="submit"

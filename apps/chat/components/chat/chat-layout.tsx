@@ -17,7 +17,11 @@ export function ChatLayout({
   versionLabel: string;
 }) {
   return (
-    <div className="flex h-screen flex-col">
+    // h-dvh (dynamic viewport) not h-screen (100vh): on mobile the dynamic unit
+    // tracks the visible area as the URL bar collapses and the soft keyboard
+    // opens, so the sticky header/footer + input stay on-screen. The embed
+    // widget uses the same 100dvh basis in embed.js.
+    <div className="flex h-dvh flex-col">
       {/* Header: brand left, actions right (Book a call = primary CTA) */}
       <header className="border-b border-border px-4 py-3">
         <div className="mx-auto flex max-w-2xl items-center justify-between gap-2">

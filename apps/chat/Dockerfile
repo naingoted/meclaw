@@ -8,7 +8,7 @@ FROM base AS prune
 COPY . .
 RUN pnpm dlx turbo prune @meclaw/chat --docker
 
-##### deps #####
+##### deps (production - pruned workspace) #####
 FROM base AS deps
 COPY --from=prune /app/out/json/ ./
 COPY --from=prune /app/out/pnpm-lock.yaml ./
@@ -16,8 +16,18 @@ COPY --from=prune /app/out/pnpm-lock.yaml ./
 # (desyncs vs a workspace package.json) even when the full lockfile is in sync.
 RUN pnpm install --no-frozen-lockfile
 
+##### deps-dev (dev mode - full workspace for HMR with compose mounts) #####
+FROM base AS deps-dev
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY packages/core/package.json ./packages/core/
+COPY packages/ui/package.json ./packages/ui/
+COPY packages/rag/package.json ./packages/rag/
+COPY apps/chat/package.json ./apps/chat/
+# Install full workspace deps so compose mounts work (host source may use any workspace pkg)
+RUN pnpm install --no-frozen-lockfile
+
 ##### dev: hot-reload (compose dev only) #####
-FROM deps AS dev
+FROM deps-dev AS dev
 ENV NEXT_TELEMETRY_DISABLED=1 WATCHPACK_POLLING=true CHOKIDAR_USEPOLLING=true
 # Pre-create .next so compose's anonymous volume inherits node ownership.
 # Without this, docker materialises the mount as root-owned and the node

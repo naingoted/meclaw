@@ -128,7 +128,7 @@
     boxShadow: "0 4px 12px rgba(0,0,0,0.18)",
     zIndex: "2147483646",
     transition: "transform 120ms ease",
-    display: shouldUseFullscreen() ? "none" : "block",
+    display: "block",
   });
   bubble.addEventListener("mouseenter", () => {
     bubble.style.transform = "scale(1.05)";
@@ -170,7 +170,7 @@
     overflow: "hidden",
     boxShadow: fullscreen ? "none" : "0 8px 24px rgba(0,0,0,0.22)",
     zIndex: "2147483646",
-    display: fullscreen ? "block" : "none",
+    display: "none",
     background: "transparent",
     paddingBottom: fullscreen ? "env(safe-area-inset-bottom)" : undefined,
     paddingTop: fullscreen ? "env(safe-area-inset-top)" : undefined,
@@ -189,12 +189,26 @@
   container.appendChild(iframe);
 
   // ----- Toggle logic -----
+  // The widget always mounts CLOSED on every device (including mobile/PWA) so a
+  // page load or refresh never forces it open — the floating bubble is the only
+  // entry point. `open` starts false to match the container's initial
+  // display:none; tapping the bubble (or MeclawWidget.open()) is what opens it.
   var open = false;
+  // Bubble visibility + glyph for the current open/fullscreen state.
+  // Fullscreen hides the bubble while open (the in-widget toolbar closes it) and
+  // shows it again once closed — the sole reopen affordance. Desktop always
+  // shows the bubble. The ✕ glyph only renders when the bubble is visible, so a
+  // single `open` ternary covers both modes (fullscreen+open keeps 💬 but it's
+  // display:none anyway).
+  function updateBubble() {
+    bubble.style.display = shouldUseFullscreen() && open ? "none" : "block";
+    bubble.textContent = open ? "✕" : "💬";
+    bubble.setAttribute("aria-expanded", String(open));
+  }
   function toggle() {
     open = !open;
     container.style.display = open ? "block" : "none";
-    bubble.textContent = open ? "✕" : "💬"; // ✕ or 💬
-    bubble.setAttribute("aria-expanded", open ? "true" : "false");
+    updateBubble();
   }
   bubble.addEventListener("click", toggle);
 
@@ -209,13 +223,15 @@
     var fs = shouldUseFullscreen();
     var viewportHeight;
 
-    // Update bubble visibility
-    bubble.style.display = fs ? "none" : "block";
+    // Update bubble visibility — in fullscreen the bubble only shows when the
+    // widget is closed (so it can be reopened); on desktop it is always shown.
+    bubble.style.display = fs && open ? "none" : "block";
 
     // Update container dimensions
     if (fs) {
-      // Fullscreen mode: always visible
-      container.style.display = "block";
+      // Fullscreen mode: respect open state so a resize (keyboard/orientation)
+      // doesn't force a dismissed widget back open.
+      container.style.display = open ? "block" : "none";
       container.style.top = "0";
       container.style.left = "0";
       container.style.right = "";
