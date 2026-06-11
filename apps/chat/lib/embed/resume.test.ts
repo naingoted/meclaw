@@ -36,9 +36,30 @@ describe("resume tokens", () => {
     );
   });
 
-  it("returns false when RESUME_TOKEN_SECRET is unset", () => {
+  it("accepts the unsigned .insecure token when RESUME_TOKEN_SECRET is unset", () => {
     vi.stubEnv("RESUME_TOKEN_SECRET", "");
     const token = signResumeToken({ conversationId: "c1", embedClientId: "e1" });
-    expect(verifyResumeToken({ token, conversationId: "c1", embedClientId: "e1" })).toBe(false);
+    expect(verifyResumeToken({ token, conversationId: "c1", embedClientId: "e1" })).toBe(true);
+  });
+
+  it("rejects non-insecure tokens when RESUME_TOKEN_SECRET is unset", () => {
+    vi.stubEnv("RESUME_TOKEN_SECRET", "");
+    const fakeToken = `${Buffer.from("c1:e1", "utf8").toString("hex")}.deadbeef`;
+    expect(verifyResumeToken({ token: fakeToken, conversationId: "c1", embedClientId: "e1" })).toBe(
+      false,
+    );
+  });
+
+  it("throws on sign and rejects on verify in production without a secret", () => {
+    vi.stubEnv("RESUME_TOKEN_SECRET", "");
+    vi.stubEnv("NODE_ENV", "production");
+    expect(() => signResumeToken({ conversationId: "c1", embedClientId: "e1" })).toThrow(
+      "RESUME_TOKEN_SECRET is required in production",
+    );
+    // Even if someone forges an .insecure token, verify must reject in prod.
+    const forged = `${Buffer.from("c1:e1", "utf8").toString("hex")}.insecure`;
+    expect(verifyResumeToken({ token: forged, conversationId: "c1", embedClientId: "e1" })).toBe(
+      false,
+    );
   });
 });

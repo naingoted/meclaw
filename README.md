@@ -1,27 +1,14 @@
 # meclaw
 
-[![CI](https://github.com/naingoted/meclaw/actions/workflows/ci.yml/badge.svg)](https://github.com/naingoted/meclaw/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[CI](https://github.com/naingoted/meclaw/actions/workflows/ci.yml)
+[License: MIT](LICENSE)
 
 **Your AI twin, self-hosted.** Fork it, drop your markdown into `content/`, and get a public chatbot that answers questions about *you* — grounded in your own notes, never made up — plus an admin console with a built-in feedback loop: every question the bot couldn't answer lands in a ranked inbox, one click turns it into new knowledge.
 
-This instance is the personal AI bot for **Thet Naing**. Visitors chat on a public page; an AI answers about the owner's work, projects, and contact details. An authenticated admin console lets the owner edit knowledge, re-ingest, tune the agents, and close gaps the bot couldn't answer.
-
-Local-first by design: knowledge lives in markdown under `content/`, everything runs in Docker, no managed cloud DB required. What sets it apart from "chat with my resume" demos: retrieval telemetry on every answer, an offline Ragas eval harness over the real pipeline, a read-only MCP server for agent introspection, and a one-push VPS deploy story.
+Local-first by design: knowledge lives in markdown under `content/` or if you want you can create in admin dashboard, everything runs in Docker, no managed cloud DB required. What sets it apart from "chat with my resume" demos: retrieval telemetry on every answer, an offline Ragas eval harness over the real pipeline, a read-only MCP server for agent introspection, and a one-push VPS deploy story.
 
 This project applies what I learned from [RAG and Agentic AI](https://coursera.org/share/7f66461a5be8323f542f68d4a45b8a25) together with my product engineering experience.
 
-<!-- TODO(screenshots): capture and uncomment.
-  1. docs/assets/chat-demo.gif   — public chat: ask a question, show streaming answer + the live "how I answered" trace expanding. ~10s screen recording, gif or mp4.
-  2. docs/assets/admin-gaps.png  — admin Gaps inbox with a few clustered misses + the "Answer this gap" flow.
-
-<p align="center">
-  <img src="docs/assets/chat-demo.gif" alt="Public chat streaming an answer with live retrieval trace" width="720">
-</p>
-<p align="center">
-  <img src="docs/assets/admin-gaps.png" alt="Admin gaps inbox: questions the bot could not answer, clustered by similarity" width="720">
-</p>
--->
 
 ## How it works
 
@@ -81,6 +68,8 @@ flowchart TB
     class pg,ollama,gw store
 ```
 
+
+
 **The split that matters:** the Next chat app is a thin, stateless edge — it runs guardrails (rate limit + prompt-injection refusal), proxies to the sidecar, tees the stream to the browser, and best-effort persists the turn. All LLM reasoning (routing, retrieval, drafting, gap/lead detection) lives in the Python sidecar so models and agent logic can change without rebuilding Next.
 
 ## Chat request flow
@@ -111,6 +100,8 @@ sequenceDiagram
     end
 ```
 
+
+
 1. **Edge guards first.** `apps/chat/app/api/chat/route.ts` runs an in-memory IP rate-limit (429 + Retry-After) and a prompt-injection regex guard (streams a refusal without ever calling the sidecar).
 2. **Proxy + config.** It forwards to the sidecar at `AI_SERVICE_URL`, attaching a live config snapshot (persona, model knobs, RAG floors, public fields) read from the `settings` table.
 3. **Agent pipeline** (`services/ai`): triage intent with the **triage model** (thinking-off, non-stream) → retrieve top-K chunks from pgvector → draft with the **draft model** (streaming). Contact/scheduler intents answer via tools instead of retrieval.
@@ -131,20 +122,22 @@ sequenceDiagram
 
 **Monorepo** (pnpm workspaces + turbo):
 
-| Path | Package | Role |
-|------|---------|------|
-| `apps/chat` | `@meclaw/chat` | Public chat, stateless edge (:3000) |
-| `apps/admin` | `@meclaw/admin` | Content/config/gaps console, Auth.js (:3001) |
-| `packages/core` | `@meclaw/core` | Drizzle ORM + postgres-js, content loader, settings |
-| `packages/rag` | `@meclaw/rag` | Ingest (chunk → embed → store) + retrieval config |
-| `packages/ui` | `@meclaw/ui` | shadcn/ui + shared design system |
-| `packages/mcp` | `@meclaw/mcp` | MCP server: read-only telemetry/schema tools (scoped + redacted) |
-| `services/ai` | — | Python FastAPI + LangGraph sidecar (:8000) + Ragas eval harness |
-| `infra/` | — | Docker Compose (dev + Dokploy prod stack), deploy config |
+
+| Path            | Package         | Role                                                             |
+| --------------- | --------------- | ---------------------------------------------------------------- |
+| `apps/chat`     | `@meclaw/chat`  | Public chat, stateless edge (:3000)                              |
+| `apps/admin`    | `@meclaw/admin` | Content/config/gaps console, Auth.js (:3001)                     |
+| `packages/core` | `@meclaw/core`  | Drizzle ORM + postgres-js, content loader, settings              |
+| `packages/rag`  | `@meclaw/rag`   | Ingest (chunk → embed → store) + retrieval config                |
+| `packages/ui`   | `@meclaw/ui`    | shadcn/ui + shared design system                                 |
+| `packages/mcp`  | `@meclaw/mcp`   | MCP server: read-only telemetry/schema tools (scoped + redacted) |
+| `services/ai`   | —               | Python FastAPI + LangGraph sidecar (:8000) + Ragas eval harness  |
+| `infra/`        | —               | Docker Compose (dev + Dokploy prod stack), deploy config         |
+
 
 **Tech:** Next.js 16 (App Router) · React 19 · TypeScript · Tailwind 4 · shadcn/ui · Vercel AI SDK · Python (FastAPI + LangGraph) · PostgreSQL + pgvector · Ollama (`nomic-embed-text`, 768-dim) · Drizzle ORM · Auth.js v5 · Zod · Vitest + pytest · turbo.
 
-**Models** — two roles: a **draft model** (streaming) and a **triage model** (non-stream), both run thinking-off for latency where the endpoint supports it. Provider-agnostic: point the `ANTHROPIC_*` env at any Anthropic-compatible endpoint — the Anthropic API itself, or an Anthropic-compatible gateway (e.g. DashScope). For an OpenAI-compatible endpoint, swap the client in `services/ai/app/provider.py`. Either way, models are chosen in that one place.
+**Models** — two roles: a **draft model** (streaming) and a **triage model** (non-stream), both run thinking-off for latency where the endpoint supports it. Provider-agnostic: point the `ANTHROPIC_`* env at any Anthropic-compatible endpoint — the Anthropic API itself, or an Anthropic-compatible gateway (e.g. DashScope). For an OpenAI-compatible endpoint, swap the client in `services/ai/app/provider.py`. Either way, models are chosen in that one place.
 
 ## Quickstart A — Full stack in Docker (recommended)
 
@@ -154,6 +147,7 @@ pnpm dev:full                     # postgres, ollama, ai sidecar, chat (:3000), 
 ```
 
 One-time, after services are up:
+
 ```bash
 docker compose exec ollama ollama pull nomic-embed-text   # download embed model
 
@@ -185,20 +179,22 @@ pnpm --filter @meclaw/admin dev   # admin :3001 (needs AUTH_SECRET + ADMIN_PASSW
 
 ## Key commands
 
-| Command | Does |
-|---------|------|
-| `pnpm dev:full` | Docker: full stack (postgres, ollama, ai, chat, admin) with HMR. |
-| `pnpm services` | Docker: postgres + ollama only (data plane). |
-| `pnpm dev:ai` | Python sidecar :8000 on host (via `uv`, `--reload`). |
-| `pnpm --filter @meclaw/chat dev` | Chat Next.js dev :3000. |
-| `pnpm --filter @meclaw/admin dev` | Admin Next.js dev :3001. |
-| `pnpm db:migrate` | Apply Drizzle migrations to `DATABASE_URL`. |
-| `pnpm db:generate` | Generate a new migration from schema changes. |
-| `pnpm --filter @meclaw/admin seed:docs` | Import `content/**/*.md` into the admin Documents table. |
-| `pnpm ingest` | Embed ingestable markdown, PDFs, and work-impact packs → Postgres pgvector. |
-| `pnpm --filter @meclaw/admin gen:admin-hash <password>` | Mint scrypt admin password hash. |
-| `pnpm verify` | Lint + typecheck + build (turbo, all packages) — run before claiming done. |
-| `pnpm test` | Vitest (all JS packages). |
+
+| Command                                                 | Does                                                                        |
+| ------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `pnpm dev:full`                                         | Docker: full stack (postgres, ollama, ai, chat, admin) with HMR.            |
+| `pnpm services`                                         | Docker: postgres + ollama only (data plane).                                |
+| `pnpm dev:ai`                                           | Python sidecar :8000 on host (via `uv`, `--reload`).                        |
+| `pnpm --filter @meclaw/chat dev`                        | Chat Next.js dev :3000.                                                     |
+| `pnpm --filter @meclaw/admin dev`                       | Admin Next.js dev :3001.                                                    |
+| `pnpm db:migrate`                                       | Apply Drizzle migrations to `DATABASE_URL`.                                 |
+| `pnpm db:generate`                                      | Generate a new migration from schema changes.                               |
+| `pnpm --filter @meclaw/admin seed:docs`                 | Import `content/**/*.md` into the admin Documents table.                    |
+| `pnpm ingest`                                           | Embed ingestable markdown, PDFs, and work-impact packs → Postgres pgvector. |
+| `pnpm --filter @meclaw/admin gen:admin-hash <password>` | Mint scrypt admin password hash.                                            |
+| `pnpm verify`                                           | Lint + typecheck + build (turbo, all packages) — run before claiming done.  |
+| `pnpm test`                                             | Vitest (all JS packages).                                                   |
+
 
 ## Data model (PostgreSQL, single store)
 
@@ -235,12 +231,14 @@ Thresholds: pass-rate ≥ 0.70, faithfulness ≥ 0.50. `--ci` is an opt-in regre
 
 `packages/mcp` (`@meclaw/mcp`) is a **standalone, read-only [MCP](https://modelcontextprotocol.io) server** — an out-of-band side-door for an AI client (Claude Desktop, an agent) to inspect how the bot is doing. It is **not** in the chat request path; nothing in the apps imports it. It connects directly to Postgres with a read-only role and exposes:
 
-| Tool | Does |
-|------|------|
-| `get-telemetry` | Summaries by `kind`: `gaps`, `misses`, `ingestion`, `retrieval` (reads `gap_clusters` / `chat_misses` / `ingestion_jobs` / `retrieval_events`). |
-| `describe-schema` | Table/column dictionary for safe self-service querying. |
-| `run-read-query` | Arbitrary **read-only** SQL (guarded). |
-| `search-corpus` | Semantic search over `rag_chunks`. |
+
+| Tool              | Does                                                                                                                                            |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `get-telemetry`   | Summaries by `kind`: `gaps`, `misses`, `ingestion`, `retrieval` (reads `gap_clusters` / `chat_misses` / `ingestion_jobs` / `retrieval_events`). |
+| `describe-schema` | Table/column dictionary for safe self-service querying.                                                                                         |
+| `run-read-query`  | Arbitrary **read-only** SQL (guarded).                                                                                                          |
+| `search-corpus`   | Semantic search over `rag_chunks`.                                                                                                              |
+
 
 It reports over the **same gaps/telemetry tables** the chat loop writes — it surfaces them, it does not create or resolve gaps (that stays in the admin **Gaps** inbox).
 
@@ -275,16 +273,25 @@ The flow:
 3. **Ingest** — each document is chunked, embedded (Ollama `nomic-embed-text`), and written to `rag_chunks` (`source = document:<id>`, replace-on-edit so no stale vectors).
 4. **Chat reads `rag_chunks`** — cosine kNN over pgvector. DB only.
 
+**Local vs live.** The markdown path is a *bootstrap*, not a runtime dependency:
+
+- **First-run / local** — drop files in `content/`, then `seed:docs` + `pnpm ingest` to fill `rag_chunks`.
+- **Live (ongoing)** — manage knowledge in the admin **Documents** console; the admin app embeds in-process (Ollama → `rag_chunks`), so no CLI or redeploy is needed to add or edit knowledge. The markdown path is still available on the server as a one-shot (the `ops` ingest image + the mounted `content/` volume) for bulk re-seeding — see `docs/ai/deploy.md`.
+
+> **Use one ingest path per deployment.** The `content/` CLI writes file-slug chunk sources; the admin console writes `document:<id>` sources. Running both ingests the same knowledge twice under different keys. Seed once via markdown, then edit in the admin console — or stay entirely in one or the other.
+
 **First-run ingest folders:**
 
-| Local path | File types | What happens |
-|------------|------------|--------------|
-| `content/personal.md` | Markdown | Copy from `content/personal.example.md`; seed imports it into Documents, ingest embeds it. |
-| `content/knowledge/**` | Markdown, PDF | Main private RAG corpus. Markdown can be seeded into Documents; markdown + PDFs are embedded by `pnpm ingest`. |
-| `content/private/**` | Markdown, PDF | Local-only sensitive-but-ingestable notes. Same ingest behavior as `content/knowledge/**`. |
-| `data/work_impact_<company>/04_rag_entries.json` | JSON | Optional structured work-impact pack. `pnpm ingest` renders one RAG doc per company. See `data/work_impact_example/04_rag_entries.example.json`. |
 
-**Privacy:** `content/` ships only public-safe templates + samples so a fresh clone chats immediately. Real `content/personal.md`, `content/private/**`, real `content/knowledge/**` files, and `data/**` payloads are gitignored and stay local. The tracked `.gitkeep` and `.example` files exist only to show the expected folder shape. See `content/README.md`.
+| Local path                                       | File types    | What happens                                                                                                                                     |
+| ------------------------------------------------ | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `content/personal.md`                            | Markdown      | Copy from `content/personal.example.md`; seed imports it into Documents, ingest embeds it.                                                       |
+| `content/knowledge/`**                           | Markdown, PDF | Main private RAG corpus. Markdown can be seeded into Documents; markdown + PDFs are embedded by `pnpm ingest`.                                   |
+| `content/private/**`                             | Markdown, PDF | Local-only sensitive-but-ingestable notes. Same ingest behavior as `content/knowledge/**`.                                                       |
+| `data/work_impact_<company>/04_rag_entries.json` | JSON          | Optional structured work-impact pack. `pnpm ingest` renders one RAG doc per company. See `data/work_impact_example/04_rag_entries.example.json`. |
+
+
+**Privacy:** `content/` ships only public-safe templates + samples so a fresh clone chats immediately. Real `content/personal.md`, `content/private/`**, real `content/knowledge/**` files, and `data/**` payloads are gitignored and stay local. The tracked `.gitkeep` and `.example` files exist only to show the expected folder shape. See `content/README.md`.
 
 ## Docs
 

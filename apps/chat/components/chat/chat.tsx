@@ -2,7 +2,7 @@
 
 import { useChat } from "@ai-sdk/react";
 import { Button, cn, useTheme } from "@meclaw/ui";
-import { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import type { ChatSession } from "@/lib/chat/sessions";
 import {
@@ -249,7 +249,7 @@ export function LiveTrace({ steps }: { steps: string[] }) {
     <div>
       <section
         aria-label="Assistant says"
-        className="rounded-2xl bg-muted px-4 py-2 text-sm text-muted-foreground"
+        className="rounded-2xl bg-muted px-4 py-2 text-sm text-muted-foreground w-fit"
       >
         {steps.length === 0 ? (
           <div className="flex items-center gap-2">
@@ -328,7 +328,7 @@ function SourcesPanel({
 
 function ThinkingTrace({ steps }: { steps: string[] }) {
   return (
-    <details className="w-full max-w-[85%] rounded-xl border border-border bg-background px-3 py-2 text-xs text-muted-foreground">
+    <details className="max-w-[85%] rounded-xl border border-border bg-background px-3 py-2 text-xs text-muted-foreground">
       <summary className="cursor-pointer font-medium text-foreground">How I answered</summary>
       <ol className="mt-2 space-y-1">
         {steps.map((step, i) => (
@@ -372,7 +372,7 @@ function AssistantTurn({
   const steps = extractSteps(message);
   return (
     <section aria-label="Assistant says" className="min-w-0 space-y-2">
-      <div className="max-w-[calc(100%-16px)] rounded-2xl bg-muted px-4 py-2 text-sm text-foreground">
+      <div className="rounded-2xl bg-muted px-4 py-2 text-sm text-foreground max-w-[85%]">
         {message.parts.map((part, j) =>
           part.type === "text" ? (
             <div key={`${message.id}-${j}`} className={PROSE_BUBBLE}>
@@ -406,11 +406,12 @@ function UserTurn({
   text: string;
 }) {
   return (
-    <section aria-label="You said" className="flex flex-col items-end">
+    <section aria-label="You said" className="flex flex-col items-end max-w-[85%]">
       <div
         className={cn(
-          "max-w-[calc(100%-16px)] rounded-2xl px-4 py-2 text-sm",
+          "rounded-2xl px-4 py-2 text-sm",
           "bg-primary text-primary-foreground",
+          "w-fit",
         )}
       >
         {message.parts.map((part, j) =>
@@ -813,7 +814,7 @@ export function Chat({
             const text = messageText(message);
 
             return (
-              <div key={message.id}>
+              <React.Fragment key={message.id}>
                 {showDay ? (
                   <div className="my-3 text-center font-mono text-xs text-muted-foreground">
                     {formatDayLabel(ts)}
@@ -833,7 +834,7 @@ export function Chat({
                     <UserTurn message={message as RenderableMessage} ts={ts} text={text} />
                   )}
                 </div>
-              </div>
+              </React.Fragment>
             );
           })}
         {showThinking && <LiveTrace steps={liveSteps} />}
@@ -849,6 +850,7 @@ export function Chat({
           aria-label="Message"
           enterKeyHint="send"
           autoComplete="off"
+          name="message"
           className="flex-1 rounded-sm border border-input bg-card px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
         />
         <Button

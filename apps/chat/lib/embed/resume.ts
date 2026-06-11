@@ -16,12 +16,20 @@ function secret(): string {
   return process.env.RESUME_TOKEN_SECRET ?? "";
 }
 
+/** True only in development/test — never in production. */
+function isDev(): boolean {
+  return process.env.NODE_ENV !== "production";
+}
+
 export function signResumeToken(input: { conversationId: string; embedClientId: string }): string {
   const s = secret();
   const payload = Buffer.from(`${input.conversationId}:${input.embedClientId}`, "utf8").toString(
     "hex",
   );
-  if (!s) return `${payload}.insecure`;
+  if (!s) {
+    if (!isDev()) throw new Error("RESUME_TOKEN_SECRET is required in production");
+    return `${payload}.insecure`;
+  }
   const mac = createHmac(DIGEST, s).update(payload).digest("hex");
   return `${payload}.${mac}`;
 }
@@ -32,15 +40,18 @@ export function verifyResumeToken(input: {
   embedClientId: string;
 }): boolean {
   const s = secret();
-  if (!s) return false;
   const [payload, mac] = input.token.split(".");
   if (!payload || !mac) return false;
-  if (mac.length !== DIGEST_HEX_LEN) return false;
   const expectedPayload = Buffer.from(
     `${input.conversationId}:${input.embedClientId}`,
     "utf8",
   ).toString("hex");
   if (payload !== expectedPayload) return false;
+  // Dev/test fallback: accept unsigned `.insecure` tokens only outside production.
+  // In production, a missing RESUME_TOKEN_SECRET is a hard failure (sign throws,
+  // and verify rejects all tokens) — fail-closed, not fail-open.
+  if (!s) return isDev() && mac === "insecure";
+  if (mac.length !== DIGEST_HEX_LEN) return false;
   const expectedMac = createHmac(DIGEST, s).update(payload).digest("hex");
   try {
     return timingSafeEqual(Buffer.from(mac, "hex"), Buffer.from(expectedMac, "hex"));
