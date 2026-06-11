@@ -37,7 +37,7 @@ ANTHROPIC_MODEL=qwen3.6-plus
 
 ## Status
 
-**Everything below is complete and merged to `main` (pushed, HEAD `3d52515`); production runs v1.0.10-alpha at `meclaw.leanior.com`:**
+**Everything below is complete and merged to `main` (pushed); production runs v1.0.11-alpha at `meclaw.leanior.com`:**
 
 - v1 milestones M0–M6 (chat loop, persona, persistence, UX, tools, guardrails)
 - RAG on pgvector + admin console + gap feedback loop + config wiring
@@ -102,3 +102,4 @@ One line per landed change, newest last. Full writeups: `git log -p docs/ai/HAND
 - 2026-06-11: **Mobile-responsive embed** — embed.js now auto-switches to full-screen on mobile (≤768px) and PWA standalone mode. Includes keyboard handling via `visualViewport` API with 200px min-height floor, safe-area insets for notched devices, 75ms debounced resize/orientation listeners, `document.currentScript` for reliable async script detection, and event listener cleanup in `destroy()`. Browser-verified on Chrome (mobile/desktop modes).
 - 2026-06-11: **Mobile embed UX fixes** — close button in toolbar (embed mode only, posts `meclaw:close` postMessage + Escape key), keyboard-sticky input via `visualViewport` resize with touch-scroll guards, bot avatars removed (reclaims ~44px/message, `aria-label` a11y preserved on `<section>` wrappers), `overscroll-contain` + `break-words` overflow hardening, min-height floor removed from iframe container. Released v1.0.9-alpha.
 - 2026-06-11: **Parent theme sync** — embed.js detects host page's dark/light theme from `.dark` class or `data-meclaw-theme` attribute, passes as `&theme=` query param on iframe URL, and relays live `meclaw:theme` postMessage from parent into the iframe. Widget applies via `useTheme().setTheme()`. Leanior side: `MeclawThemeSync` client component sends `resolvedTheme` via postMessage with MutationObserver for async iframe readiness. Released v1.0.10-alpha.
+- 2026-06-11: **Version footer + typography gate** — main page footer now shows the `meclaw · vX · sha` version stamp (server-read `VERSION_LABEL` passed as prop to dodge the client-bundle env trap), matching the embed. Chat content (live trace/thinking, user bubbles, greeting) unified to `font-sans` so prose stops reading like terminal at equal px (root cause of the perceived size mismatch: mono base vs sans answer). All 23 arbitrary `text-[Npx]` migrated to the Tailwind scale (`text-xs`+); `scripts/check-typography.sh` grep gate wired into `pnpm verify`/CI + pre-push bans them going forward. Conventions doc updated (Typography section). Released v1.0.11-alpha.
