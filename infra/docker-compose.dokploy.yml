@@ -84,11 +84,18 @@ services:
       migrations:
         condition: service_completed_successfully
 
+  # Shared across ALL meclaw stacks (owner + customers): embeddings are
+  # stateless, one nomic-embed-text instance serves everyone (~0.5-1GB RAM
+  # saved per customer). Customer stacks reach it on the external
+  # `meclaw-shared` network as http://meclaw-ollama-shared:11434.
   ollama:
     image: ollama/ollama:0.3.14
     restart: unless-stopped
     expose: ["11434"]
-    networks: [internal]
+    networks:
+      internal: {}
+      meclaw-shared:
+        aliases: [meclaw-ollama-shared]
     volumes: ["ollama_storage:/root/.ollama"]
 
   postgres:
@@ -138,6 +145,10 @@ services:
 networks:
   internal: {}
   dokploy-network:
+    external: true
+  # Operator must `docker network create meclaw-shared` on the box before deploy.
+  # Compose won't create it (external: true). Documented in docs/ai/customer-ops.md.
+  meclaw-shared:
     external: true
 
 volumes:
