@@ -26,6 +26,7 @@ vi.mock("@/components/chat/config-refresh-poller", () => ({
 
 // Import AFTER mocks are set up
 import { Chat, clearResumeEntry, readResumeEntry, writeResumeEntry } from "@/components/chat/chat";
+import { listSessions } from "@/lib/chat/sessions";
 
 // Mock localStorage for tests
 const localStorageMock = (() => {
@@ -240,8 +241,9 @@ describe("Chat component — embed mode resume integration", () => {
 
     // setMessages should not have been called (fetch failed)
     expect(mockState.setMessages).not.toHaveBeenCalled();
-    // Legacy key is NOT cleared by loadConversation anymore — migration (Task 6) owns cleanup
-    expect(localStorage.getItem(`meclaw:resume:${embedToken}`)).not.toBeNull();
+    // Migration consumed the legacy key on mount; fetch failure removed the session from the index.
+    expect(localStorage.getItem(`meclaw:resume:${embedToken}`)).toBeNull();
+    expect(listSessions({ scope: embedToken })).toEqual([]);
   });
 
   it("history fetch populates messages on success", async () => {
@@ -303,8 +305,11 @@ describe("Chat component — embed mode resume integration", () => {
       parts: [{ type: "text", text: "hi there" }],
     });
 
-    // localStorage entry should NOT be cleared (successful fetch)
-    expect(localStorage.getItem(`meclaw:resume:${embedToken}`)).toBe(JSON.stringify(entry));
+    // Migration consumed the legacy key on mount; the session is in the namespaced index.
+    expect(localStorage.getItem(`meclaw:resume:${embedToken}`)).toBeNull();
+    const sessions = listSessions({ scope: embedToken });
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0].conversationId).toBe("conv-ok");
   });
 
   it("normal mode does not pass embedToken in sendMessage body", () => {

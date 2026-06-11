@@ -10,6 +10,7 @@ import {
   getSession,
   listSessions,
   MAIN_RESUME_KEY,
+  migrateEmbedLegacy,
   migrateLegacyEntry,
   readResumeEntry,
   removeSession,
@@ -478,8 +479,9 @@ export function Chat({
   // normal mode uses the session index. Otherwise start a fresh conversation.
   const [conversationId, setConversationId] = useState(() => {
     if (mode === "embed") {
-      const entry = embedToken ? readResumeEntry(embedToken) : null;
-      return entry?.conversationId ?? crypto.randomUUID();
+      if (embedToken) migrateEmbedLegacy(embedToken);
+      const latest = embedToken ? listSessions({ scope: embedToken })[0] : null;
+      return latest?.conversationId ?? crypto.randomUUID();
     }
     // Normal mode: fold any legacy single entry into the index, then resume the
     // most-recently-updated session if one exists.
@@ -588,12 +590,7 @@ export function Chat({
   // the embed single entry (embed) or the session index (normal).
   const loadConversation = useCallback(
     (id: string) => {
-      const resume =
-        mode === "embed"
-          ? embedToken
-            ? readResumeEntry(embedToken)
-            : null
-          : getSession({ scope, conversationId: id });
+      const resume = getSession({ scope, conversationId: id });
       if (!resume) {
         setMessages([]);
         return;
