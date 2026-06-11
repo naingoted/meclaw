@@ -27,6 +27,7 @@ vi.mock("@meclaw/core/db", () => ({
 
 vi.mock("@/lib/rate-limit", () => ({
   chatRateLimiter: { check: () => ({ allowed: true }) },
+  chatGlobalRateLimiter: { check: () => ({ allowed: true }) },
 }));
 
 vi.mock("@/lib/ai/guardrails", () => ({

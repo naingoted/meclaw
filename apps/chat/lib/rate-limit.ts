@@ -101,3 +101,20 @@ export const chatRateLimiter = createRateLimiter({
   maxRequests: RATE_LIMIT_MAX_REQUESTS,
   windowMs: RATE_LIMIT_WINDOW_MS,
 });
+
+// Stack-wide ceiling (D7.2): bounds AGGREGATE chat requests per minute across
+// all IPs, so many distinct visitors can't run up the shared gateway bill.
+// Per-IP limiting above handles single abusers; this caps the whole stack.
+const CHAT_GLOBAL_LIMIT_PER_MIN = parseInt(process.env.CHAT_GLOBAL_LIMIT_PER_MIN || "120", 10);
+const GLOBAL_KEY = "__stack__";
+
+const globalLimiter = createRateLimiter({
+  maxRequests: CHAT_GLOBAL_LIMIT_PER_MIN,
+  windowMs: 60_000,
+});
+
+export const chatGlobalRateLimiter = {
+  check(): RateLimitResult {
+    return globalLimiter.check(GLOBAL_KEY);
+  },
+};

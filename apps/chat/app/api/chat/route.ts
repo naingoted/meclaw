@@ -18,7 +18,7 @@ import { getChatDb, isAllowedOrigin, resolveEmbedClient } from "@/lib/embed/auth
 import { embedClientRateLimiter } from "@/lib/embed/rate-limit";
 import { signResumeToken, verifyResumeToken } from "@/lib/embed/resume";
 import { notifyLead } from "@/lib/notify";
-import { chatRateLimiter } from "@/lib/rate-limit";
+import { chatGlobalRateLimiter, chatRateLimiter } from "@/lib/rate-limit";
 
 // Allow streaming responses up to 30 seconds.
 export const maxDuration = 30;
@@ -223,6 +223,18 @@ export async function POST(req: Request) {
           "Retry-After": String(rateLimitResult.retryAfter),
         },
       },
+    );
+  }
+
+  // Guard 1b: stack-wide ceiling — aggregate spend protection for the shared
+  // gateway key. Checked after per-IP so single abusers burn their own budget
+  // before the shared one.
+  const globalResult = chatGlobalRateLimiter.check();
+  if (!globalResult.allowed) {
+    console.warn(`[chat] Global rate ceiling hit. Retry-After: ${globalResult.retryAfter}s`);
+    return Response.json(
+      { error: "The assistant is busy right now. Please try again shortly." },
+      { status: 429, headers: { "Retry-After": String(globalResult.retryAfter) } },
     );
   }
 

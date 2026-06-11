@@ -119,3 +119,16 @@ describe("Rate Limiter", () => {
     vi.useRealTimers();
   });
 });
+
+describe("global chat ceiling", () => {
+  it("blocks all callers once the stack-wide budget is spent", () => {
+    const limiter = createRateLimiter({ maxRequests: 3, windowMs: 60_000 });
+    // Different IPs all consume the same global key.
+    expect(limiter.check("global").allowed).toBe(true);
+    expect(limiter.check("global").allowed).toBe(true);
+    expect(limiter.check("global").allowed).toBe(true);
+    const fourth = limiter.check("global");
+    expect(fourth.allowed).toBe(false);
+    expect(fourth.retryAfter).toBeGreaterThan(0);
+  });
+});

@@ -31,9 +31,13 @@ vi.mock("@/lib/notify", () => ({
 
 // Create a mutable mock for rate limiter that we can control per test
 const mockRateLimiterCheck = vi.fn(() => ({ allowed: true }));
+const mockGlobalRateLimiterCheck = vi.fn(() => ({ allowed: true }));
 vi.mock("@/lib/rate-limit", () => ({
   chatRateLimiter: {
     check: mockRateLimiterCheck,
+  },
+  chatGlobalRateLimiter: {
+    check: mockGlobalRateLimiterCheck,
   },
 }));
 
@@ -92,6 +96,7 @@ describe("POST /api/chat — Guard Tests", () => {
     vi.clearAllMocks();
     vi.unstubAllEnvs();
     mockRateLimiterCheck.mockReturnValue({ allowed: true });
+    mockGlobalRateLimiterCheck.mockReturnValue({ allowed: true });
   });
 
   it("route exports POST handler", async () => {
@@ -120,6 +125,28 @@ describe("POST /api/chat — Guard Tests", () => {
       expect(response.status).toBe(429);
       const retryAfter = response.headers.get("Retry-After");
       expect(retryAfter).toBe("60");
+    });
+
+    it("returns 429 from the global ceiling even for distinct IPs", async () => {
+      mockRateLimiterCheck.mockReturnValue({ allowed: true });
+      mockGlobalRateLimiterCheck.mockReturnValue({
+        allowed: false,
+        retryAfter: 45,
+      } as ReturnType<typeof mockGlobalRateLimiterCheck>);
+
+      const { POST } = await import("./route");
+      const request = new Request("http://localhost/api/chat", {
+        method: "POST",
+        headers: { "x-forwarded-for": "2.2.2.2" },
+        body: JSON.stringify({ messages: [] }),
+      });
+
+      const response = await POST(request);
+      expect(response.status).toBe(429);
+      const retryAfter = response.headers.get("Retry-After");
+      expect(retryAfter).toBe("45");
+      const body = (await response.json()) as { error: string };
+      expect(body.error).toContain("busy");
     });
   });
 
