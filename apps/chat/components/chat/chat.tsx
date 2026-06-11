@@ -748,9 +748,8 @@ export function Chat({
     return body;
   }
 
-  // On the first user turn (normal mode), register the session and set its title.
+  // On the first user turn, register the session and set its title.
   function registerUserTurn(text: string) {
-    if (mode === "embed") return;
     upsertSession({ scope, conversationId });
     setSessionTitle({ scope, conversationId, title: text });
   }
@@ -857,16 +856,14 @@ export function Chat({
         </Button>
       </form>
 
-      {mode === "normal" ? (
-        <HistoryDrawer
-          open={historyOpen}
-          sessions={sessions}
-          activeConversationId={conversationId}
-          onSelect={pickConversation}
-          onDelete={deleteConversation}
-          onClose={() => setHistoryOpen(false)}
-        />
-      ) : null}
+      <HistoryDrawer
+        open={historyOpen}
+        sessions={sessions}
+        activeConversationId={conversationId}
+        onSelect={pickConversation}
+        onDelete={deleteConversation}
+        onClose={() => setHistoryOpen(false)}
+      />
     </div>
   );
 }

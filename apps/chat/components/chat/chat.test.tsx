@@ -820,9 +820,9 @@ describe("History drawer wiring (normal mode)", () => {
     expect(screen.getByText("Past chat")).toBeInTheDocument();
   });
 
-  it("does not render the History button in embed mode", () => {
+  it("renders the History button in embed mode (multi-session history)", () => {
     render(<Chat {...CHAT_PROPS} mode="embed" embedToken="pk_a" />);
-    expect(screen.queryByRole("button", { name: /history/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /history/i })).toBeInTheDocument();
   });
 
   it("deletes the active conversation and resets to a fresh chat", () => {
