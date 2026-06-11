@@ -92,6 +92,10 @@ services:
       timeout: 5s
       retries: 5
     volumes: ["pgdata:/var/lib/postgresql/data"]
+    labels:
+      # Marker for backup script discovery — Dokploy overrides compose project
+      # name with its own compose-<id>, so we can't rely on project label matching.
+      - com.meclaw.backup=true
 
   migrations:
     image: ghcr.io/${GHCR_OWNER}/meclaw-ops:${IMAGE_TAG}

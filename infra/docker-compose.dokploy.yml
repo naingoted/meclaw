@@ -114,6 +114,10 @@ services:
       timeout: 5s
       retries: 5
     volumes: ["pgdata:/var/lib/postgresql/data"]
+    labels:
+      # Marker for backup script discovery — Dokploy overrides compose project
+      # name with its own compose-<id>, so we can't rely on project label matching.
+      - com.meclaw.backup=true
 
   # One-shot DB migrator. Runs on every deploy BEFORE chat/admin/ai start
   # (they gate on service_completed_successfully). Reuses the ops image but has
