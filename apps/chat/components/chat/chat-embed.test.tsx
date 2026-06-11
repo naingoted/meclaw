@@ -26,7 +26,7 @@ vi.mock("@/components/chat/config-refresh-poller", () => ({
 
 // Import AFTER mocks are set up
 import { Chat, clearResumeEntry, readResumeEntry, writeResumeEntry } from "@/components/chat/chat";
-import { listSessions } from "@/lib/chat/sessions";
+import { listSessions, upsertSession } from "@/lib/chat/sessions";
 
 // Mock localStorage for tests
 const localStorageMock = (() => {
@@ -413,5 +413,87 @@ describe("Chat component — embed mode resume integration", () => {
       writable: true,
       configurable: true,
     });
+  });
+});
+
+describe("Chat component — embed multi-session history", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    mockState.messages = [];
+    mockState.sendMessage = vi.fn();
+    mockState.status = "ready";
+    mockState.setMessages = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ conversationId: "x", messages: [] }), { status: 200 }),
+        ),
+      ),
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("opens the history drawer in embed mode and lists a stored session", () => {
+    const embedToken = "pk_history";
+    upsertSession({ conversationId: "conv-past", title: "Past embed chat", scope: embedToken });
+    render(
+      <Chat
+        greeting="Hi"
+        suggestions={["chip"]}
+        initialConfigVersion="0"
+        mode="embed"
+        embedToken={embedToken}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /history/i }));
+    expect(screen.getByText("Past embed chat")).toBeInTheDocument();
+  });
+
+  it("does not cross-contaminate sessions across different embedTokens", () => {
+    upsertSession({ conversationId: "acme-1", title: "Acme chat", scope: "pk_acme" });
+    upsertSession({ conversationId: "other-1", title: "Other chat", scope: "pk_other" });
+
+    render(
+      <Chat
+        greeting="Hi"
+        suggestions={["chip"]}
+        initialConfigVersion="0"
+        mode="embed"
+        embedToken="pk_acme"
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /history/i }));
+    expect(screen.getByText("Acme chat")).toBeInTheDocument();
+    expect(screen.queryByText("Other chat")).not.toBeInTheDocument();
+  });
+
+  it("migrates a legacy resume entry into the namespaced index on mount", () => {
+    const embedToken = "pk_legacy";
+    localStorage.setItem(
+      `meclaw:resume:${embedToken}`,
+      JSON.stringify({ conversationId: "legacy-conv", resumeToken: "legacy-rt" }),
+    );
+
+    render(
+      <Chat
+        greeting="Hi"
+        suggestions={["chip"]}
+        initialConfigVersion="0"
+        mode="embed"
+        embedToken={embedToken}
+      />,
+    );
+
+    // Migration is synchronous in the useState initializer, so the index is
+    // populated before the first render.
+    const sessions = listSessions({ scope: embedToken });
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0].conversationId).toBe("legacy-conv");
+    // Legacy key is consumed
+    expect(localStorage.getItem(`meclaw:resume:${embedToken}`)).toBeNull();
   });
 });
