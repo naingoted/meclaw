@@ -1,7 +1,4 @@
-# meclaw
-
-[CI](https://github.com/naingoted/meclaw/actions/workflows/ci.yml)
-[License: MIT](LICENSE)
+# Meclaw
 
 **Your AI twin, self-hosted.** Fork it, drop your markdown into `content/`, and get a public chatbot that answers questions about *you* — grounded in your own notes, never made up — plus an admin console with a built-in feedback loop: every question the bot couldn't answer lands in a ranked inbox, one click turns it into new knowledge.
 
