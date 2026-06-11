@@ -4,6 +4,7 @@ import {
   getSession,
   listSessions,
   MAIN_RESUME_KEY,
+  migrateEmbedLegacy,
   migrateLegacyEntry,
   readResumeEntry,
   removeSession,
@@ -161,5 +162,52 @@ describe("degradation (never throws)", () => {
       throw new Error("quota");
     });
     expect(() => upsertSession({ conversationId: "a" })).not.toThrow();
+  });
+});
+
+describe("migrateEmbedLegacy", () => {
+  beforeEach(() => localStorage.clear());
+
+  it("folds a legacy single-entry into the namespaced index and deletes the legacy key", () => {
+    writeResumeEntry("pk_abc", { conversationId: "legacy-1", resumeToken: "rt-legacy" });
+
+    migrateEmbedLegacy("pk_abc");
+
+    const sessions = listSessions({ scope: "pk_abc" });
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0]).toMatchObject({
+      conversationId: "legacy-1",
+      resumeToken: "rt-legacy",
+      title: "",
+    });
+    expect(readResumeEntry("pk_abc")).toBeNull();
+  });
+
+  it("is a no-op when the namespaced index is non-empty", () => {
+    upsertSession({ conversationId: "already-migrated", scope: "pk_abc" });
+    writeResumeEntry("pk_abc", { conversationId: "legacy-2", resumeToken: "rt-old" });
+
+    migrateEmbedLegacy("pk_abc");
+
+    expect(listSessions({ scope: "pk_abc" })).toHaveLength(1);
+    expect(getSession({ scope: "pk_abc", conversationId: "already-migrated" })).not.toBeNull();
+    // legacy key NOT consumed — migration bailed early
+    expect(readResumeEntry("pk_abc")).not.toBeNull();
+  });
+
+  it("is a no-op when the legacy key is absent", () => {
+    expect(() => migrateEmbedLegacy("pk_missing")).not.toThrow();
+    expect(listSessions({ scope: "pk_missing" })).toEqual([]);
+  });
+
+  it("does not touch the global index or other scopes", () => {
+    writeResumeEntry("pk_abc", { conversationId: "c", resumeToken: "r" });
+    upsertSession({ conversationId: "main-session" }); // global
+    upsertSession({ conversationId: "other-embed", scope: "pk_def" });
+
+    migrateEmbedLegacy("pk_abc");
+
+    expect(listSessions().map((s) => s.conversationId)).toEqual(["main-session"]);
+    expect(listSessions({ scope: "pk_def" }).map((s) => s.conversationId)).toEqual(["other-embed"]);
   });
 });

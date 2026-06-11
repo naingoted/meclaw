@@ -226,3 +226,31 @@ export function migrateLegacyEntry(): void {
   });
   clearResumeEntry(MAIN_RESUME_KEY);
 }
+
+/**
+ * One-time migration per embedToken: fold the legacy
+ * `meclaw:resume:<embedToken>` single-entry into the namespaced index
+ * `meclaw:sessions:<embedToken>`, then drop the legacy key. No-op when the
+ * namespaced index is already populated or the legacy key is absent.
+ *
+ * Deliberate tradeoffs (see design spec):
+ *  - title: "" → drawer shows "New conversation". Deriving a real title
+ *    would require a /api/chat/history round-trip at mount.
+ *  - updatedAt: now → migrated conversation surfaces at the top of the
+ *    drawer, matching pre-change resume behavior.
+ */
+export function migrateEmbedLegacy(embedToken: string): void {
+  if (readIndex(embedToken).sessions.length > 0) return;
+  const legacy = readResumeEntry(embedToken);
+  if (!legacy) return;
+  const now = Date.now();
+  upsertSession({
+    scope: embedToken,
+    conversationId: legacy.conversationId,
+    resumeToken: legacy.resumeToken,
+    title: "",
+    createdAt: now,
+    updatedAt: now,
+  });
+  clearResumeEntry(embedToken);
+}
