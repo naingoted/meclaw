@@ -175,3 +175,5 @@ secrets.
   `OLLAMA_BASE_URL=http://meclaw-ollama-shared:11434` (it's in the template).
 - **Anything box/Traefik/Dokploy-level:** see the **Debugging runbook** in `docs/ai/deploy.md`
   (container naming, panel TLS, login reset) — it applies to customer stacks too.
+- **Suspected secret leak (any stack):** follow `docs/ai/secrets-rotation.md` before touching
+  anything else. Customer stacks share the gateway key, so one leak rotates for all.
