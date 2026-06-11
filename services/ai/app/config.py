@@ -8,6 +8,11 @@ ANTHROPIC_MODEL_DEFAULT = "qwen3.6-plus"
 TRIAGE_MODEL = os.getenv("TRIAGE_MODEL", "glm-4.7")
 DRAFT_MODEL = os.getenv("DRAFT_MODEL", "qwen3.6-plus")
 
+# Stack identity: the human the bot represents. Set per customer at provision.
+# Admin-editable prompts (settings.agents.*.prompt) override the persona
+# fallbacks; this env only feeds module-level templates and fallbacks.
+OWNER_NAME = os.getenv("BOT_OWNER_NAME", "Thet")
+
 # Retrieval contract — keep identical to lib/rag ingest config.
 DATABASE_URL = os.getenv(
     "DATABASE_URL", "postgres://meclaw:meclaw@localhost:5432/meclaw"

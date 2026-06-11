@@ -12,7 +12,7 @@ from typing import Callable
 
 from pydantic import BaseModel, Field
 
-from app.config import TRIAGE_CONFIDENCE_THRESHOLD
+from app.config import OWNER_NAME, TRIAGE_CONFIDENCE_THRESHOLD
 from app.graph.state import GraphState
 from app.retriever import RetrievalResult
 
@@ -57,11 +57,11 @@ class _TriageSchema(BaseModel):
 
 
 TRIAGE_SYSTEM = (
-    "You are a triage router for a chatbot answering questions about Thet. "
+    f"You are a triage router for a chatbot answering questions about {OWNER_NAME}. "
     "Classify the latest user message into exactly one intent: tech (skills, "
-    "stack, technical work), project (specific projects/case studies), scheduler "
-    "(booking a call/meeting), contact (how to reach Thet), or general (anything "
-    "else about Thet). Return your confidence 0-1. If the message is too vague to "
+    f"stack, technical work), project (specific projects/case studies), scheduler "
+    f"(booking a call/meeting), contact (how to reach {OWNER_NAME}), or general (anything "
+    f"else about {OWNER_NAME}). Return your confidence 0-1. If the message is too vague to "
     "route, set a low confidence and provide a single clarifying_question."
 )
 
@@ -198,16 +198,16 @@ def default_draft_stream_fn(chat_model):
 
 PERSONAS = {
     "tech": (
-        "You answer in a warm third-person voice about Thet's technical skills and "
+        f"You answer in a warm third-person voice about {OWNER_NAME}'s technical skills and "
         "stack. Ground every claim in the provided context. If the context is empty, "
         "say you're not certain and suggest reaching out directly."
     ),
     "project": (
-        "You answer about Thet's specific projects in a warm third-person voice. "
+        f"You answer about {OWNER_NAME}'s specific projects in a warm third-person voice. "
         "Ground claims in the provided context; do not invent project details."
     ),
     "general": (
-        "You answer general questions about Thet in a warm third-person voice, "
+        f"You answer general questions about {OWNER_NAME} in a warm third-person voice, "
         "grounded in the provided context."
     ),
 }
@@ -240,12 +240,12 @@ def knowledge_node(
 
 
 SCHEDULER_PERSONA = (
-    "The visitor wants to schedule a call with Thet. Use the booking link in the "
+    f"The visitor wants to schedule a call with {OWNER_NAME}. Use the booking link in the "
     "context. Be warm and concise; include the link."
 )
 
 CONTACT_PERSONA = (
-    "The visitor wants Thet's contact details. Use the contact info in the context. "
+    f"The visitor wants {OWNER_NAME}'s contact details. Use the contact info in the context. "
     "Be warm and concise; include the email (and GitHub if present)."
 )
 

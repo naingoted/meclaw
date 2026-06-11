@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import re
 
+from app.config import OWNER_NAME
+
 _EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 # A phone-shaped token: optional +, optional leading paren, a digit, then digits/space/()-/. ,
 # ending on a digit. Length is validated separately on the digit count.
@@ -40,39 +42,40 @@ def format_contact(contact: dict) -> str:
 
 SOFT_OFFER = (
     "I'm not certain about that one. If you'd like, drop your email or phone "
-    "and I'll have Thet follow up directly."
+    f"and I'll have {OWNER_NAME} follow up directly."
 )
 CONNECT_OFFER = (
-    "Prefer he reach out to you? Share your email or phone and I'll pass it "
-    "straight to him."
+    f"Prefer {OWNER_NAME} reach out to you? Share your email or phone and "
+    "I'll pass it straight along."
 )
 ESCALATED_OFFER = (
     "I still can't answer that one well. The fastest path is to leave your "
-    "email or phone — Thet will get back to you personally."
+    f"email or phone — {OWNER_NAME} will get back to you personally."
 )
 # Used when contact was ALREADY captured this conversation: acknowledge the miss
 # without nagging for contact again.
 NEUTRAL_FALLBACK = (
-    "I'm still not certain about that one — Thet will be in touch using the "
-    "details you shared."
+    f"I'm still not certain about that one — {OWNER_NAME} will be in touch "
+    "using the details you shared."
 )
 
 
 def confirm(contact: dict) -> str:
     return (
-        f"Got it — I'll make sure Thet follows up at {format_contact(contact)}. "
+        f"Got it — I'll make sure {OWNER_NAME} follows up at {format_contact(contact)}. "
         "Anything else I can try in the meantime?"
     )
 
 
-# Distinct substrings used to recognize each offer/confirm in history. Keep in
-# sync with the templates above.
+# Name-independent substrings used to recognize each offer/confirm in history.
+# Each must appear in BOTH the current template and the old "Thet" wording so
+# persisted pre-rename conversations still trigger correctly.
 _OFFER_MARKERS = {
-    "edge_case": "have Thet follow up directly",
-    "connect_intent": "pass it straight to him",
+    "edge_case": "follow up directly",
+    "connect_intent": "pass it straight",
     "repeated_dead_end": "get back to you personally",
 }
-CONFIRM_MARKER = "make sure Thet follows up"
+CONFIRM_MARKER = "follows up at"
 
 
 def _assistant_texts(messages: list[dict]) -> list[str]:
