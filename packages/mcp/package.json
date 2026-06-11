@@ -20,6 +20,6 @@
   },
   "devDependencies": {
     "jiti": "^2.7.0",
-    "vitest": "^4.1.7"
+    "vitest": "^4.1.8"
   }
 }
