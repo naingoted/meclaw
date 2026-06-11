@@ -2,6 +2,7 @@ import { initDb } from "@meclaw/core/db";
 import { defaultSettings, getSettings, getSettingsVersion } from "@meclaw/core/settings";
 import { Chat } from "@/components/chat/chat";
 import { ChatLayout } from "@/components/chat/chat-layout";
+import { VERSION_LABEL } from "@/lib/version";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,7 @@ export default async function Home() {
   const { greeting, suggestions, calUrl, githubUrl } = settings.public;
   return (
     <main className="bg-background">
-      <ChatLayout calUrl={calUrl} githubUrl={githubUrl}>
+      <ChatLayout calUrl={calUrl} githubUrl={githubUrl} versionLabel={VERSION_LABEL}>
         <Chat
           greeting={greeting}
           suggestions={suggestions}

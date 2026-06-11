@@ -7,10 +7,14 @@ export function ChatLayout({
   children,
   calUrl,
   githubUrl,
+  versionLabel,
 }: {
   children: React.ReactNode;
   calUrl: string;
   githubUrl: string;
+  /** Build-time version string (read server-side; passed in to dodge the
+   * client-bundle env trap that would otherwise report "dev"). */
+  versionLabel: string;
 }) {
   return (
     <div className="flex h-screen flex-col">
@@ -54,7 +58,10 @@ export function ChatLayout({
               GitHub
             </a>
           </p>
-          <ThemeToggle />
+          <div className="flex items-center gap-3">
+            <span className="font-mono text-xs text-muted-foreground/70">{versionLabel}</span>
+            <ThemeToggle />
+          </div>
         </div>
       </footer>
     </div>
