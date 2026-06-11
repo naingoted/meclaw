@@ -10,13 +10,17 @@ describe("ChatToolbar", () => {
     expect(onNewChat).toHaveBeenCalledTimes(1);
   });
 
-  it("shows History only in normal mode and fires onOpenHistory", () => {
+  it("shows History in both modes and fires onOpenHistory", () => {
     const onOpenHistory = vi.fn();
     const { rerender } = render(
       <ChatToolbar mode="embed" onNewChat={vi.fn()} onOpenHistory={onOpenHistory} />,
     );
-    expect(screen.queryByRole("button", { name: /history/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /history/i })).toBeInTheDocument();
 
+    fireEvent.click(screen.getByRole("button", { name: /history/i }));
+    expect(onOpenHistory).toHaveBeenCalledTimes(1);
+
+    onOpenHistory.mockClear();
     rerender(<ChatToolbar mode="normal" onNewChat={vi.fn()} onOpenHistory={onOpenHistory} />);
     fireEvent.click(screen.getByRole("button", { name: /history/i }));
     expect(onOpenHistory).toHaveBeenCalledTimes(1);
