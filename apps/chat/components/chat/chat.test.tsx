@@ -34,6 +34,7 @@ import {
   hasRenderedText,
   LiveTrace,
   MAIN_RESUME_KEY,
+  readResumeEntry,
   shouldRenderMessage,
   shouldShowThinking,
   writeResumeEntry,
@@ -711,7 +712,24 @@ describe("Chat main-chat session persistence (normal mode)", () => {
       "normal",
       undefined,
     );
-    expect(getSession("conv-1")).toMatchObject({ conversationId: "conv-1", resumeToken: "rt-1" });
+    expect(getSession({ conversationId: "conv-1" })).toMatchObject({
+      conversationId: "conv-1",
+      resumeToken: "rt-1",
+    });
+  });
+
+  it("stores the resume token in the scoped index in embed mode", () => {
+    handleResumeTokenEvent(
+      { type: "data-resume-token", data: { token: "rt-embed", conversationId: "conv-e1" } },
+      "embed",
+      "pk_test",
+    );
+    expect(getSession({ scope: "pk_test", conversationId: "conv-e1" })).toMatchObject({
+      conversationId: "conv-e1",
+      resumeToken: "rt-embed",
+    });
+    // Legacy key is NOT written — embed uses the scoped index exclusively.
+    expect(readResumeEntry("pk_test")).toBeNull();
   });
 });
 
@@ -767,7 +785,7 @@ describe("Chat main-chat history restore (normal mode)", () => {
 
     render(<Chat {...CHAT_PROPS} />);
 
-    await waitFor(() => expect(getSession("conv-1")).toBeNull());
+    await waitFor(() => expect(getSession({ conversationId: "conv-1" })).toBeNull());
   });
 });
 
@@ -817,9 +835,9 @@ describe("History drawer wiring (normal mode)", () => {
     expect(screen.getByText("Past chat")).toBeInTheDocument();
   });
 
-  it("does not render the History button in embed mode", () => {
+  it("renders the History button in embed mode (multi-session history)", () => {
     render(<Chat {...CHAT_PROPS} mode="embed" embedToken="pk_a" />);
-    expect(screen.queryByRole("button", { name: /history/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /history/i })).toBeInTheDocument();
   });
 
   it("deletes the active conversation and resets to a fresh chat", () => {
@@ -830,7 +848,7 @@ describe("History drawer wiring (normal mode)", () => {
     setMessages.mockClear();
     fireEvent.click(screen.getByRole("button", { name: /history/i }));
     fireEvent.click(screen.getByRole("button", { name: /delete conversation/i }));
-    expect(getSession("c1")).toBeNull();
+    expect(getSession({ conversationId: "c1" })).toBeNull();
     expect(setMessages).toHaveBeenCalledWith([]); // startNewChat fired for the active chat
   });
 
@@ -846,8 +864,8 @@ describe("History drawer wiring (normal mode)", () => {
     // newest-first order: [Current chat, Old chat] — delete the second (non-active) row
     const delButtons = screen.getAllByRole("button", { name: /delete conversation/i });
     fireEvent.click(delButtons[1]);
-    expect(getSession("old")).toBeNull();
-    expect(getSession("current")).not.toBeNull();
+    expect(getSession({ conversationId: "old" })).toBeNull();
+    expect(getSession({ conversationId: "current" })).not.toBeNull();
     expect(screen.queryByText("Old chat")).not.toBeInTheDocument();
     expect(screen.getByText("Current chat")).toBeInTheDocument();
   });

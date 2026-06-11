@@ -10,6 +10,7 @@ import {
   getSession,
   listSessions,
   MAIN_RESUME_KEY,
+  migrateEmbedLegacy,
   migrateLegacyEntry,
   readResumeEntry,
   removeSession,
@@ -97,9 +98,11 @@ export function handleResumeTokenEvent(
   const convId = readString(data.conversationId);
   if (!token || !convId) return;
   if (mode === "embed") {
-    if (embedToken) writeResumeEntry(embedToken, { conversationId: convId, resumeToken: token });
+    // Write to the scoped session index — loadConversation reads from here.
+    if (embedToken)
+      setSessionToken({ scope: embedToken, conversationId: convId, resumeToken: token });
   } else {
-    setSessionToken(convId, token);
+    setSessionToken({ conversationId: convId, resumeToken: token });
   }
 }
 
@@ -448,6 +451,7 @@ export function Chat({
   // `liveSteps` accumulates the backend's transient `data-status` labels into an
   // ordered checklist ("Routing…" → "Searching…" → "Writing…") shown live during
   // the pre-answer gap. The same labels persist per-message via metadata.steps.
+  const scope = mode === "embed" ? embedToken : undefined;
   const [liveSteps, setLiveSteps] = useState<string[]>([]);
 
   // ----- Theme sync (embed mode) -----
@@ -475,13 +479,14 @@ export function Chat({
   // normal mode uses the session index. Otherwise start a fresh conversation.
   const [conversationId, setConversationId] = useState(() => {
     if (mode === "embed") {
-      const entry = embedToken ? readResumeEntry(embedToken) : null;
-      return entry?.conversationId ?? crypto.randomUUID();
+      if (embedToken) migrateEmbedLegacy(embedToken);
+      const latest = embedToken ? listSessions({ scope: embedToken })[0] : null;
+      return latest?.conversationId ?? crypto.randomUUID();
     }
     // Normal mode: fold any legacy single entry into the index, then resume the
     // most-recently-updated session if one exists.
     migrateLegacyEntry();
-    const latest = listSessions()[0];
+    const latest = listSessions({ scope })[0];
     return latest?.conversationId ?? crypto.randomUUID();
   });
   const historyFetchedRef = useRef(false);
@@ -509,9 +514,9 @@ export function Chat({
   const [sessions, setSessions] = useState<ChatSession[]>([]);
 
   const openHistory = useCallback(() => {
-    setSessions(listSessions());
+    setSessions(listSessions({ scope }));
     setHistoryOpen(true);
-  }, []);
+  }, [scope]);
 
   const startNewChat = useCallback(() => {
     const id = crypto.randomUUID();
@@ -585,8 +590,7 @@ export function Chat({
   // the embed single entry (embed) or the session index (normal).
   const loadConversation = useCallback(
     (id: string) => {
-      const resume =
-        mode === "embed" ? (embedToken ? readResumeEntry(embedToken) : null) : getSession(id);
+      const resume = getSession({ scope, conversationId: id });
       if (!resume) {
         setMessages([]);
         return;
@@ -600,8 +604,9 @@ export function Chat({
         .then((res) => {
           if (!res.ok) {
             // Stale/invalid token — forget this conversation, start fresh.
-            if (mode === "embed" && embedToken) clearResumeEntry(embedToken);
-            else removeSession(id);
+            // Note: in embed mode this targets the namespaced index; the legacy
+            // resume key cleanup is owned by migrateEmbedLegacy (Task 6).
+            removeSession({ scope, conversationId: id });
             return null;
           }
           return res.json() as Promise<{
@@ -626,11 +631,11 @@ export function Chat({
           );
         })
         .catch(() => {
-          if (mode === "embed" && embedToken) clearResumeEntry(embedToken);
-          else removeSession(id);
+          // See note above: targets namespaced index; legacy key cleanup deferred to Task 6.
+          removeSession({ scope, conversationId: id });
         });
     },
-    [mode, embedToken, parentOrigin, setMessages],
+    [mode, embedToken, parentOrigin, scope, setMessages],
   );
 
   // Switch to a stored conversation from the history drawer: point at its id,
@@ -650,13 +655,13 @@ export function Chat({
   // back to a fresh chat (DB rows are untouched — local index only).
   const deleteConversation = useCallback(
     (id: string) => {
-      removeSession(id);
+      removeSession({ scope, conversationId: id });
       // Deleting the active chat resets to a fresh one (which also closes the
       // drawer); deleting another just refreshes the still-open list.
       if (id === conversationId) startNewChat();
-      else setSessions(listSessions());
+      else setSessions(listSessions({ scope }));
     },
-    [conversationId, startNewChat],
+    [conversationId, scope, startNewChat],
   );
 
   // Resume the active conversation once on mount. Mount-only: conversationId/
@@ -734,17 +739,16 @@ export function Chat({
     } else {
       // First-party: include the stored resume token for this conversation (if any)
       // so the server can verify prior access before minting a new one.
-      const session = getSession(conversationId);
+      const session = getSession({ scope, conversationId });
       if (session?.resumeToken) body.resumeToken = session.resumeToken;
     }
     return body;
   }
 
-  // On the first user turn (normal mode), register the session and set its title.
+  // On the first user turn, register the session and set its title.
   function registerUserTurn(text: string) {
-    if (mode === "embed") return;
-    upsertSession({ conversationId });
-    setSessionTitle(conversationId, text);
+    upsertSession({ scope, conversationId });
+    setSessionTitle({ scope, conversationId, title: text });
   }
 
   return (
@@ -856,16 +860,14 @@ export function Chat({
         </Button>
       </form>
 
-      {mode === "normal" ? (
-        <HistoryDrawer
-          open={historyOpen}
-          sessions={sessions}
-          activeConversationId={conversationId}
-          onSelect={pickConversation}
-          onDelete={deleteConversation}
-          onClose={() => setHistoryOpen(false)}
-        />
-      ) : null}
+      <HistoryDrawer
+        open={historyOpen}
+        sessions={sessions}
+        activeConversationId={conversationId}
+        onSelect={pickConversation}
+        onDelete={deleteConversation}
+        onClose={() => setHistoryOpen(false)}
+      />
     </div>
   );
 }

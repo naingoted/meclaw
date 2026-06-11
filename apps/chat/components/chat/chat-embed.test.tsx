@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Configurable mock state for useChat — hoisted to module scope
@@ -26,6 +26,7 @@ vi.mock("@/components/chat/config-refresh-poller", () => ({
 
 // Import AFTER mocks are set up
 import { Chat, clearResumeEntry, readResumeEntry, writeResumeEntry } from "@/components/chat/chat";
+import { listSessions, upsertSession } from "@/lib/chat/sessions";
 
 // Mock localStorage for tests
 const localStorageMock = (() => {
@@ -213,19 +214,16 @@ describe("Chat component — embed mode resume integration", () => {
     expect(options?.body?.parentOrigin).toBe(parentOrigin);
   });
 
-  it("history fetch clears localStorage entry on failure", async () => {
+  it("history fetch handles failure without clearing legacy entry (migration owns cleanup)", async () => {
     const embedToken = "pk_fail";
     const parentOrigin = "https://acme.com";
     const entry = { conversationId: "conv-fail", resumeToken: "rt-fail" };
     localStorage.setItem(`meclaw:resume:${embedToken}`, JSON.stringify(entry));
 
-    // Mock fetch to return 401 (stale resume token)
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(() =>
-        Promise.resolve(new Response(JSON.stringify({ error: "invalid" }), { status: 401 })),
-      ),
+    const fetchMock = vi.fn(() =>
+      Promise.resolve(new Response(JSON.stringify({ error: "invalid" }), { status: 401 })),
     );
+    vi.stubGlobal("fetch", fetchMock);
 
     render(
       <Chat
@@ -238,23 +236,14 @@ describe("Chat component — embed mode resume integration", () => {
       />,
     );
 
-    // Poll until localStorage entry is cleared (effect + fetch are async)
-    await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(
-        () => reject(new Error("timeout waiting for localStorage clear")),
-        2000,
-      );
-      const interval = setInterval(() => {
-        if (localStorage.getItem(`meclaw:resume:${embedToken}`) === null) {
-          clearInterval(interval);
-          clearTimeout(timeout);
-          resolve();
-        }
-      }, 10);
-    });
+    // Wait for the async fetch to complete
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
 
     // setMessages should not have been called (fetch failed)
     expect(mockState.setMessages).not.toHaveBeenCalled();
+    // Migration consumed the legacy key on mount; fetch failure removed the session from the index.
+    expect(localStorage.getItem(`meclaw:resume:${embedToken}`)).toBeNull();
+    expect(listSessions({ scope: embedToken })).toEqual([]);
   });
 
   it("history fetch populates messages on success", async () => {
@@ -316,8 +305,11 @@ describe("Chat component — embed mode resume integration", () => {
       parts: [{ type: "text", text: "hi there" }],
     });
 
-    // localStorage entry should NOT be cleared (successful fetch)
-    expect(localStorage.getItem(`meclaw:resume:${embedToken}`)).toBe(JSON.stringify(entry));
+    // Migration consumed the legacy key on mount; the session is in the namespaced index.
+    expect(localStorage.getItem(`meclaw:resume:${embedToken}`)).toBeNull();
+    const sessions = listSessions({ scope: embedToken });
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0].conversationId).toBe("conv-ok");
   });
 
   it("normal mode does not pass embedToken in sendMessage body", () => {
@@ -421,5 +413,87 @@ describe("Chat component — embed mode resume integration", () => {
       writable: true,
       configurable: true,
     });
+  });
+});
+
+describe("Chat component — embed multi-session history", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    mockState.messages = [];
+    mockState.sendMessage = vi.fn();
+    mockState.status = "ready";
+    mockState.setMessages = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ conversationId: "x", messages: [] }), { status: 200 }),
+        ),
+      ),
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("opens the history drawer in embed mode and lists a stored session", () => {
+    const embedToken = "pk_history";
+    upsertSession({ conversationId: "conv-past", title: "Past embed chat", scope: embedToken });
+    render(
+      <Chat
+        greeting="Hi"
+        suggestions={["chip"]}
+        initialConfigVersion="0"
+        mode="embed"
+        embedToken={embedToken}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /history/i }));
+    expect(screen.getByText("Past embed chat")).toBeInTheDocument();
+  });
+
+  it("does not cross-contaminate sessions across different embedTokens", () => {
+    upsertSession({ conversationId: "acme-1", title: "Acme chat", scope: "pk_acme" });
+    upsertSession({ conversationId: "other-1", title: "Other chat", scope: "pk_other" });
+
+    render(
+      <Chat
+        greeting="Hi"
+        suggestions={["chip"]}
+        initialConfigVersion="0"
+        mode="embed"
+        embedToken="pk_acme"
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /history/i }));
+    expect(screen.getByText("Acme chat")).toBeInTheDocument();
+    expect(screen.queryByText("Other chat")).not.toBeInTheDocument();
+  });
+
+  it("migrates a legacy resume entry into the namespaced index on mount", () => {
+    const embedToken = "pk_legacy";
+    localStorage.setItem(
+      `meclaw:resume:${embedToken}`,
+      JSON.stringify({ conversationId: "legacy-conv", resumeToken: "legacy-rt" }),
+    );
+
+    render(
+      <Chat
+        greeting="Hi"
+        suggestions={["chip"]}
+        initialConfigVersion="0"
+        mode="embed"
+        embedToken={embedToken}
+      />,
+    );
+
+    // Migration is synchronous in the useState initializer, so the index is
+    // populated before the first render.
+    const sessions = listSessions({ scope: embedToken });
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0].conversationId).toBe("legacy-conv");
+    // Legacy key is consumed
+    expect(localStorage.getItem(`meclaw:resume:${embedToken}`)).toBeNull();
   });
 });

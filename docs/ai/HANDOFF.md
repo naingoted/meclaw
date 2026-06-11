@@ -51,6 +51,7 @@ ANTHROPIC_MODEL=qwen3.6-plus
 - Mobile-responsive embed (full-screen on mobile/PWA, keyboard handling, safe-area insets)
 - Mobile embed UX fixes — close button (postMessage + Escape), keyboard-sticky input, bot avatars removed, overflow/overscroll hardened
 - Parent theme sync — embed.js detects host dark/light theme, passes via query param + live postMessage relay
+- Embed multi-session history — namespaced localStorage index per embedToken, legacy migration, History drawer in embed mode
 - Pre-commit/CI hardening; auto-migration on deploy (CI-proven)
 
 **Open items:**
