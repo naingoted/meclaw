@@ -150,8 +150,10 @@ networks:
   internal: {}
   dokploy-network:
     external: true
-  # Operator must `docker network create meclaw-shared` on the box before deploy.
-  # Compose won't create it (external: true). Documented in docs/ai/customer-ops.md.
+  # Operator must `docker network create meclaw-shared` on the box before deploy
+  # (one-time box setup — see deploy.md §4b). Compose won't create it (external: true);
+  # if missing, `docker compose up` aborts with "network meclaw-shared not found".
+  # Rationale (shared embedding instance for customer stacks): docs/ai/customer-ops.md.
   meclaw-shared:
     external: true
 

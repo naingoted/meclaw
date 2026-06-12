@@ -66,6 +66,11 @@ git push origin v1.2.3
 **Networks:** `chat`+`admin` join `internal` **and** the external `dokploy-network` (so Traefik
 can reach them); everything else is `internal` only. Traefik discovers routers from each
 public service's top-level `labels:` (docker provider, `network=dokploy-network`).
+`ollama` additionally joins the external **`meclaw-shared`** network (alias
+`meclaw-ollama-shared`) so per-customer stacks can reuse this one embedding instance — see
+`docs/ai/customer-ops.md`. Both `dokploy-network` and `meclaw-shared` are `external: true`:
+Dokploy creates the former, but **you must create `meclaw-shared` once on the box** (step 4b) or
+the owner deploy fails with `network meclaw-shared not found`.
 
 **Public hosts (A records → the EC2 Elastic IP):**
 - `meclaw.leanior.com` → chat
@@ -101,6 +106,19 @@ the ACME challenge is HTTP-01 on `:80`. Verify: `dig +short <host>` returns the 
 `gh api /user/packages/container/meclaw-<name> --jq .visibility` should say `public` for all four.
 Flip via the GitHub package UI (no REST endpoint for user-package visibility). Otherwise add a
 GHCR registry credential in Dokploy.
+
+### 4b. Create the shared embedding network (one-time, before the first deploy)
+Since v1.1.0 the owner `ollama` joins the external `meclaw-shared` network so customer stacks can
+share one embedding instance. Compose won't create an external network — create it once on the box:
+```bash
+ssh -i ~/.ssh/meclaw-deploy ubuntu@<EIP> 'docker network create meclaw-shared 2>/dev/null || true'
+docker network inspect meclaw-shared >/dev/null && echo ok   # verify
+```
+Skipping this makes the owner `docker compose up` abort with
+`Could not attach to network meclaw-shared: ... network meclaw-shared not found`, leaving the old
+containers running and the CI deploy job failing at the convergence check. **Existing boxes
+upgrading to v1.1.0+ must run this once too.** (See `docs/ai/customer-ops.md` for the full
+customer-stack rationale.)
 
 ### 5. Create the Compose app (Dokploy API or UI)
 API uses header `x-api-key: <token>` (generate under user settings). Known endpoints:
