@@ -49,6 +49,7 @@ describe("settings new wired fields", () => {
     const s = defaultSettings();
     expect(s.agents.triage.confidence).toBe(0.5);
     expect(s.public.contactEmail).toBe("naingoted@gmail.com");
+    expect(s.public.copy.emptyStateIntro).toBe("Ask me anything about how leanior works");
   });
 
   it("round-trips triage.confidence and public.contactEmail", () => {
@@ -69,6 +70,7 @@ describe("settings new wired fields", () => {
     };
     const parsed = SettingsSchema.parse(legacy);
     expect(parsed.public.contactEmail).toBe("naingoted@gmail.com");
+    expect(parsed.public.copy.bookCallLabel).toBe("Book a call");
   });
 
   it("confidence is optional (non-triage agents omit it)", () => {
@@ -95,7 +97,7 @@ describe("version-aware settings cache", () => {
     configCache.clear();
 
     const first = await getSettings(db);
-    expect(first.public.greeting).toBe("Hi! I'm meclaw, Thet's personal bot.");
+    expect(first.public.greeting).toBe("Hi! I'm meclaw, an AI assistant.");
 
     const fresh = structuredClone(first);
     fresh.public.greeting = "Fresh from another process";

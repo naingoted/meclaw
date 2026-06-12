@@ -43,6 +43,17 @@ const SETTINGS = {
     calUrl: "https://cal.com/x",
     githubUrl: "https://github.com/x",
     contactEmail: "owner@example.com",
+    copy: {
+      emptyStateIntro: "Ask me anything about how leanior works",
+      suggestionsLabel: "Try asking:",
+      messagePlaceholder: "Say something…",
+      thinkingLabel: "Thinking…",
+      footerPrefix: "Built this myself",
+      resumeLabel: "Résumé",
+      bookCallLabel: "Book a call",
+      bookShortLabel: "Book",
+      githubLabel: "GitHub",
+    },
   },
 };
 
@@ -82,6 +93,14 @@ describe("ConfigClient", () => {
     render(<ConfigClient />);
     expect(await screen.findByText("Routing confidence")).toBeInTheDocument();
     expect(screen.getByDisplayValue("0.5")).toBeInTheDocument();
+  });
+
+  it("renders the subtitle-under-greeting field next to greeting when ?tab=public", async () => {
+    nav.search = new URLSearchParams("tab=public");
+    render(<ConfigClient />);
+    await screen.findByText("Subtitle under greeting");
+    expect(screen.getByDisplayValue("Ask me anything about how leanior works")).toBeInTheDocument();
+    expect(screen.queryByText("Empty-state intro")).not.toBeInTheDocument();
   });
 
   it("renders the suggestions editor and contact email when ?tab=public", async () => {

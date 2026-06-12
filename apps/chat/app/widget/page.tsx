@@ -43,13 +43,14 @@ export default async function WidgetPage({ searchParams }: Props) {
     initialConfigVersion = "default";
   }
 
-  const { greeting, suggestions } = settings.public;
+  const { greeting, suggestions, copy } = settings.public;
 
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
       <Chat
         greeting={greeting}
         suggestions={suggestions}
+        copy={copy}
         initialConfigVersion={initialConfigVersion}
         mode="embed"
         embedToken={embedToken}

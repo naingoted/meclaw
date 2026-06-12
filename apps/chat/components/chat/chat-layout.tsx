@@ -1,5 +1,7 @@
 "use client";
 
+import type { PublicCopy } from "@meclaw/core/settings";
+import { DEFAULT_PUBLIC_COPY } from "@meclaw/core/settings";
 import { Button, ThemeToggle } from "@meclaw/ui";
 import { Calendar, Download, GitBranch } from "lucide-react";
 
@@ -11,6 +13,7 @@ export function ChatLayout({
   botName = "meclaw",
   brandLogoUrl = "",
   brandAccent = "",
+  copy = DEFAULT_PUBLIC_COPY,
 }: {
   children: React.ReactNode;
   calUrl: string;
@@ -21,7 +24,9 @@ export function ChatLayout({
   botName?: string;
   brandLogoUrl?: string;
   brandAccent?: string;
+  copy?: PublicCopy;
 }) {
+  const shellCopy = copy ?? DEFAULT_PUBLIC_COPY;
   return (
     // h-dvh (dynamic viewport) not h-screen (100vh): on mobile the dynamic unit
     // tracks the visible area as the URL bar collapses and the soft keyboard
@@ -52,14 +57,14 @@ export function ChatLayout({
             <a href="/resume" download>
               <Button variant="outline" size="sm" className="gap-2">
                 <Download className="h-4 w-4" />
-                <span className="hidden sm:inline">Résumé</span>
+                <span className="hidden sm:inline">{shellCopy.resumeLabel}</span>
               </Button>
             </a>
             <a href={calUrl} target="_blank" rel="noopener noreferrer">
               <Button size="sm" className="gap-2">
                 <Calendar className="h-4 w-4" />
-                <span className="hidden sm:inline">Book a call</span>
-                <span className="sm:hidden">Book</span>
+                <span className="hidden sm:inline">{shellCopy.bookCallLabel}</span>
+                <span className="sm:hidden">{shellCopy.bookShortLabel}</span>
               </Button>
             </a>
           </div>
@@ -71,7 +76,7 @@ export function ChatLayout({
       <footer className="border-t border-border px-4 py-2">
         <div className="mx-auto flex max-w-2xl items-center justify-between">
           <p className="font-mono text-xs text-muted-foreground">
-            Built this myself{" "}
+            {shellCopy.footerPrefix}{" "}
             <a
               href={githubUrl}
               target="_blank"
@@ -79,7 +84,7 @@ export function ChatLayout({
               className="inline-flex items-center gap-1 rounded-sm text-foreground transition-colors hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <GitBranch className="h-3 w-3" />
-              GitHub
+              {shellCopy.githubLabel}
             </a>
           </p>
           <div className="flex items-center gap-3">

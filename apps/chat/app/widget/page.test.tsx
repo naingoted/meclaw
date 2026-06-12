@@ -12,6 +12,17 @@ const publicSettings = {
   botTagline: "",
   brandLogoUrl: "",
   brandAccent: "",
+  copy: {
+    emptyStateIntro: "Ask me anything about how leanior works",
+    suggestionsLabel: "Try asking:",
+    messagePlaceholder: "Say something…",
+    thinkingLabel: "Thinking…",
+    footerPrefix: "Built this myself",
+    resumeLabel: "Résumé",
+    bookCallLabel: "Book a call",
+    bookShortLabel: "Book",
+    githubLabel: "GitHub",
+  },
 };
 
 vi.mock("@meclaw/core/settings", () => ({
@@ -94,6 +105,17 @@ describe("WidgetPage", () => {
       expect.objectContaining({
         greeting: "Hi from admin",
         suggestions: ["One", "Two", "Three"],
+        copy: expect.objectContaining({
+          emptyStateIntro: "Ask me anything about how leanior works",
+          suggestionsLabel: "Try asking:",
+          messagePlaceholder: "Say something…",
+          thinkingLabel: "Thinking…",
+          footerPrefix: "Built this myself",
+          resumeLabel: "Résumé",
+          bookCallLabel: "Book a call",
+          bookShortLabel: "Book",
+          githubLabel: "GitHub",
+        }),
         initialConfigVersion: "2026-06-12T10:00:00.000Z",
       }),
       undefined,

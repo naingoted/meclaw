@@ -42,12 +42,23 @@ import {
 import { getSession, upsertSession } from "@/lib/chat/sessions";
 
 const CHAT_PROPS = {
-  greeting: "Hi! I'm meclaw, Thet's personal bot.",
+  greeting: "Hi! I'm meclaw, an AI assistant.",
   suggestions: [
     "What's Thet's tech stack?",
     "Walk me through a recent project",
     "How do I get in touch?",
   ],
+  copy: {
+    emptyStateIntro: "Ask me anything about his work, skills, or projects.",
+    suggestionsLabel: "Try asking:",
+    messagePlaceholder: "Say something…",
+    thinkingLabel: "Thinking…",
+    footerPrefix: "Built this myself",
+    resumeLabel: "Résumé",
+    bookCallLabel: "Book a call",
+    bookShortLabel: "Book",
+    githubLabel: "GitHub",
+  },
   initialConfigVersion: "2026-06-03T00:00:00.000Z",
 };
 
@@ -213,10 +224,8 @@ describe("Chat component — M4 behavioral tests", () => {
     render(<Chat {...CHAT_PROPS} />);
 
     // Assert greeting is rendered
-    expect(screen.getByText(/Hi! I'm meclaw, Thet's personal bot/)).toBeInTheDocument();
-    expect(
-      screen.getByText(/Ask me anything about his work, skills, or projects/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Hi! I'm meclaw, an AI assistant/)).toBeInTheDocument();
+    expect(screen.getByText(/Ask me anything about how leanior works/)).toBeInTheDocument();
 
     // Assert all 3 suggestion chips are rendered with exact text
     expect(screen.getByRole("button", { name: "What's Thet's tech stack?" })).toBeInTheDocument();
@@ -245,6 +254,7 @@ describe("Chat component — M4 behavioral tests", () => {
       <Chat
         greeting="Custom greeting line"
         suggestions={["only chip"]}
+        copy={CHAT_PROPS.copy}
         initialConfigVersion="2026-06-03T00:00:00.000Z"
       />,
     );
@@ -256,6 +266,7 @@ describe("Chat component — M4 behavioral tests", () => {
       <Chat
         greeting="g"
         suggestions={["chip one", "chip two"]}
+        copy={CHAT_PROPS.copy}
         initialConfigVersion="2026-06-03T00:00:00.000Z"
       />,
     );
@@ -302,7 +313,7 @@ describe("Chat component — M4 behavioral tests", () => {
     render(<Chat {...CHAT_PROPS} />);
 
     // Assert greeting is NOT rendered
-    expect(screen.queryByText(/Hi! I'm meclaw, Thet's personal bot/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Hi! I'm meclaw, an AI assistant/)).not.toBeInTheDocument();
 
     // Assert suggestion chips are NOT rendered
     expect(

@@ -28,6 +28,18 @@ vi.mock("@/components/chat/config-refresh-poller", () => ({
 import { Chat, clearResumeEntry, readResumeEntry, writeResumeEntry } from "@/components/chat/chat";
 import { listSessions, upsertSession } from "@/lib/chat/sessions";
 
+const COPY = {
+  emptyStateIntro: "Ask me anything about how leanior works",
+  suggestionsLabel: "Try asking:",
+  messagePlaceholder: "Say something…",
+  thinkingLabel: "Thinking…",
+  footerPrefix: "Built this myself",
+  resumeLabel: "Résumé",
+  bookCallLabel: "Book a call",
+  bookShortLabel: "Book",
+  githubLabel: "GitHub",
+};
+
 // Mock localStorage for tests
 const localStorageMock = (() => {
   let store: Record<string, string> = {};
@@ -402,7 +414,15 @@ describe("Chat component — embed mode resume integration", () => {
       configurable: true,
     });
 
-    render(<Chat greeting="Hi" suggestions={["chip"]} initialConfigVersion="0" mode="normal" />);
+    render(
+      <Chat
+        greeting="Hi"
+        suggestions={["chip"]}
+        copy={COPY}
+        initialConfigVersion="0"
+        mode="normal"
+      />,
+    );
 
     fireEvent.keyDown(document, { key: "Escape" });
     expect(postMessageSpy).not.toHaveBeenCalled();

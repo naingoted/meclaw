@@ -40,6 +40,15 @@ const HELP = {
   calUrl: "Cal.com booking link used by the scheduler tool and the 'Book a call' button.",
   githubUrl: "GitHub profile link shown in the footer and the contact tool.",
   contactEmail: "Owner email returned by the contact tool.",
+  emptyStateIntro: "Muted helper line shown directly under the greeting on chat and embed.",
+  suggestionsLabel: "Label above the suggestion chips.",
+  messagePlaceholder: "Placeholder text shown in the message input.",
+  thinkingLabel: "Label shown while the assistant is still thinking.",
+  footerPrefix: "Footer copy before the GitHub link.",
+  resumeLabel: "Desktop résumé button label in the header.",
+  bookCallLabel: "Desktop booking button label in the header.",
+  bookShortLabel: "Mobile booking button label in the header.",
+  githubLabel: "Footer link label for the GitHub button.",
 };
 
 // Stack of fields with a consistent label→input and field→field rhythm.
@@ -106,6 +115,18 @@ export function ConfigClient() {
         agents,
         public: {
           ...values.public,
+          copy: {
+            ...values.public.copy,
+            emptyStateIntro: values.public.copy.emptyStateIntro.trim(),
+            suggestionsLabel: values.public.copy.suggestionsLabel.trim(),
+            messagePlaceholder: values.public.copy.messagePlaceholder.trim(),
+            thinkingLabel: values.public.copy.thinkingLabel.trim(),
+            footerPrefix: values.public.copy.footerPrefix.trim(),
+            resumeLabel: values.public.copy.resumeLabel.trim(),
+            bookCallLabel: values.public.copy.bookCallLabel.trim(),
+            bookShortLabel: values.public.copy.bookShortLabel.trim(),
+            githubLabel: values.public.copy.githubLabel.trim(),
+          },
           suggestions: values.public.suggestions.map((s) => s.trim()).filter(Boolean),
         },
       };
@@ -281,6 +302,17 @@ export function ConfigClient() {
                 <Input id="public.greeting" {...register("public.greeting")} />
               </Field>
               <Field
+                label="Subtitle under greeting"
+                help={HELP.emptyStateIntro}
+                htmlFor="public.copy.emptyStateIntro"
+                error={errAt("public.copy.emptyStateIntro")}
+              >
+                <Input
+                  id="public.copy.emptyStateIntro"
+                  {...register("public.copy.emptyStateIntro")}
+                />
+              </Field>
+              <Field
                 label="Suggestions"
                 help={HELP.suggestions}
                 htmlFor="public.suggestions"
@@ -323,6 +355,93 @@ export function ConfigClient() {
               >
                 <Input id="public.contactEmail" {...register("public.contactEmail")} />
               </Field>
+              <div className="border-t pt-5">
+                <div className="font-medium">Copy</div>
+                <div className={STACK}>
+                  <Field
+                    label="Suggestions label"
+                    help={HELP.suggestionsLabel}
+                    htmlFor="public.copy.suggestionsLabel"
+                    error={errAt("public.copy.suggestionsLabel")}
+                  >
+                    <Input
+                      id="public.copy.suggestionsLabel"
+                      {...register("public.copy.suggestionsLabel")}
+                    />
+                  </Field>
+                  <Field
+                    label="Message placeholder"
+                    help={HELP.messagePlaceholder}
+                    htmlFor="public.copy.messagePlaceholder"
+                    error={errAt("public.copy.messagePlaceholder")}
+                  >
+                    <Input
+                      id="public.copy.messagePlaceholder"
+                      {...register("public.copy.messagePlaceholder")}
+                    />
+                  </Field>
+                  <Field
+                    label="Thinking label"
+                    help={HELP.thinkingLabel}
+                    htmlFor="public.copy.thinkingLabel"
+                    error={errAt("public.copy.thinkingLabel")}
+                  >
+                    <Input
+                      id="public.copy.thinkingLabel"
+                      {...register("public.copy.thinkingLabel")}
+                    />
+                  </Field>
+                  <Field
+                    label="Footer prefix"
+                    help={HELP.footerPrefix}
+                    htmlFor="public.copy.footerPrefix"
+                    error={errAt("public.copy.footerPrefix")}
+                  >
+                    <Input
+                      id="public.copy.footerPrefix"
+                      {...register("public.copy.footerPrefix")}
+                    />
+                  </Field>
+                  <Field
+                    label="Résumé label"
+                    help={HELP.resumeLabel}
+                    htmlFor="public.copy.resumeLabel"
+                    error={errAt("public.copy.resumeLabel")}
+                  >
+                    <Input id="public.copy.resumeLabel" {...register("public.copy.resumeLabel")} />
+                  </Field>
+                  <Field
+                    label="Book call label"
+                    help={HELP.bookCallLabel}
+                    htmlFor="public.copy.bookCallLabel"
+                    error={errAt("public.copy.bookCallLabel")}
+                  >
+                    <Input
+                      id="public.copy.bookCallLabel"
+                      {...register("public.copy.bookCallLabel")}
+                    />
+                  </Field>
+                  <Field
+                    label="Book short label"
+                    help={HELP.bookShortLabel}
+                    htmlFor="public.copy.bookShortLabel"
+                    error={errAt("public.copy.bookShortLabel")}
+                  >
+                    <Input
+                      id="public.copy.bookShortLabel"
+                      {...register("public.copy.bookShortLabel")}
+                    />
+                  </Field>
+                  <Field
+                    label="GitHub label"
+                    help={HELP.githubLabel}
+                    htmlFor="public.copy.githubLabel"
+                    error={errAt("public.copy.githubLabel")}
+                  >
+                    <Input id="public.copy.githubLabel" {...register("public.copy.githubLabel")} />
+                  </Field>
+                </div>
+              </div>
             </div>
           </TabsContent>
         </Tabs>

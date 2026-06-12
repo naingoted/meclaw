@@ -3,6 +3,18 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { ChatLayout } from "./chat-layout";
 
+const COPY = {
+  emptyStateIntro: "Ask me anything about how leanior works",
+  suggestionsLabel: "Try asking:",
+  messagePlaceholder: "Say something…",
+  thinkingLabel: "Thinking…",
+  footerPrefix: "Built this myself",
+  resumeLabel: "Résumé",
+  bookCallLabel: "Book a call",
+  bookShortLabel: "Book",
+  githubLabel: "GitHub",
+};
+
 describe("ChatLayout", () => {
   it("uses calUrl and githubUrl from props", () => {
     render(
@@ -11,6 +23,7 @@ describe("ChatLayout", () => {
           calUrl="https://cal.com/owner"
           githubUrl="https://github.com/owner"
           versionLabel="meclaw · v1.2.3 · abc1234"
+          copy={COPY}
         >
           <div>body</div>
         </ChatLayout>
@@ -29,6 +42,7 @@ describe("ChatLayout", () => {
           calUrl="https://cal.com/owner"
           githubUrl="https://github.com/owner"
           versionLabel="meclaw · v1.2.3 · abc1234"
+          copy={COPY}
         >
           <div>body</div>
         </ChatLayout>

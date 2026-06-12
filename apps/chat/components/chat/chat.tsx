@@ -1,6 +1,8 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
+import type { PublicCopy } from "@meclaw/core/settings";
+import { DEFAULT_PUBLIC_COPY } from "@meclaw/core/settings";
 import { Button, cn, useTheme } from "@meclaw/ui";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
@@ -242,9 +244,9 @@ function StepDots() {
 /**
  * Live growing checklist of the agent's pipeline steps. Completed steps show a
  * check; the last (active) step shows the animated dots. Falls back to a single
- * "Thinking…" line before any step label has arrived.
+ * `label` before any step label has arrived.
  */
-export function LiveTrace({ steps }: { steps: string[] }) {
+export function LiveTrace({ steps, label = "Thinking…" }: { steps: string[]; label?: string }) {
   return (
     <div>
       <section
@@ -254,7 +256,7 @@ export function LiveTrace({ steps }: { steps: string[] }) {
         {steps.length === 0 ? (
           <div className="flex items-center gap-2">
             <StepDots />
-            <span>Thinking…</span>
+            <span>{label}</span>
           </div>
         ) : (
           <ul className="space-y-1">
@@ -430,6 +432,7 @@ function UserTurn({
 export function Chat({
   greeting,
   suggestions,
+  copy = DEFAULT_PUBLIC_COPY,
   initialConfigVersion,
   mode = "normal",
   embedToken,
@@ -439,6 +442,7 @@ export function Chat({
 }: {
   greeting: string;
   suggestions: string[];
+  copy?: PublicCopy;
   initialConfigVersion: string;
   mode?: "normal" | "embed";
   embedToken?: string;
@@ -449,6 +453,7 @@ export function Chat({
   /** Initial theme from the parent page ("dark" | "light"). Drives the widget's ThemeProvider. */
   initialTheme?: "dark" | "light";
 }) {
+  const shellCopy = copy ?? DEFAULT_PUBLIC_COPY;
   // `liveSteps` accumulates the backend's transient `data-status` labels into an
   // ordered checklist ("Routing…" → "Searching…" → "Writing…") shown live during
   // the pre-answer gap. The same labels persist per-message via metadata.steps.
@@ -779,14 +784,14 @@ export function Chat({
             {/* Greeting from meclaw */}
             <div className="space-y-1">
               <p className="text-sm font-medium">{greeting}</p>
-              <p className="text-sm text-muted-foreground">
-                Ask me anything about his work, skills, or projects.
-              </p>
+              <p className="text-sm text-muted-foreground">{shellCopy.emptyStateIntro}</p>
             </div>
 
             {/* Suggestion chips */}
             <div className="space-y-2">
-              <p className="text-xs font-medium text-muted-foreground">Try asking:</p>
+              <p className="text-xs font-medium text-muted-foreground">
+                {shellCopy.suggestionsLabel}
+              </p>
               <div className="flex flex-col gap-2">
                 {suggestions.map((chip) => (
                   <button
@@ -837,7 +842,7 @@ export function Chat({
               </React.Fragment>
             );
           })}
-        {showThinking && <LiveTrace steps={liveSteps} />}
+        {showThinking && <LiveTrace steps={liveSteps} label={shellCopy.thinkingLabel} />}
         <div ref={endRef} />
       </div>
 
@@ -846,7 +851,7 @@ export function Chat({
           ref={inputRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Say something…"
+          placeholder={shellCopy.messagePlaceholder}
           aria-label="Message"
           enterKeyHint="send"
           autoComplete="off"

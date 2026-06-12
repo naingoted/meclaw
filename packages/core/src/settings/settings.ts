@@ -4,6 +4,7 @@ import { settings } from "../db/schema";
 import type { Db } from "../db/types";
 import { logAudit } from "./audit";
 import { configCache } from "./config-cache";
+import { DEFAULT_PUBLIC_COPY } from "./public-copy";
 
 export const AgentConfigSchema = z.object({
   model: z.string().min(1),
@@ -53,6 +54,19 @@ export const SettingsSchema = z.object({
       .refine((v) => v === "" || /^#[0-9a-fA-F]{3,8}$/.test(v), {
         message: "must be empty or hex color (#rgb, #rgba, #rrggbbaa)",
       }),
+    copy: z
+      .object({
+        emptyStateIntro: z.string().default(DEFAULT_PUBLIC_COPY.emptyStateIntro),
+        suggestionsLabel: z.string().default("Try asking:"),
+        messagePlaceholder: z.string().default("Say something…"),
+        thinkingLabel: z.string().default("Thinking…"),
+        footerPrefix: z.string().default("Built this myself"),
+        resumeLabel: z.string().default("Résumé"),
+        bookCallLabel: z.string().default("Book a call"),
+        bookShortLabel: z.string().default("Book"),
+        githubLabel: z.string().default("GitHub"),
+      })
+      .default(DEFAULT_PUBLIC_COPY),
   }),
 });
 export type AgentConfig = z.infer<typeof AgentConfigSchema>;
@@ -110,6 +124,7 @@ export function defaultSettings(): SettingsValue {
       botTagline: process.env.BOT_TAGLINE ?? "",
       brandLogoUrl: process.env.BRAND_LOGO_URL ?? "",
       brandAccent: process.env.BRAND_ACCENT ?? "",
+      copy: DEFAULT_PUBLIC_COPY,
     },
   };
   // Env values flow into the seeded row without any other validation pass. Run
