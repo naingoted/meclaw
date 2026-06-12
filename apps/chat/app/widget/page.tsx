@@ -1,3 +1,4 @@
+import { defaultSettings, getSettings, getSettingsVersion } from "@meclaw/core/settings";
 import { Chat } from "@/components/chat/chat";
 import { getChatDb, resolveEmbedClient } from "@/lib/embed/auth";
 import { VERSION_LABEL } from "@/lib/version";
@@ -31,12 +32,25 @@ export default async function WidgetPage({ searchParams }: Props) {
     );
   }
 
+  let settings = defaultSettings();
+  let initialConfigVersion = "default";
+
+  try {
+    settings = await getSettings(db);
+    initialConfigVersion = (await getSettingsVersion(db)) ?? "default";
+  } catch {
+    settings = defaultSettings();
+    initialConfigVersion = "default";
+  }
+
+  const { greeting, suggestions } = settings.public;
+
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
       <Chat
-        greeting="Hello! I'm the embed widget."
-        suggestions={["What can you help me with?", "Tell me more"]}
-        initialConfigVersion="0"
+        greeting={greeting}
+        suggestions={suggestions}
+        initialConfigVersion={initialConfigVersion}
         mode="embed"
         embedToken={embedToken}
         parentOrigin={parentOrigin}
