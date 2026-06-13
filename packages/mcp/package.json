@@ -16,7 +16,7 @@
     "@meclaw/rag": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.12.0",
     "postgres": "^3.4.9",
-    "zod": "^3.25.0"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "jiti": "^2.7.0",
