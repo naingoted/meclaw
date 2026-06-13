@@ -34,7 +34,10 @@ jobs:
 
       - name: Set package version
         working-directory: packages/meclaw-chat-ui
-        run: npm version "${{ steps.version.outputs.version }}" --no-git-tag-version
+        # --allow-same-version: the tag and the committed package.json version
+        # normally match (we bump package.json before tagging), and npm version
+        # errors on an unchanged version without this flag.
+        run: npm version "${{ steps.version.outputs.version }}" --no-git-tag-version --allow-same-version
 
       - run: pnpm --filter @naingoted/meclaw-chat-ui build
 
