@@ -97,7 +97,7 @@ describe("version-aware settings cache", () => {
     configCache.clear();
 
     const first = await getSettings(db);
-    expect(first.public.greeting).toBe("Hi! I'm meclaw, an AI assistant.");
+    expect(first.public.greeting).toBe("Hi! I'm meclaw, Thet's personal bot.");
 
     const fresh = structuredClone(first);
     fresh.public.greeting = "Fresh from another process";

@@ -5,6 +5,7 @@
   "workspaces": {
     "packages": ["packages/*", "apps/*"]
   },
+  "ignoreDependencies": ["@naingoted/meclaw-chat-ui"],
   "duplicates": {
     "minOccurrences": 3
   },

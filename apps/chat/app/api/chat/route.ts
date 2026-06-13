@@ -11,10 +11,18 @@ import {
   saveRetrievalEvent,
   saveTurn,
 } from "@meclaw/core/db";
+import { getCachedUnionOrigins, setCachedUnionOrigins } from "@meclaw/core/embed-cache";
 import { configSnapshot } from "@meclaw/core/settings";
 import { createUIMessageStream, createUIMessageStreamResponse, type UIMessage } from "ai";
 import { detectInjection } from "@/lib/ai/guardrails";
-import { getChatDb, isAllowedOrigin, resolveEmbedClient } from "@/lib/embed/auth";
+import {
+  getChatDb,
+  isAllowedOrigin,
+  loadUnionAllowedOrigins,
+  resolveEmbedClient,
+  resolveVerifiedOrigin,
+} from "@/lib/embed/auth";
+import { corsHeaders, corsPreflightHeaders, jsonWithCors } from "@/lib/embed/cors";
 import { embedClientRateLimiter } from "@/lib/embed/rate-limit";
 import { signResumeToken, verifyResumeToken } from "@/lib/embed/resume";
 import { notifyLead } from "@/lib/notify";
@@ -22,6 +30,30 @@ import { chatGlobalRateLimiter, chatRateLimiter } from "@/lib/rate-limit";
 
 // Allow streaming responses up to 30 seconds.
 export const maxDuration = 30;
+
+/** OPTIONS preflight — gated on the union of all active clients' allowed origins. */
+export async function OPTIONS(req: Request) {
+  const origin = req.headers.get("Origin");
+  if (!origin) {
+    return new Response(null, { status: 204 });
+  }
+
+  let union = getCachedUnionOrigins();
+  if (union === null) {
+    const db = await getChatDb();
+    union = await loadUnionAllowedOrigins(db);
+    setCachedUnionOrigins(union);
+  }
+
+  if (!union.includes(origin)) {
+    return new Response(null, { status: 403 });
+  }
+
+  return new Response(null, {
+    status: 204,
+    headers: corsPreflightHeaders(origin, "POST, OPTIONS"),
+  });
+}
 
 /**
  * Extract the client's IP address from the request headers.
@@ -207,6 +239,8 @@ function teeForPersistence(
 
 // fallow-ignore-next-line complexity
 export async function POST(req: Request) {
+  const requestOrigin = req.headers.get("Origin");
+
   // Guard 1: Rate limit — check BEFORE parsing body
   const clientIp = getClientIp(req);
   const rateLimitResult = chatRateLimiter.check(clientIp);
@@ -215,14 +249,11 @@ export async function POST(req: Request) {
     console.warn(
       `[chat] Rate limit exceeded for IP: ${clientIp}. Retry-After: ${rateLimitResult.retryAfter}s`,
     );
-    return Response.json(
+    return jsonWithCors(
       { error: "Too many requests. Please try again later." },
-      {
-        status: 429,
-        headers: {
-          "Retry-After": String(rateLimitResult.retryAfter),
-        },
-      },
+      429,
+      requestOrigin,
+      { "Retry-After": String(rateLimitResult.retryAfter) },
     );
   }
 
@@ -232,9 +263,11 @@ export async function POST(req: Request) {
   const globalResult = chatGlobalRateLimiter.check();
   if (!globalResult.allowed) {
     console.warn(`[chat] Global rate ceiling hit. Retry-After: ${globalResult.retryAfter}s`);
-    return Response.json(
+    return jsonWithCors(
       { error: "The assistant is busy right now. Please try again shortly." },
-      { status: 429, headers: { "Retry-After": String(globalResult.retryAfter) } },
+      429,
+      requestOrigin,
+      { "Retry-After": String(globalResult.retryAfter) },
     );
   }
 
@@ -244,7 +277,7 @@ export async function POST(req: Request) {
     body = await req.json();
   } catch (e) {
     console.error("[chat] Failed to parse JSON:", e);
-    return Response.json({ error: "Invalid JSON" }, { status: 400 });
+    return jsonWithCors({ error: "Invalid JSON" }, 400, requestOrigin);
   }
 
   // --- Embed gate (token + parent origin + per-client rate limit) ---
@@ -261,16 +294,19 @@ export async function POST(req: Request) {
     const db = await getChatDb();
     const client = await resolveEmbedClient(db, embedTokenRaw);
     if (!client) {
-      return Response.json({ error: "embed not authorized" }, { status: 403 });
+      return jsonWithCors({ error: "embed not authorized" }, 403, requestOrigin);
     }
-    if (!isAllowedOrigin(client, parentOriginRaw)) {
-      return Response.json({ error: "parent origin not allowed" }, { status: 403 });
+    const verifiedOrigin = resolveVerifiedOrigin(req, parentOriginRaw);
+    if (!isAllowedOrigin(client, verifiedOrigin)) {
+      return jsonWithCors({ error: "parent origin not allowed" }, 403, requestOrigin);
     }
     const embedRate = embedClientRateLimiter.check(client.publicToken, client.rateLimitPerMin);
     if (!embedRate.allowed) {
-      return Response.json(
+      return jsonWithCors(
         { error: "Too many requests for this embed. Please try again later." },
-        { status: 429, headers: { "Retry-After": String(embedRate.retryAfter) } },
+        429,
+        requestOrigin,
+        { "Retry-After": String(embedRate.retryAfter) },
       );
     }
     embedClientId = client.id;
@@ -319,9 +355,14 @@ export async function POST(req: Request) {
     if (detectInjection(userText)) {
       console.warn(`[chat] Prompt injection detected from IP: ${clientIp}`);
       // Return a short-circuit refusal without calling the gateway
-      return createUIMessageStreamResponse({
+      const refusal = createUIMessageStreamResponse({
         stream: createRefusalStream(),
       });
+      const refusalHeaders = new Headers(refusal.headers);
+      for (const [key, value] of Object.entries(corsHeaders(requestOrigin))) {
+        refusalHeaders.set(key, value);
+      }
+      return new Response(refusal.body, { status: refusal.status, headers: refusalHeaders });
     }
   }
 
@@ -351,18 +392,19 @@ export async function POST(req: Request) {
     });
   } catch (e) {
     console.error("[chat] AI service unreachable:", e);
-    return Response.json({ error: "AI service unavailable" }, { status: 502 });
+    return jsonWithCors({ error: "AI service unavailable" }, 502, requestOrigin);
   }
 
   if (!upstream.ok || !upstream.body) {
     console.error(`[chat] AI service error: ${upstream.status}`);
-    return Response.json({ error: "AI service error" }, { status: 502 });
+    return jsonWithCors({ error: "AI service error" }, 502, requestOrigin);
   }
 
   // Pipe the SSE bytes straight back to the browser. Persistence tee added in Task 12.
   return new Response(teeForPersistence(upstream.body, messages, conversationId, embedClientId), {
     status: 200,
     headers: {
+      ...corsHeaders(requestOrigin),
       "content-type": upstream.headers.get("content-type") ?? "text/event-stream",
       "x-vercel-ai-ui-message-stream":
         upstream.headers.get("x-vercel-ai-ui-message-stream") ?? "v1",

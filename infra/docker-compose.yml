@@ -43,6 +43,7 @@ services:
       # Embed widget: HMAC secret for conversation resume tokens + per-client rate limit.
       RESUME_TOKEN_SECRET: ${RESUME_TOKEN_SECRET:-dev-secret-change-me}
       EMBED_RATE_LIMIT_PER_MIN: ${EMBED_RATE_LIMIT_PER_MIN:-60}
+      CHAT_APP_ORIGIN: http://localhost:3000
     volumes:
       - ../:/app
       - /app/node_modules

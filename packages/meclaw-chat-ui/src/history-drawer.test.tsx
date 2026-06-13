@@ -1,11 +1,11 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
-import type { ChatSession } from "@/lib/chat/sessions";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { HistoryDrawer } from "./history-drawer";
+import type { ChatUiSession } from "./types";
 
-const sessions: ChatSession[] = [
-  { conversationId: "b", resumeToken: "rt", title: "Second", createdAt: 2, updatedAt: 20 },
-  { conversationId: "a", resumeToken: "rt", title: "", createdAt: 1, updatedAt: 10 },
+const sessions: ChatUiSession[] = [
+  { conversationId: "b", title: "Second", updatedAt: 20 },
+  { conversationId: "a", title: "", updatedAt: 10 },
 ];
 
 function setup(overrides: Partial<Parameters<typeof HistoryDrawer>[0]> = {}) {
@@ -21,6 +21,11 @@ function setup(overrides: Partial<Parameters<typeof HistoryDrawer>[0]> = {}) {
   render(<HistoryDrawer {...props} />);
   return props;
 }
+
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 describe("HistoryDrawer", () => {
   it("renders nothing when closed", () => {

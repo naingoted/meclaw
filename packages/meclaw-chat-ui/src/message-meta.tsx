@@ -2,12 +2,8 @@
 
 import { Check, Copy } from "lucide-react";
 import { useState } from "react";
-import { formatTime } from "@/lib/chat/time";
+import { formatTime } from "./time";
 
-/**
- * Muted timestamp line + copy button shown under a message bubble. `timestamp`
- * is epoch ms; falls back to an em dash when absent (legacy row, clock skew).
- */
 export function MessageMeta({ timestamp, text }: { timestamp?: number; text: string }) {
   const [copied, setCopied] = useState(false);
   const label = timestamp !== undefined ? formatTime(timestamp) : "—";
@@ -19,7 +15,7 @@ export function MessageMeta({ timestamp, text }: { timestamp?: number; text: str
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      // clipboard unavailable — ignore
+      // clipboard unavailable
     }
   }
 

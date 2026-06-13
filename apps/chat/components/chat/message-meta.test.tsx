@@ -1,6 +1,6 @@
+import { MessageMeta } from "@naingoted/meclaw-chat-ui";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MessageMeta } from "./message-meta";
 
 const TS = new Date(2026, 5, 10, 14, 5).getTime();
 

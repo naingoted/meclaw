@@ -41,11 +41,21 @@ vi.mock("@/lib/rate-limit", () => ({
   },
 }));
 
-vi.mock("@/lib/embed/auth", () => ({
-  resolveEmbedClient: vi.fn(),
-  isAllowedOrigin: vi.fn(() => true),
-  getChatDb: vi.fn(() => Promise.resolve({})),
+const { mockResolveEmbedClient, mockIsAllowedOrigin, mockGetChatDb } = vi.hoisted(() => ({
+  mockResolveEmbedClient: vi.fn(),
+  mockIsAllowedOrigin: vi.fn(() => true),
+  mockGetChatDb: vi.fn(() => Promise.resolve({})),
 }));
+
+vi.mock("@/lib/embed/auth", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/embed/auth")>();
+  return {
+    ...actual,
+    resolveEmbedClient: mockResolveEmbedClient,
+    isAllowedOrigin: mockIsAllowedOrigin,
+    getChatDb: mockGetChatDb,
+  };
+});
 vi.mock("@/lib/embed/resume", () => ({
   signResumeToken: vi.fn(
     ({ conversationId, embedClientId }: { conversationId: string; embedClientId: string }) =>
@@ -70,7 +80,6 @@ vi.mock("@/lib/embed/rate-limit", () => ({
 // Use real guardrails implementation (not mocked) to test actual injection detection
 // Mocking is done in guardrails.test.ts
 
-import { resolveEmbedClient } from "@/lib/embed/auth";
 import { embedClientRateLimiter } from "@/lib/embed/rate-limit";
 
 /**
@@ -752,11 +761,9 @@ describe("POST /api/chat embed mode", () => {
   }
 
   beforeEach(async () => {
-    vi.mocked(resolveEmbedClient).mockReset();
+    vi.mocked(mockResolveEmbedClient).mockReset();
     vi.mocked(embedClientRateLimiter.check).mockReset();
-    // Reset isAllowedOrigin to default true (embed gate only fails on explicit false)
-    const { isAllowedOrigin } = await import("@/lib/embed/auth");
-    vi.mocked(isAllowedOrigin).mockReturnValue(true);
+    mockIsAllowedOrigin.mockReturnValue(true);
     // Restore the core/db mock (persistence tee tests doUnmock it in afterEach).
     // Embed mode tests need listConversationMessages to return [] so the
     // first-party continuation gate (triggered by baseBody's conversationId
@@ -797,14 +804,14 @@ describe("POST /api/chat embed mode", () => {
   });
 
   it("rejects unknown embedToken with 403", async () => {
-    vi.mocked(resolveEmbedClient).mockResolvedValue(null);
+    mockResolveEmbedClient.mockResolvedValue(null);
     const { POST } = await import("./route");
     const res = await POST(makeReq({ ...baseBody, embedToken: "pk_unknown" }));
     expect(res.status).toBe(403);
   });
 
   it("rejects when parentOrigin is not in allowlist with 403", async () => {
-    vi.mocked(resolveEmbedClient).mockResolvedValue({
+    mockResolveEmbedClient.mockResolvedValue({
       id: "e1",
       publicToken: "pk_a",
       name: "A",
@@ -813,15 +820,14 @@ describe("POST /api/chat embed mode", () => {
       createdAt: new Date(),
       revokedAt: null,
     });
-    const { isAllowedOrigin } = await import("@/lib/embed/auth");
-    vi.mocked(isAllowedOrigin).mockReturnValue(false);
+    mockIsAllowedOrigin.mockReturnValue(false);
     const { POST } = await import("./route");
     const res = await POST(makeReq({ ...baseBody, embedToken: "pk_a" }));
     expect(res.status).toBe(403);
   });
 
   it("applies the per-client rate limiter when embedToken is present", async () => {
-    vi.mocked(resolveEmbedClient).mockResolvedValue({
+    mockResolveEmbedClient.mockResolvedValue({
       id: "e1",
       publicToken: "pk_a",
       name: "A",
@@ -839,7 +845,7 @@ describe("POST /api/chat embed mode", () => {
   });
 
   it("passes through when token + parentOrigin + rate-limit are OK", async () => {
-    vi.mocked(resolveEmbedClient).mockResolvedValue({
+    mockResolveEmbedClient.mockResolvedValue({
       id: "e1",
       publicToken: "pk_a",
       name: "A",
@@ -857,6 +863,6 @@ describe("POST /api/chat embed mode", () => {
     const { POST } = await import("./route");
     const res = await POST(makeReq(baseBody));
     expect(res.status).toBe(200);
-    expect(resolveEmbedClient).not.toHaveBeenCalled();
+    expect(mockResolveEmbedClient).not.toHaveBeenCalled();
   });
 });

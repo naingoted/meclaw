@@ -1,6 +1,6 @@
 import { initDb } from "@meclaw/core/db";
 import { embedClients } from "@meclaw/core/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, isNull } from "drizzle-orm";
 
 export type EmbedClient = {
   id: string;
@@ -38,6 +38,48 @@ export async function resolveEmbedClient(
     createdAt: row.createdAt,
     revokedAt: row.revokedAt,
   };
+}
+
+/** The chat app's own browser origin (same-origin iframe requests carry this Origin). */
+export function getChatAppOrigin(): string {
+  if (process.env.CHAT_APP_ORIGIN) return process.env.CHAT_APP_ORIGIN;
+  return process.env.NODE_ENV === "production"
+    ? "https://meclaw.leanior.com"
+    : "http://localhost:3000";
+}
+
+/**
+ * Resolve the authoritative embedding origin for token verification.
+ * Cross-origin browser fetches attach an unforgeable Origin header; same-origin
+ * iframe requests fall back to the body parentOrigin (legacy embed path).
+ */
+export function resolveVerifiedOrigin(
+  req: Request,
+  parentOriginFromBody: string | null,
+): string | null {
+  const originHeader = req.headers.get("Origin");
+  const chatAppOrigin = getChatAppOrigin();
+  if (originHeader && originHeader !== chatAppOrigin) {
+    return originHeader;
+  }
+  return parentOriginFromBody;
+}
+
+/** Union of all non-revoked embed clients' allowedOrigins (for CORS preflight). */
+export async function loadUnionAllowedOrigins(
+  db: Awaited<ReturnType<typeof initDb>>,
+): Promise<string[]> {
+  const rows = await db
+    .select({ allowedOrigins: embedClients.allowedOrigins })
+    .from(embedClients)
+    .where(isNull(embedClients.revokedAt));
+  const set = new Set<string>();
+  for (const row of rows) {
+    for (const o of row.allowedOrigins ?? []) {
+      set.add(o);
+    }
+  }
+  return [...set];
 }
 
 /** Exact-match (scheme + host + port). No wildcards, no trailing slash. */

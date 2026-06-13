@@ -1,15 +1,14 @@
 "use client";
 
-import { cn } from "@meclaw/ui";
 import { Trash2, X } from "lucide-react";
 import { useEffect } from "react";
-import type { ChatSession } from "@/lib/chat/sessions";
-import { formatDayLabel, formatTime } from "@/lib/chat/time";
+import { cn } from "./cn";
+import { formatDayLabel, formatTime } from "./time";
+import type { ChatUiSession } from "./types";
 
 /**
- * Side drawer listing past conversations (main chat only). Rows are rendered in
- * the order given (caller pre-sorts newest-first). Click a row to load it;
- * click the trash to remove it from the local index (DB rows untouched).
+ * Side drawer listing past conversations. Rows render in caller order
+ * (typically newest-first). Click a row to load; trash removes from the local index.
  */
 export function HistoryDrawer({
   open,
@@ -20,7 +19,7 @@ export function HistoryDrawer({
   onClose,
 }: {
   open: boolean;
-  sessions: ChatSession[];
+  sessions: ChatUiSession[];
   activeConversationId: string;
   onSelect: (conversationId: string) => void;
   onDelete: (conversationId: string) => void;
@@ -38,7 +37,7 @@ export function HistoryDrawer({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex">
+    <div className="fixed inset-0 z-[100] flex">
       <button
         type="button"
         aria-label="Close history"

@@ -1,11 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { formatDayLabel, formatTime, isSameDay } from "./time";
 
-const NOON = new Date(2026, 5, 10, 14, 5).getTime(); // 2026-06-10 14:05 local
+const NOON = new Date(2026, 5, 10, 14, 5).getTime();
 
 describe("formatTime", () => {
   it("formats hour:minute", () => {
-    // Locale-dependent AM/PM vs 24h; assert the minute is zero-padded and present.
     expect(formatTime(NOON)).toMatch(/\b2:05\b|14:05/);
   });
 });

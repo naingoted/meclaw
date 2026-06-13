@@ -1,10 +1,10 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-/* Scan the shared UI package so utilities used only in @meclaw/ui (e.g. Button's
-   active:scale / focus ring) are emitted — Tailwind v4 does not scan workspace
-   deps reached via node_modules by default. */
+/* Scan shared workspace packages so utilities used only inside them are emitted —
+   Tailwind v4 does not scan workspace deps reached via node_modules by default. */
 @source "../../../packages/ui/src";
+@source "../../../packages/meclaw-chat-ui/src";
 
 @custom-variant dark (&:is(.dark, .dark *));
 

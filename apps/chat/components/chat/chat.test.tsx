@@ -225,7 +225,9 @@ describe("Chat component — M4 behavioral tests", () => {
 
     // Assert greeting is rendered
     expect(screen.getByText(/Hi! I'm meclaw, an AI assistant/)).toBeInTheDocument();
-    expect(screen.getByText(/Ask me anything about how leanior works/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Ask me anything about his work, skills, or projects/),
+    ).toBeInTheDocument();
 
     // Assert all 3 suggestion chips are rendered with exact text
     expect(screen.getByRole("button", { name: "What's Thet's tech stack?" })).toBeInTheDocument();

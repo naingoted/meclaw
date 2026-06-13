@@ -1,9 +1,16 @@
 import { randomUUID } from "node:crypto";
 import { embedClients } from "@meclaw/core/db/schema";
 import { makeTestDb } from "@meclaw/core/db/test-db";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { EmbedClient } from "./auth";
-import { frameAncestorsHeader, isAllowedOrigin, resolveEmbedClient } from "./auth";
+import {
+  frameAncestorsHeader,
+  getChatAppOrigin,
+  isAllowedOrigin,
+  loadUnionAllowedOrigins,
+  resolveEmbedClient,
+  resolveVerifiedOrigin,
+} from "./auth";
 
 describe("resolveEmbedClient", () => {
   it("returns the client row for a live token", async () => {
@@ -92,5 +99,80 @@ describe("frameAncestorsHeader", () => {
   });
   it("returns 'none' for a null client (unknown/revoked)", () => {
     expect(frameAncestorsHeader(null)).toBe("frame-ancestors 'none'");
+  });
+});
+
+describe("getChatAppOrigin", () => {
+  it("reads CHAT_APP_ORIGIN when set", () => {
+    vi.stubEnv("CHAT_APP_ORIGIN", "http://localhost:3000");
+    expect(getChatAppOrigin()).toBe("http://localhost:3000");
+    vi.unstubAllEnvs();
+  });
+});
+
+describe("resolveVerifiedOrigin", () => {
+  it("uses the Origin header when cross-origin (differs from CHAT_APP_ORIGIN)", () => {
+    vi.stubEnv("CHAT_APP_ORIGIN", "http://localhost:3000");
+    const req = new Request("http://localhost:3000/api/chat", {
+      headers: { Origin: "http://localhost:3002" },
+    });
+    expect(resolveVerifiedOrigin(req, "https://forged.com")).toBe("http://localhost:3002");
+    vi.unstubAllEnvs();
+  });
+
+  it("falls back to parentOrigin for same-origin iframe (Origin matches CHAT_APP_ORIGIN)", () => {
+    vi.stubEnv("CHAT_APP_ORIGIN", "http://localhost:3000");
+    const req = new Request("http://localhost:3000/api/chat", {
+      headers: { Origin: "http://localhost:3000" },
+    });
+    expect(resolveVerifiedOrigin(req, "https://parent.com")).toBe("https://parent.com");
+    vi.unstubAllEnvs();
+  });
+
+  it("falls back to parentOrigin when Origin header is absent", () => {
+    vi.stubEnv("CHAT_APP_ORIGIN", "http://localhost:3000");
+    const req = new Request("http://localhost:3000/api/chat");
+    expect(resolveVerifiedOrigin(req, "https://parent.com")).toBe("https://parent.com");
+    vi.unstubAllEnvs();
+  });
+});
+
+describe("loadUnionAllowedOrigins", () => {
+  it("returns the union of all non-revoked clients' allowedOrigins", async () => {
+    const { db } = await makeTestDb();
+    await db.insert(embedClients).values([
+      {
+        id: randomUUID(),
+        publicToken: "pk_a",
+        name: "A",
+        allowedOrigins: ["http://localhost:3002", "https://a.com"],
+        rateLimitPerMin: null,
+        createdAt: new Date(),
+        revokedAt: null,
+      },
+      {
+        id: randomUUID(),
+        publicToken: "pk_b",
+        name: "B",
+        allowedOrigins: ["http://localhost:8080"],
+        rateLimitPerMin: null,
+        createdAt: new Date(),
+        revokedAt: null,
+      },
+      {
+        id: randomUUID(),
+        publicToken: "pk_revoked",
+        name: "Revoked",
+        allowedOrigins: ["https://evil.com"],
+        rateLimitPerMin: null,
+        createdAt: new Date(),
+        revokedAt: new Date(),
+      },
+    ]);
+    const union = await loadUnionAllowedOrigins(db as never);
+    expect(union).toEqual(
+      expect.arrayContaining(["http://localhost:3002", "https://a.com", "http://localhost:8080"]),
+    );
+    expect(union).not.toContain("https://evil.com");
   });
 });

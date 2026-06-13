@@ -22,6 +22,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/core/package.json ./packages/core/
 COPY packages/ui/package.json ./packages/ui/
 COPY packages/rag/package.json ./packages/rag/
+COPY packages/meclaw-chat-ui/package.json ./packages/meclaw-chat-ui/
 COPY apps/chat/package.json ./apps/chat/
 # Install full workspace deps so compose mounts work (host source may use any workspace pkg)
 RUN pnpm install --no-frozen-lockfile
@@ -42,7 +43,10 @@ FROM deps AS builder
 COPY --from=prune /app/out/full/ ./
 COPY tsconfig.base.json ./
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN pnpm --filter @meclaw/chat build
+# @naingoted/meclaw-chat-ui ships built dist (exports → ./dist/index.js); its
+# source is in the pruned workspace but dist is gitignored, so build it before
+# next build resolves the import. Leaf package — no workspace deps to order.
+RUN pnpm --filter @naingoted/meclaw-chat-ui build && pnpm --filter @meclaw/chat build
 
 ##### runner: standalone #####
 FROM node:22-bookworm-slim AS runner

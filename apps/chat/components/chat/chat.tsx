@@ -3,9 +3,17 @@
 import { useChat } from "@ai-sdk/react";
 import type { PublicCopy } from "@meclaw/core/settings";
 import { DEFAULT_PUBLIC_COPY } from "@meclaw/core/settings";
-import { Button, cn, useTheme } from "@meclaw/ui";
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import ReactMarkdown from "react-markdown";
+import { useTheme } from "@meclaw/ui";
+import {
+  appendStep,
+  ChatConversation,
+  type ChatUiMessage,
+  HistoryDrawer,
+  parseMessageCreatedAt,
+  shouldRenderMessage,
+  shouldShowThinking,
+} from "@naingoted/meclaw-chat-ui";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatSession } from "@/lib/chat/sessions";
 import {
   clearResumeEntry,
@@ -21,11 +29,18 @@ import {
   upsertSession,
   writeResumeEntry,
 } from "@/lib/chat/sessions";
-import { formatDayLabel, isSameDay } from "@/lib/chat/time";
 import { ChatToolbar } from "./chat-toolbar";
 import { ConfigRefreshPoller } from "./config-refresh-poller";
-import { HistoryDrawer } from "./history-drawer";
-import { MessageMeta } from "./message-meta";
+
+// Re-export package utilities so existing tests keep a stable import surface.
+export {
+  appendStep,
+  groundingLabel,
+  hasRenderedText,
+  LiveTrace,
+  shouldRenderMessage,
+  shouldShowThinking,
+} from "@naingoted/meclaw-chat-ui";
 
 // Re-export the embed single-entry helpers + sentinel so existing importers
 // (chat.test.tsx, chat-embed.test.tsx) keep a stable surface. Implementations
@@ -72,15 +87,6 @@ function readScore(value: unknown): string | undefined {
   }
 
   return undefined;
-}
-
-/**
- * Append a live step label, skipping a consecutive duplicate so a repeated
- * data-status emit can't double a checklist row.
- */
-export function appendStep(steps: string[], label: string): string[] {
-  if (steps.length > 0 && steps[steps.length - 1] === label) return steps;
-  return [...steps, label];
 }
 
 /**
@@ -150,18 +156,6 @@ function extractRoute(message: ChatMessageLike): string | undefined {
   return metadata ? (readString(metadata.route) ?? readString(metadata.intent)) : undefined;
 }
 
-const KNOWLEDGE_ROUTES = new Set(["tech", "project", "general"]);
-
-export function groundingLabel(route: string | undefined, sourceCount: number): string {
-  if (route === "gap") {
-    return "saved answer";
-  }
-  if (route && KNOWLEDGE_ROUTES.has(route)) {
-    return sourceCount > 0 ? `grounded on ${sourceCount} sources` : "no matching corpus content";
-  }
-  return `answered without corpus (intent: ${route ?? "unknown"})`;
-}
-
 export function extractCorpusVersion(message: ChatMessageLike): number | undefined {
   if (message.role !== "assistant") return undefined;
   const metadata = isRecord(message.metadata) ? message.metadata : null;
@@ -178,255 +172,32 @@ export function extractSteps(message: ChatMessageLike): string[] {
   return steps.length === raw.length ? steps : [];
 }
 
-/** Parse an ISO `metadata.createdAt` to epoch ms, or undefined when absent/bad. */
-function readCreatedAt(metadata: unknown): number | undefined {
-  const meta = isRecord(metadata) ? metadata : null;
-  const created =
-    meta && typeof meta.createdAt === "string" ? Date.parse(meta.createdAt) : Number.NaN;
-  return Number.isFinite(created) ? created : undefined;
-}
-
 type MessageWithParts = {
   role?: string;
   parts?: Array<{ type?: string; text?: string }>;
 };
-
-/**
- * Whether a message has begun streaming non-empty text. Metadata (sources,
- * route, steps) arrives at `sse_start` — before the first token — so the
- * persisted "How I answered" trace and dev Sources panel gate on this to avoid
- * coexisting with the live checklist during the pre-token window. Text appears
- * exactly as the live checklist disappears, so the handoff is clean.
- */
-export function hasRenderedText(message: MessageWithParts): boolean {
-  return (
-    Array.isArray(message.parts) &&
-    message.parts.some((p) => p.type === "text" && (p.text?.length ?? 0) > 0)
-  );
-}
-
-/**
- * Whether a message should render in the transcript. Suppresses an assistant
- * message that has not produced text yet — during that pre-token window
- * `LiveTrace` is the single visible bot, so rendering the empty bubble too would
- * show two bot avatars.
- */
-export function shouldRenderMessage(message: MessageWithParts): boolean {
-  return !(message.role === "assistant" && !hasRenderedText(message));
-}
-
-/**
- * Whether to show the "thinking" indicator: true from the moment a question is
- * sent until the first assistant token arrives. Once the assistant message has
- * text, the streamed answer replaces the indicator.
- */
-export function shouldShowThinking(status: string, messages: MessageWithParts[]): boolean {
-  if (status === "submitted") return true;
-  if (status !== "streaming") return false;
-  const last = messages[messages.length - 1];
-  const hasAssistantText =
-    last?.role === "assistant" &&
-    Array.isArray(last.parts) &&
-    last.parts.some((p) => p.type === "text" && (p.text?.length ?? 0) > 0);
-  return !hasAssistantText;
-}
-
-function StepDots() {
-  return (
-    <span className="flex gap-1" aria-hidden="true">
-      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.3s]" />
-      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.15s]" />
-      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current" />
-    </span>
-  );
-}
-
-/**
- * Live growing checklist of the agent's pipeline steps. Completed steps show a
- * check; the last (active) step shows the animated dots. Falls back to a single
- * `label` before any step label has arrived.
- */
-export function LiveTrace({ steps, label = "Thinking…" }: { steps: string[]; label?: string }) {
-  return (
-    <div>
-      <section
-        aria-label="Assistant says"
-        className="rounded-2xl bg-muted px-4 py-2 text-sm text-muted-foreground w-fit"
-      >
-        {steps.length === 0 ? (
-          <div className="flex items-center gap-2">
-            <StepDots />
-            <span>{label}</span>
-          </div>
-        ) : (
-          <ul className="space-y-1">
-            {steps.map((step, i) => {
-              const active = i === steps.length - 1;
-              return (
-                <li key={`${step}-${i}`} data-active={active} className="flex items-center gap-2">
-                  {active ? (
-                    <StepDots />
-                  ) : (
-                    <span aria-hidden="true" className="text-foreground">
-                      ✓
-                    </span>
-                  )}
-                  <span className={active ? "" : "text-foreground"}>{step}</span>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
-    </div>
-  );
-}
-
-function SourcesPanel({
-  sources,
-  route,
-  label,
-  corpusVersion,
-}: {
-  sources: RenderedSource[];
-  route?: string;
-  label?: string;
-  corpusVersion?: number;
-}) {
-  return (
-    <div className="w-full max-w-[85%] rounded-xl border border-border bg-background px-3 py-2 text-xs text-muted-foreground">
-      {label ? (
-        <p className="font-mono text-xs text-muted-foreground">
-          {label}
-          {typeof corpusVersion === "number" ? ` · corpus v${corpusVersion}` : ""}
-        </p>
-      ) : null}
-      <div className="flex items-center justify-between gap-2">
-        <p className="font-medium text-foreground">Sources used</p>
-        {route ? (
-          <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-xs font-medium text-foreground">
-            Routed: {route}
-          </span>
-        ) : null}
-      </div>
-      <ul className="mt-2 space-y-2">
-        {sources.map((source, index) => (
-          <li key={`${source.location}-${index}`} className="space-y-0.5">
-            <p className="font-medium text-foreground">{source.title}</p>
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs leading-4">
-              <span className="break-words">{source.location}</span>
-              {source.score && (
-                <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-xs font-medium text-foreground">
-                  Score {source.score}
-                </span>
-              )}
-            </div>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function ThinkingTrace({ steps }: { steps: string[] }) {
-  return (
-    <details className="max-w-[85%] rounded-xl border border-border bg-background px-3 py-2 text-xs text-muted-foreground">
-      <summary className="cursor-pointer font-medium text-foreground">How I answered</summary>
-      <ol className="mt-2 space-y-1">
-        {steps.map((step, i) => (
-          <li key={`${step}-${i}`} className="flex items-center gap-2">
-            <span aria-hidden="true">✓</span>
-            <span>{step}</span>
-          </li>
-        ))}
-      </ol>
-    </details>
-  );
-}
 
 type RenderableMessage = ChatMessageLike & {
   id: string;
   parts: Array<{ type?: string; text?: string }>;
 };
 
-// Shared markdown-bubble class. No `font-sans` — chat content inherits the
-// JetBrains Mono base (`html { font-mono }`) so the whole widget is one family.
-const PROSE_BUBBLE = "prose prose-sm max-w-none overflow-hidden break-words dark:prose-invert";
-
-/**
- * One assistant turn: avatar + markdown bubble, then (once answered) the
- * timestamp/copy line, the dev Sources panel, and the persisted "How I answered"
- * trace. Extracted from the transcript map to keep that callback simple.
- */
-function AssistantTurn({
-  message,
-  ts,
-  text,
-  answered,
-}: {
-  message: RenderableMessage;
-  ts: number | undefined;
-  text: string;
-  answered: boolean;
-}) {
+function toChatUiMessage(
+  message: RenderableMessage,
+  timestamp: number | undefined,
+  text: string,
+): ChatUiMessage {
   const sources = extractSources(message);
-  const route = extractRoute(message);
-  const steps = extractSteps(message);
-  return (
-    <section aria-label="Assistant says" className="min-w-0 space-y-2">
-      <div className="rounded-2xl bg-muted px-4 py-2 text-sm text-foreground max-w-[85%]">
-        {message.parts.map((part, j) =>
-          part.type === "text" ? (
-            <div key={`${message.id}-${j}`} className={PROSE_BUBBLE}>
-              <ReactMarkdown>{part.text}</ReactMarkdown>
-            </div>
-          ) : null,
-        )}
-      </div>
-      {answered ? <MessageMeta timestamp={ts} text={text} /> : null}
-      {answered && (sources.length > 0 || route) ? (
-        <SourcesPanel
-          sources={sources}
-          route={route}
-          label={groundingLabel(route, sources.length)}
-          corpusVersion={extractCorpusVersion(message)}
-        />
-      ) : null}
-      {answered && steps.length > 0 ? <ThinkingTrace steps={steps} /> : null}
-    </section>
-  );
-}
-
-/** One user turn: right-aligned markdown bubble + timestamp/copy line. */
-function UserTurn({
-  message,
-  ts,
-  text,
-}: {
-  message: RenderableMessage;
-  ts: number | undefined;
-  text: string;
-}) {
-  return (
-    <section aria-label="You said" className="flex flex-col items-end max-w-[85%]">
-      <div
-        className={cn(
-          "rounded-2xl px-4 py-2 text-sm",
-          "bg-primary text-primary-foreground",
-          "w-fit",
-        )}
-      >
-        {message.parts.map((part, j) =>
-          part.type === "text" ? (
-            <div key={`${message.id}-${j}`} className={PROSE_BUBBLE}>
-              <ReactMarkdown>{part.text}</ReactMarkdown>
-            </div>
-          ) : null,
-        )}
-      </div>
-      <MessageMeta timestamp={ts} text={text} />
-    </section>
-  );
+  return {
+    id: message.id,
+    role: message.role === "assistant" ? "assistant" : "user",
+    text,
+    timestamp,
+    sources: sources.map((s) => ({ title: s.title, location: s.location, score: s.score })),
+    route: extractRoute(message),
+    steps: extractSteps(message),
+    corpusVersion: extractCorpusVersion(message),
+  };
 }
 
 export function Chat({
@@ -536,7 +307,7 @@ export function Chat({
   // A message's timestamp: its persisted `createdAt`, else the wall-clock time
   // it was first seen this session (read from state — stamped by the effect).
   function messageTimestamp(message: { id: string; metadata?: unknown }): number | undefined {
-    return readCreatedAt(message.metadata) ?? firstSeen.get(message.id);
+    return parseMessageCreatedAt(message.metadata) ?? firstSeen.get(message.id);
   }
 
   function messageText(message: { parts?: Array<{ type?: string; text?: string }> }): string {
@@ -583,7 +354,7 @@ export function Chat({
     setFirstSeen((prev) => {
       let next = prev;
       for (const m of messages) {
-        if (readCreatedAt(m.metadata) !== undefined || prev.has(m.id)) continue;
+        if (parseMessageCreatedAt(m.metadata) !== undefined || prev.has(m.id)) continue;
         if (next === prev) next = new Map(prev);
         next.set(m.id, now);
       }
@@ -757,6 +528,13 @@ export function Chat({
     setSessionTitle({ scope, conversationId, title: text });
   }
 
+  const uiMessages: ChatUiMessage[] = messages
+    .filter((message) => shouldRenderMessage(message as MessageWithParts))
+    .map((message) => {
+      const text = messageText(message);
+      return toChatUiMessage(message as RenderableMessage, messageTimestamp(message), text);
+    });
+
   return (
     <div className="mx-auto flex h-full w-full max-w-2xl flex-col">
       <ConfigRefreshPoller initialConfigVersion={initialConfigVersion} status={status} />
@@ -766,106 +544,29 @@ export function Chat({
         onOpenHistory={openHistory}
         onClose={handleClose}
       />
-      <div
-        // role="log" marks this as a live transcript: screen readers announce
-        // new messages as they stream in. It also implies aria-live="polite".
-        role="log"
-        aria-label="Conversation"
-        className="flex-1 space-y-4 overflow-y-auto overscroll-contain p-4"
-        onTouchStart={() => {
+      <ChatConversation
+        className="flex-1"
+        messages={uiMessages}
+        greeting={greeting}
+        suggestions={suggestions}
+        copy={shellCopy}
+        input={input}
+        onInputChange={setInput}
+        onSubmit={handleSubmit}
+        onSuggestion={handleChipClick}
+        isStreaming={isStreaming}
+        showThinking={showThinking}
+        liveSteps={liveSteps}
+        showDevPanels={process.env.NODE_ENV !== "production"}
+        transcriptEndRef={endRef}
+        inputRef={inputRef}
+        onTranscriptTouchStart={() => {
           touchingRef.current = true;
         }}
-        onTouchEnd={() => {
+        onTranscriptTouchEnd={() => {
           touchingRef.current = false;
         }}
-      >
-        {messages.length === 0 && (
-          <div className="mt-10 space-y-6">
-            {/* Greeting from meclaw */}
-            <div className="space-y-1">
-              <p className="text-sm font-medium">{greeting}</p>
-              <p className="text-sm text-muted-foreground">{shellCopy.emptyStateIntro}</p>
-            </div>
-
-            {/* Suggestion chips */}
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-muted-foreground">
-                {shellCopy.suggestionsLabel}
-              </p>
-              <div className="flex flex-col gap-2">
-                {suggestions.map((chip) => (
-                  <button
-                    type="button"
-                    key={chip}
-                    onClick={() => handleChipClick(chip)}
-                    className="cursor-pointer rounded-sm border border-border bg-card px-3 py-2 text-left text-sm transition-colors hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    {chip}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-        {messages
-          .filter((message) => shouldRenderMessage(message as MessageWithParts))
-          .map((message, i, visible) => {
-            // Hold persisted blocks until answer text begins, so they don't
-            // overlap the live checklist (metadata lands before the first token).
-            const answered = hasRenderedText(message as MessageWithParts);
-            const ts = messageTimestamp(message);
-            const prevTs = i > 0 ? messageTimestamp(visible[i - 1]) : undefined;
-            const showDay = ts !== undefined && (prevTs === undefined || !isSameDay(prevTs, ts));
-            const text = messageText(message);
-
-            return (
-              <React.Fragment key={message.id}>
-                {showDay ? (
-                  <div className="my-3 text-center font-mono text-xs text-muted-foreground">
-                    {formatDayLabel(ts)}
-                  </div>
-                ) : null}
-                <div
-                  className={cn("flex", message.role === "user" ? "justify-end" : "justify-start")}
-                >
-                  {message.role === "assistant" ? (
-                    <AssistantTurn
-                      message={message as RenderableMessage}
-                      ts={ts}
-                      text={text}
-                      answered={answered}
-                    />
-                  ) : (
-                    <UserTurn message={message as RenderableMessage} ts={ts} text={text} />
-                  )}
-                </div>
-              </React.Fragment>
-            );
-          })}
-        {showThinking && <LiveTrace steps={liveSteps} label={shellCopy.thinkingLabel} />}
-        <div ref={endRef} />
-      </div>
-
-      <form onSubmit={handleSubmit} className="flex gap-2 border-t border-border p-4">
-        <input
-          ref={inputRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder={shellCopy.messagePlaceholder}
-          aria-label="Message"
-          enterKeyHint="send"
-          autoComplete="off"
-          name="message"
-          className="flex-1 rounded-sm border border-input bg-card px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
-        />
-        <Button
-          type="submit"
-          loading={isStreaming}
-          disabled={isStreaming || input.trim().length === 0}
-        >
-          Send
-        </Button>
-      </form>
+      />
 
       <HistoryDrawer
         open={historyOpen}

@@ -1,0 +1,45 @@
+name: Release meclaw-chat-ui
+
+on:
+  push:
+    tags:
+      - "meclaw-chat-ui-v*"
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.32.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.12
+          cache: pnpm
+          registry-url: https://npm.pkg.github.com
+          scope: "@naingoted"
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#meclaw-chat-ui-v}" >> "$GITHUB_OUTPUT"
+
+      - name: Set package version
+        working-directory: packages/meclaw-chat-ui
+        run: npm version "${{ steps.version.outputs.version }}" --no-git-tag-version
+
+      - run: pnpm --filter @naingoted/meclaw-chat-ui build
+
+      - name: Publish to GitHub Packages
+        working-directory: packages/meclaw-chat-ui
+        run: pnpm publish --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
