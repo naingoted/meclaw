@@ -252,3 +252,27 @@ export async function getConversation(db: Db, id: string): Promise<ConversationD
     retrieval,
   };
 }
+
+/**
+ * Serialize the given conversations to JSONL (one conversation per line) for
+ * eval-set building. Unknown ids are silently skipped. Order follows `ids`.
+ */
+export async function exportConversationsJsonl(db: Db, ids: string[]): Promise<string> {
+  const lines: string[] = [];
+  for (const id of ids) {
+    const detail = await getConversation(db, id);
+    if (!detail) continue;
+    lines.push(
+      JSON.stringify({
+        id: detail.conversation.id,
+        createdAt: detail.conversation.createdAt,
+        messages: detail.messages.map((m) => ({
+          role: m.role,
+          content: m.content,
+          createdAt: m.createdAt,
+        })),
+      }),
+    );
+  }
+  return lines.join("\n");
+}

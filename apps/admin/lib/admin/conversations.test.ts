@@ -1,7 +1,12 @@
 import { chatMisses, conversations, messages, retrievalEvents } from "@meclaw/core/db/schema";
 import { makeTestDb } from "@meclaw/core/db/test-db";
 import { describe, expect, it } from "vitest";
-import { deriveOutcome, getConversation, listConversations } from "./conversations";
+import {
+  deriveOutcome,
+  exportConversationsJsonl,
+  getConversation,
+  listConversations,
+} from "./conversations";
 
 const HOUR = 60 * 60 * 1000;
 
@@ -201,5 +206,26 @@ describe("getConversation", () => {
     expect(detail?.retrieval.a1.topScore).toBe(0.42);
     expect(detail?.retrieval.a1.chunks[0].source).toBe("skills");
     expect(detail?.retrieval.u1).toBeUndefined(); // no event for the user turn
+  });
+});
+
+describe("exportConversationsJsonl", () => {
+  it("emits one JSON line per conversation with its messages", async () => {
+    const { db } = await makeTestDb();
+    await seed(db);
+    const jsonl = await exportConversationsJsonl(db, ["c1", "c2"]);
+    const lines = jsonl.trim().split("\n");
+    expect(lines).toHaveLength(2);
+    const parsed = lines.map((l) => JSON.parse(l));
+    const c1 = parsed.find((p) => p.id === "c1");
+    expect(c1.messages).toHaveLength(2); // one user + one assistant
+    expect(c1.messages[0]).toMatchObject({ role: "user", content: "what is your salary?" });
+  });
+
+  it("skips unknown ids", async () => {
+    const { db } = await makeTestDb();
+    await seed(db);
+    const jsonl = await exportConversationsJsonl(db, ["c1", "ghost"]);
+    expect(jsonl.trim().split("\n")).toHaveLength(1);
   });
 });
