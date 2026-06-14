@@ -3,14 +3,14 @@
 from unittest.mock import patch
 
 from app.graph.nodes import TriageResult
-from app.history import cap_history, estimate_tokens
+from app.history import cap_history, estimate_tokens, fit_to_budget
 from app.lead import (
     has_prior_confirm,
     most_recent_offer_trigger,
     prior_offer_made,
     prior_user_question,
 )
-from app.retriever import RetrievalResult
+from app.retriever import RetrievalResult, RetrievedChunk
 from app.streaming import run_stream
 
 
@@ -199,3 +199,135 @@ def test_run_stream_contact_capture_lead_markers_see_full_history():
         assert len(call_args) == 30, (
             f"{fn_name} should receive full 30-message history, got {len(call_args)}"
         )
+
+
+# --- Tests for fit_to_budget (caching spec lever 6) ---
+
+
+def _chunk(text: str, id_suffix: str = "0") -> RetrievedChunk:
+    return RetrievedChunk(
+        id=f"c{id_suffix}",
+        source=f"s{id_suffix}.md",
+        title=f"Source {id_suffix}",
+        text=text,
+        ordinal=int(id_suffix),
+        score=0.8,
+    )
+
+
+def test_fit_to_budget_under_budget_unchanged():
+    """Chunks and messages under budget are unchanged."""
+    chunks = [_chunk("a" * 100)]
+    messages = [_msg("user", "hello"), _msg("assistant", "world")]
+    # Each chunk/message is small; total is ~75 tokens
+    kept_chunks, kept_messages = fit_to_budget(
+        chunks, messages, budget=1000
+    )
+    assert kept_chunks == chunks
+    assert kept_messages == messages
+
+
+def test_fit_to_budget_drops_oldest_chunks_first():
+    """Over budget: drops oldest chunks first, then oldest messages."""
+    # Each chunk is 100 chars = 25 tokens
+    chunk1 = _chunk("a" * 100, id_suffix="1")
+    chunk2 = _chunk("b" * 100, id_suffix="2")
+    chunk3 = _chunk("c" * 100, id_suffix="3")
+    chunks = [chunk1, chunk2, chunk3]
+    messages = [_msg("user", "x")]
+
+    # Budget barely fits only chunk3
+    kept_chunks, kept_messages = fit_to_budget(
+        chunks, messages, budget=30
+    )
+    # Oldest chunks (1 and 2) should be dropped
+    assert len(kept_chunks) == 1
+    assert kept_chunks[0].id == "c3"
+    assert kept_messages == messages
+
+
+def test_fit_to_budget_drops_oldest_messages_after_chunks_empty():
+    """When chunks are empty, drops oldest messages (but keeps the last)."""
+    chunks = []
+    messages = [
+        _msg("user", "m1" * 200),   # 100 tokens
+        _msg("assistant", "m2" * 200),
+        _msg("user", "m3" * 200),
+    ]
+    # Budget is small: only room for the final message (~100 tokens)
+    kept_chunks, kept_messages = fit_to_budget(
+        chunks, messages, budget=120
+    )
+    assert kept_chunks == []
+    # Should keep only the last message
+    assert len(kept_messages) == 1
+    assert kept_messages[0]["content"] == "m3" * 200
+
+
+def test_fit_to_budget_keeps_final_message_never_dropped():
+    """The final message is never dropped, even if it alone exceeds budget."""
+    chunks = []
+    messages = [
+        _msg("user", "old" * 10000),  # Very large first message
+        _msg("assistant", "response"),
+        _msg("user", "x" * 50000),  # Final message, very large
+    ]
+    # Tiny budget
+    kept_chunks, kept_messages = fit_to_budget(
+        chunks, messages, budget=10
+    )
+    assert kept_chunks == []
+    # Must keep the final message
+    assert len(kept_messages) == 1
+    assert kept_messages[-1]["content"] == "x" * 50000
+
+
+def test_fit_to_budget_drops_chunks_then_messages():
+    """Drops oldest chunks first, then oldest messages if still over."""
+    chunk1 = _chunk("a" * 100, id_suffix="1")
+    chunk2 = _chunk("b" * 100, id_suffix="2")
+    messages = [
+        _msg("user", "m1" * 100),
+        _msg("assistant", "m2"),
+        _msg("user", "m3"),
+    ]
+    # Budget: ~20 tokens. Chunks are ~25 tokens each, first message ~25.
+    # Should drop both chunks, then the oldest message.
+    kept_chunks, kept_messages = fit_to_budget(
+        [chunk1, chunk2], messages, budget=20
+    )
+    assert kept_chunks == []
+    assert len(kept_messages) == 2
+    # Oldest message dropped, kept the last two
+    assert kept_messages[0]["content"] == "m2"
+    assert kept_messages[1]["content"] == "m3"
+
+
+def test_fit_to_budget_does_not_mutate_input():
+    """fit_to_budget works on copies; inputs are unchanged."""
+    chunks = [_chunk("text", id_suffix="1")]
+    messages = [_msg("user", "hello")]
+    chunks_before = list(chunks)
+    messages_before = list(messages)
+
+    fit_to_budget(chunks, messages, budget=5)
+
+    assert chunks == chunks_before
+    assert messages == messages_before
+
+
+def test_fit_to_budget_custom_text_of():
+    """fit_to_budget accepts custom text_of for non-chunk objects."""
+    # Use plain dicts with a 'body' key instead of chunks
+    items = [
+        {"body": "a" * 100, "id": "1"},
+        {"body": "b" * 100, "id": "2"},
+    ]
+    messages = [_msg("user", "x")]
+
+    kept_items, kept_messages = fit_to_budget(
+        items, messages, budget=30, text_of=lambda x: x["body"]
+    )
+    # Should drop the oldest item
+    assert len(kept_items) == 1
+    assert kept_items[0]["id"] == "2"

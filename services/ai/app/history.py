@@ -28,3 +28,30 @@ def cap_history(
     while len(capped) > 1 and _total(capped) > token_budget:
         capped.pop(0)
     return capped
+
+
+def fit_to_budget(chunks, messages, *, budget, text_of=lambda c: c.text):
+    """Drop OLDEST chunks first, then OLDEST history messages, until the combined
+    estimated-token total fits `budget`. The final message (live user turn) is
+    never dropped — mirrors cap_history. Returns (kept_chunks, kept_messages).
+    Defensive prompt cap (caching lever 6); chars/4 estimate."""
+    # Work on copies
+    kept_chunks = list(chunks)
+    kept_messages = list(messages)
+
+    # Compute total tokens
+    total = sum(estimate_tokens(text_of(c)) for c in kept_chunks) + sum(
+        estimate_tokens(str(m.get("content", ""))) for m in kept_messages
+    )
+
+    # Drop oldest chunks first
+    while kept_chunks and total > budget:
+        removed = kept_chunks.pop(0)
+        total -= estimate_tokens(text_of(removed))
+
+    # Drop oldest messages (but never the last one)
+    while len(kept_messages) > 1 and total > budget:
+        removed = kept_messages.pop(0)
+        total -= estimate_tokens(str(removed.get("content", "")))
+
+    return kept_chunks, kept_messages

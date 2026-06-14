@@ -28,9 +28,10 @@ from app.config import (
     GAP_MATCH_THRESHOLD,
     HISTORY_MAX_MESSAGES,
     HISTORY_TOKEN_BUDGET,
+    MODEL_CONTEXT_WINDOW,
 )
 from app.gap_match import ResolvedAnswer
-from app.history import cap_history, estimate_tokens
+from app.history import cap_history, estimate_tokens, fit_to_budget
 from app.graph.nodes import (
     CONTACT_PERSONA,
     GREETING_PERSONA,
@@ -131,6 +132,7 @@ def run_stream(
     gap_match_threshold: float = GAP_MATCH_THRESHOLD,
     history_max_messages: int = HISTORY_MAX_MESSAGES,
     history_token_budget: int = HISTORY_TOKEN_BUDGET,
+    model_context_window: int = MODEL_CONTEXT_WINDOW,
 ) -> Iterator[str]:
     # Ordered record of the pipeline steps taken this turn. Each `status` emit
     # both streams a transient data-status part (drives the live checklist) and
@@ -381,8 +383,13 @@ def run_stream(
                 },
             )
             return
-        context = "\n\n".join(chunk.text for chunk in kept)
+        # Token-aware assembly (L6): cap prompt to budget. Drop oldest chunks first,
+        # then oldest history messages.
         system = knowledge_system or PERSONAS.get(intent, PERSONAS["general"])
+        system_for_budget = f"{persona_prefix}\n\n{system}" if persona_prefix else system
+        budget = model_context_window - estimate_tokens(system_for_budget) - estimate_tokens(query)
+        kept, llm_messages = fit_to_budget(kept, llm_messages, budget=budget)
+        context = "\n\n".join(chunk.text for chunk in kept)
         kept_sources = {c.source for c in kept}
         sources = [s for s in retrieval.sources if s.get("source") in kept_sources]
         # Grounded retrieval route → eligible for answer-gap detection.

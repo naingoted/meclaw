@@ -33,6 +33,12 @@ TRIAGE_CONFIDENCE_THRESHOLD = float(os.getenv("TRIAGE_CONFIDENCE_THRESHOLD", "0.
 HISTORY_MAX_MESSAGES = int(os.getenv("HISTORY_MAX_MESSAGES", "10"))
 HISTORY_TOKEN_BUDGET = int(os.getenv("HISTORY_TOKEN_BUDGET", "2000"))
 
+# Token-aware assembly (caching spec lever 6): hard ceiling on the assembled
+# prompt. Budget = window - system - query; drop oldest chunks then oldest
+# history to fit. Generous default — L1/L2 already bound size, so this is a
+# defensive cap against overflow. chars/4 estimate (see app.history).
+MODEL_CONTEXT_WINDOW = int(os.getenv("MODEL_CONTEXT_WINDOW", "8192"))
+
 # RAG gap feedback loop. RAG_SCORE_FLOOR: a retrieval is grounded iff its top
 # cosine score >= this; below floor → miss (reason='floor'). CLUSTER_RADIUS:
 # max cosine distance for a miss to fold into an existing gap cluster.
