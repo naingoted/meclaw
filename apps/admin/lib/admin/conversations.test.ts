@@ -1,7 +1,7 @@
-import { chatMisses, conversations, messages } from "@meclaw/core/db/schema";
+import { chatMisses, conversations, messages, retrievalEvents } from "@meclaw/core/db/schema";
 import { makeTestDb } from "@meclaw/core/db/test-db";
 import { describe, expect, it } from "vitest";
-import { deriveOutcome, listConversations } from "./conversations";
+import { deriveOutcome, getConversation, listConversations } from "./conversations";
 
 const HOUR = 60 * 60 * 1000;
 
@@ -132,5 +132,55 @@ describe("listConversations", () => {
       to: new Date("2026-06-10T00:15:00Z"),
     });
     expect(res.items.map((c) => c.id)).toEqual(["c2"]);
+  });
+});
+
+describe("getConversation", () => {
+  it("returns null for an unknown id", async () => {
+    const { db } = await makeTestDb();
+    expect(await getConversation(db, "nope")).toBeNull();
+  });
+
+  it("returns the thread (oldest first) and retrieval keyed by messageId", async () => {
+    const { db } = await makeTestDb();
+    const t = new Date("2026-06-10T00:00:00Z");
+    await db.insert(conversations).values({ id: "c9", createdAt: t });
+    await db.insert(messages).values([
+      {
+        id: "u1",
+        conversationId: "c9",
+        role: "user",
+        content: "do you know rust?",
+        createdAt: new Date(t.getTime() + 1000),
+      },
+      {
+        id: "a1",
+        conversationId: "c9",
+        role: "assistant",
+        content: "A little.",
+        createdAt: new Date(t.getTime() + 2000),
+      },
+    ]);
+    await db.insert(retrievalEvents).values({
+      id: "00000000-0000-4000-8000-0000000000ee",
+      messageId: "a1",
+      conversationId: "c9",
+      query: "do you know rust?",
+      intent: "knowledge",
+      grounded: true,
+      stuffed: false,
+      topScore: 0.42,
+      answerUsed: true,
+      chunks: [{ id: "skills:0", source: "skills", score: 0.42, kept: true }],
+      createdAt: new Date(t.getTime() + 2000),
+    });
+
+    const detail = await getConversation(db, "c9");
+    expect(detail?.conversation.id).toBe("c9");
+    expect(detail?.messages.map((m) => m.id)).toEqual(["u1", "a1"]);
+    expect(detail?.retrieval.a1.intent).toBe("knowledge");
+    expect(detail?.retrieval.a1.topScore).toBe(0.42);
+    expect(detail?.retrieval.a1.chunks[0].source).toBe("skills");
+    expect(detail?.retrieval.u1).toBeUndefined(); // no event for the user turn
   });
 });

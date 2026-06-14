@@ -1,6 +1,6 @@
-import { chatMisses, conversations, messages } from "@meclaw/core/db/schema";
+import { chatMisses, conversations, messages, retrievalEvents } from "@meclaw/core/db/schema";
 import type { Db } from "@meclaw/core/db/types";
-import { and, asc, desc, gte, ilike, inArray, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, inArray, lte, sql } from "drizzle-orm";
 
 export type Outcome = "answered" | "gap" | "abandoned";
 
@@ -185,5 +185,70 @@ export async function listConversations(
   return {
     items,
     nextCursor: hasMore ? `${last.createdAt.toISOString()}|${last.id}` : null,
+  };
+}
+
+export type MessageRow = { id: string; role: string; content: string; createdAt: string };
+export type RetrievalChunkView = { id: string; source: string; score: number; kept: boolean };
+export type RetrievalEventView = {
+  messageId: string;
+  query: string;
+  intent: string;
+  grounded: boolean;
+  stuffed: boolean;
+  topScore: number | null;
+  answerUsed: boolean;
+  chunks: RetrievalChunkView[];
+};
+export type ConversationDetail = {
+  conversation: { id: string; createdAt: string };
+  messages: MessageRow[];
+  retrieval: Record<string, RetrievalEventView>;
+};
+
+/** Full thread (oldest first) + retrieval telemetry keyed by messageId. Null if unknown. */
+export async function getConversation(db: Db, id: string): Promise<ConversationDetail | null> {
+  const convo = (await db.select().from(conversations).where(eq(conversations.id, id)))[0];
+  if (!convo) return null;
+
+  const msgs = await db
+    .select({
+      id: messages.id,
+      role: messages.role,
+      content: messages.content,
+      createdAt: messages.createdAt,
+    })
+    .from(messages)
+    .where(eq(messages.conversationId, id))
+    .orderBy(asc(messages.createdAt), asc(messages.id));
+
+  const events = await db
+    .select()
+    .from(retrievalEvents)
+    .where(eq(retrievalEvents.conversationId, id));
+
+  const retrieval: Record<string, RetrievalEventView> = {};
+  for (const e of events) {
+    retrieval[e.messageId] = {
+      messageId: e.messageId,
+      query: e.query,
+      intent: e.intent,
+      grounded: e.grounded,
+      stuffed: e.stuffed,
+      topScore: e.topScore,
+      answerUsed: e.answerUsed,
+      chunks: (e.chunks as RetrievalChunkView[]) ?? [],
+    };
+  }
+
+  return {
+    conversation: { id: convo.id, createdAt: convo.createdAt.toISOString() },
+    messages: msgs.map((m) => ({
+      id: m.id,
+      role: m.role,
+      content: m.content,
+      createdAt: m.createdAt.toISOString(),
+    })),
+    retrieval,
   };
 }
