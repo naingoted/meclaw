@@ -55,6 +55,10 @@ ANTHROPIC_MODEL=qwen3.6-plus
 - Embed multi-session history — namespaced localStorage index per embedToken, legacy migration, History drawer in embed mode
 - Pre-commit/CI hardening; auto-migration on deploy (CI-proven)
 
+**Complete on `worktree-conversation-dashboard` (pending merge):**
+
+- Conversation dashboard (admin, read-only): list with outcome filter · debounced message search · cursor "Load more" · 30s poll · stat tiles (total / gap rate / avg turns); thread + retrieval-telemetry detail view (low-score `<0.65` flagged); multi-select JSONL export (≤50, >10 warning); gap-miss rows deep-link into the conversation Retrieval tab. New `apps/admin/lib/admin/conversations.ts` (on-read metrics, no persisted columns) + 4 API routes (`/api/admin/conversations` list/detail/export/stats) + migration `0011` (conversation/message pagination indexes). All unit-tested; `pnpm verify` + `pnpm test` green. Interactive browser smoke (admin login + seeded data) still pending.
+
 **In progress on `worktree-first-customer-readiness`** (instance-per-customer multi-tenancy, see `docs/ai/customer-ops.md` + `docs/ai/secrets-rotation.md`):
 
 - History cap in sidecar (D8) · Telegram lead notify (D6) · Shared Ollama network (D1)
