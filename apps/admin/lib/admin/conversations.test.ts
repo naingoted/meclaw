@@ -2,6 +2,7 @@ import { chatMisses, conversations, messages, retrievalEvents } from "@meclaw/co
 import { makeTestDb } from "@meclaw/core/db/test-db";
 import { describe, expect, it } from "vitest";
 import {
+  conversationStats,
   deriveOutcome,
   exportConversationsJsonl,
   getConversation,
@@ -227,5 +228,22 @@ describe("exportConversationsJsonl", () => {
     await seed(db);
     const jsonl = await exportConversationsJsonl(db, ["c1", "ghost"]);
     expect(jsonl.trim().split("\n")).toHaveLength(1);
+  });
+});
+
+describe("conversationStats", () => {
+  it("computes total, gap rate %, and avg turns over the window", async () => {
+    const { db } = await makeTestDb();
+    await seed(db); // 3 conversations (c1,c2,c3); c2 has a miss; user-turn counts: c1=1,c2=1,c3=1
+    const stats = await conversationStats(db, 3650); // wide window covers the seed
+    expect(stats.total).toBe(3);
+    expect(stats.gapRatePct).toBe(33); // 1 of 3 conversations has a miss → round(33.3)
+    expect(stats.avgTurns).toBeCloseTo(1, 1);
+  });
+
+  it("returns zeros when there are no conversations", async () => {
+    const { db } = await makeTestDb();
+    const stats = await conversationStats(db, 7);
+    expect(stats).toEqual({ total: 0, gapRatePct: 0, avgTurns: 0 });
   });
 });

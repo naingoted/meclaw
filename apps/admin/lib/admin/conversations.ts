@@ -276,3 +276,38 @@ export async function exportConversationsJsonl(db: Db, ids: string[]): Promise<s
   }
   return lines.join("\n");
 }
+
+export type ConversationStats = { total: number; gapRatePct: number; avgTurns: number };
+
+/**
+ * Lightweight aggregate stats over the last `sinceDays`. Three small COUNT
+ * queries — no materialized view. `gapRatePct` = conversations with >=1 miss
+ * over total; `avgTurns` = mean user-message count per conversation.
+ */
+export async function conversationStats(db: Db, sinceDays = 7): Promise<ConversationStats> {
+  const since = new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000);
+
+  const [{ total }] = await db
+    .select({ total: sql<number>`count(*)::int` })
+    .from(conversations)
+    .where(gte(conversations.createdAt, since));
+
+  if (total === 0) return { total: 0, gapRatePct: 0, avgTurns: 0 };
+
+  const [{ gapConvos }] = await db
+    .select({ gapConvos: sql<number>`count(distinct ${chatMisses.conversationId})::int` })
+    .from(chatMisses)
+    .where(gte(chatMisses.createdAt, since));
+
+  const [{ userTurns }] = await db
+    .select({ userTurns: sql<number>`count(*)::int` })
+    .from(messages)
+    .innerJoin(conversations, eq(messages.conversationId, conversations.id))
+    .where(and(eq(messages.role, "user"), gte(conversations.createdAt, since)));
+
+  return {
+    total,
+    gapRatePct: Math.round((gapConvos / total) * 100),
+    avgTurns: Math.round((userTurns / total) * 10) / 10,
+  };
+}
