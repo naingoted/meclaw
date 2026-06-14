@@ -33,11 +33,13 @@ from app.gap_match import ResolvedAnswer
 from app.history import cap_history, estimate_tokens
 from app.graph.nodes import (
     CONTACT_PERSONA,
+    GREETING_PERSONA,
     PERSONAS,
     SCHEDULER_PERSONA,
     VALID_INTENTS,
     TriageResult,
     _last_user_text,
+    is_greeting,
 )
 from app.lead import (
     CONNECT_OFFER,
@@ -247,6 +249,31 @@ def run_stream(
             len(messages) - len(llm_messages),
             sum(estimate_tokens(str(m.get("content", ""))) for m in llm_messages),
         )
+
+    # --- Greeting fast path: bare greetings skip triage and retrieval. -------
+    if is_greeting(query):
+        system = GREETING_PERSONA
+        if persona_prefix:
+            system = f"{persona_prefix}\n\n{system}"
+        yield status("Writing the answer…", "drafting")
+        metadata = {
+            "sources": [],
+            "route": "general",
+            "intent": "general",
+            "steps": list(steps),
+            "corpus_version": corpus_version,
+            "miss": None,
+            "retrieval": None,
+        }
+        yield sse.sse_start(metadata)
+        yield sse.sse_text_start(_TEXT_ID)
+        for delta in draft_stream_fn(system, llm_messages, ""):
+            if delta:
+                yield sse.sse_text_delta(_TEXT_ID, delta)
+        yield sse.sse_text_end(_TEXT_ID)
+        yield sse.sse_finish(metadata)
+        yield sse.sse_done()
+        return
 
     yield status("Routing your question…", "triage")
     triage = triage_fn(llm_messages[-_TRIAGE_WINDOW:])

@@ -38,6 +38,39 @@ def _extract_text(content) -> str:
 VALID_INTENTS = {"tech", "project", "scheduler", "contact", "general"}
 
 
+# Greeting detection: full-string match (after strip) tolerating trailing ! . or ,
+# Compiled at module scope for efficiency.
+_GREETING_PATTERN = re.compile(
+    r"^(hi|hello|hey|hiya|thanks|thank you|good morning|good afternoon|good evening)[!.,]*$",
+    re.IGNORECASE,
+)
+
+
+def is_greeting(query: str) -> bool:
+    """Check if the query is a bare greeting (no follow-up question).
+
+    Returns True only for exact matches of greeting terms (case-insensitive),
+    tolerating trailing punctuation (!., ,) but no additional words.
+
+    Examples:
+      - "hi" → True
+      - "Hello!" → True
+      - "  hey  " → True
+      - "hi, what's your stack?" → False
+      - "hello there" → False
+      - "" → False
+    """
+    return bool(_GREETING_PATTERN.match(query.strip()))
+
+
+GREETING_PERSONA = (
+    f"You are a warm, welcoming greeter for {OWNER_NAME}'s chatbot. "
+    f"The visitor just greeted {OWNER_NAME} (or thanked them). "
+    "Respond warmly and briefly in third person, inviting them to ask a question about "
+    f"{OWNER_NAME}'s work, skills, projects, or how to reach them."
+)
+
+
 @dataclass(frozen=True)
 class TriageResult:
     intent: str

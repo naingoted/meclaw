@@ -325,6 +325,68 @@ def test_fallback_path_metadata_carries_routing_and_search_steps():
     assert ('"steps":["Routing your question…","Searching knowledge base…"]') in body
 
 
+def test_greeting_path_skips_triage_and_retrieval():
+    """Verify that bare greetings stream a persona-only answer without triage/retrieval.
+
+    The greeting fast path:
+    - Does NOT call triage_fn
+    - Does NOT call retriever_retrieve
+    - Streams a persona-only draft (context="")
+    - Sets route="general", intent="general", retrieval=None
+    """
+    triaged = {"called": False}
+    retrieved = {"called": False}
+    drafted = {"called": False, "system": None, "context": None}
+
+    def triage_fn_spy(messages):
+        triaged["called"] = True
+        return TriageResult(intent="general", confidence=0.9, clarifying_question=None)
+
+    def retrieve_spy(query):
+        retrieved["called"] = True
+        return RetrievalResult(chunks=[], sources=[])
+
+    def draft_stream_spy(system, messages, context):
+        drafted["called"] = True
+        drafted["system"] = system
+        drafted["context"] = context
+        yield "Hi there! "
+        yield "Welcome! "
+        yield "Ask away."
+
+    body = _collect(
+        run_stream(
+            [{"role": "user", "content": "hi"}],
+            triage_fn=triage_fn_spy,
+            retriever_retrieve=retrieve_spy,
+            draft_stream_fn=draft_stream_spy,
+            schedule_fn=lambda: {},
+            contact_fn=lambda: {},
+        )
+    )
+
+    # Assertions: the draft streamed, but triage/retrieval were skipped
+    assert drafted["called"] is True, "draft_stream_fn should have been called"
+    assert triaged["called"] is False, "triage_fn should NOT have been called"
+    assert retrieved["called"] is False, "retriever_retrieve should NOT have been called"
+
+    # Draft called with empty context (persona-only)
+    assert drafted["context"] == "", "context should be empty for greeting path"
+
+    # Deltas are present and stream completes
+    assert '"delta":"Hi there! "' in body
+    assert '"delta":"Welcome! "' in body
+    assert '"delta":"Ask away."' in body
+    assert body.rstrip().endswith("[DONE]")
+
+    # Metadata: general route, no retrieval
+    metadata = _finish_metadata(body)
+    assert metadata["route"] == "general"
+    assert metadata["intent"] == "general"
+    assert metadata["retrieval"] is None
+    assert metadata["sources"] == []
+
+
 def test_contact_in_message_captures_lead_and_confirms():
     drafted = {"called": False}
 
@@ -1104,7 +1166,7 @@ def test_gap_match_failure_falls_through_to_triage():
     triage, tstate = _counting_triage(intent="contact")
     body = _collect(
         run_stream(
-            [{"role": "user", "content": "hi"}],
+            [{"role": "user", "content": "how can I reach?"}],
             triage_fn=triage,
             retriever_retrieve=lambda q: RetrievalResult([], []),
             draft_stream_fn=lambda s, m, c: iter(["ok"]),
@@ -1126,7 +1188,7 @@ def test_gap_embed_failure_falls_through_to_triage():
     triage, tstate = _counting_triage(intent="contact")
     body = _collect(
         run_stream(
-            [{"role": "user", "content": "hi"}],
+            [{"role": "user", "content": "how can I reach?"}],
             triage_fn=triage,
             retriever_retrieve=lambda q: RetrievalResult([], []),
             draft_stream_fn=lambda s, m, c: iter(["ok"]),
@@ -1146,7 +1208,7 @@ def test_gap_path_disabled_when_fn_absent():
     triage, tstate = _counting_triage(intent="contact")
     _collect(
         run_stream(
-            [{"role": "user", "content": "hi"}],
+            [{"role": "user", "content": "how can I reach?"}],
             triage_fn=triage,
             retriever_retrieve=lambda q: RetrievalResult([], []),
             draft_stream_fn=lambda s, m, c: iter(["ok"]),
@@ -1209,7 +1271,7 @@ def test_short_conversation_passes_all_messages_to_triage():
         captured["messages"] = messages
         return TriageResult(intent="contact", confidence=0.9, clarifying_question=None)
 
-    msgs = [{"role": "user", "content": "hi"}]
+    msgs = [{"role": "user", "content": "how can I reach?"}]
     _collect(
         run_stream(
             msgs,

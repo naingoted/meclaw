@@ -94,6 +94,123 @@ def test_contact_node_uses_tool():
     assert "naingoted@gmail.com" in out["draft"]
 
 
+# --- Greeting detection tests -----------------------------------------------
+
+
+def test_is_greeting_matches_bare_hi():
+    """Test that 'hi' is recognized as a greeting."""
+    from app.graph.nodes import is_greeting
+
+    assert is_greeting("hi") is True
+
+
+def test_is_greeting_matches_hello():
+    """Test that 'hello' is recognized as a greeting."""
+    from app.graph.nodes import is_greeting
+
+    assert is_greeting("hello") is True
+
+
+def test_is_greeting_case_insensitive():
+    """Test that greeting matching is case-insensitive."""
+    from app.graph.nodes import is_greeting
+
+    assert is_greeting("Hello") is True
+    assert is_greeting("HELLO") is True
+    assert is_greeting("HeLLo") is True
+
+
+def test_is_greeting_with_trailing_punctuation():
+    """Test that trailing !, ., or , are tolerated."""
+    from app.graph.nodes import is_greeting
+
+    assert is_greeting("hi!") is True
+    assert is_greeting("hello.") is True
+    assert is_greeting("hey,") is True
+
+
+def test_is_greeting_with_leading_trailing_whitespace():
+    """Test that leading/trailing whitespace is stripped."""
+    from app.graph.nodes import is_greeting
+
+    assert is_greeting("  hi  ") is True
+    assert is_greeting("  hello  ") is True
+
+
+def test_is_greeting_matches_hey():
+    """Test that 'hey' is recognized as a greeting."""
+    from app.graph.nodes import is_greeting
+
+    assert is_greeting("hey") is True
+
+
+def test_is_greeting_matches_hiya():
+    """Test that 'hiya' is recognized as a greeting."""
+    from app.graph.nodes import is_greeting
+
+    assert is_greeting("hiya") is True
+
+
+def test_is_greeting_matches_thanks():
+    """Test that 'thanks' is recognized as a greeting."""
+    from app.graph.nodes import is_greeting
+
+    assert is_greeting("thanks") is True
+
+
+def test_is_greeting_matches_thank_you():
+    """Test that 'thank you' is recognized as a greeting."""
+    from app.graph.nodes import is_greeting
+
+    assert is_greeting("thank you") is True
+
+
+def test_is_greeting_matches_good_morning():
+    """Test that 'good morning' is recognized as a greeting."""
+    from app.graph.nodes import is_greeting
+
+    assert is_greeting("good morning") is True
+
+
+def test_is_greeting_matches_good_afternoon():
+    """Test that 'good afternoon' is recognized as a greeting."""
+    from app.graph.nodes import is_greeting
+
+    assert is_greeting("good afternoon") is True
+
+
+def test_is_greeting_matches_good_evening():
+    """Test that 'good evening' is recognized as a greeting."""
+    from app.graph.nodes import is_greeting
+
+    assert is_greeting("good evening") is True
+
+
+def test_is_greeting_rejects_greeting_with_question():
+    """Test that a greeting followed by a question is not recognized."""
+    from app.graph.nodes import is_greeting
+
+    assert is_greeting("hi, what's your stack?") is False
+    assert is_greeting("hello there") is False
+    assert is_greeting("hi what's up") is False
+
+
+def test_is_greeting_rejects_empty_string():
+    """Test that empty string is not a greeting."""
+    from app.graph.nodes import is_greeting
+
+    assert is_greeting("") is False
+
+
+def test_is_greeting_rejects_non_greeting():
+    """Test that non-greetings are rejected."""
+    from app.graph.nodes import is_greeting
+
+    assert is_greeting("what's your tech stack?") is False
+    assert is_greeting("how do I reach you?") is False
+    assert is_greeting("tell me about your projects") is False
+
+
 # --- Thinking-mode compatibility tests ------------------------------------
 
 
