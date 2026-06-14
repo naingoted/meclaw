@@ -1,6 +1,7 @@
 import { listConversationMessages } from "@meclaw/core/db";
 import { getChatDb, isAllowedOrigin, resolveEmbedClient } from "@/lib/embed/auth";
 import { verifyResumeToken } from "@/lib/embed/resume";
+import { checkPublicApiLimit } from "@/lib/public-api-rate-limit";
 
 const HISTORY_LIMIT = 100;
 
@@ -36,6 +37,9 @@ async function firstPartyHistory(
 }
 
 export async function GET(req: Request) {
+  const limited = checkPublicApiLimit(req, "chat-history");
+  if (limited) return limited;
+
   const url = new URL(req.url);
   const embedToken = url.searchParams.get("embedToken");
   const conversationId = url.searchParams.get("conversationId");

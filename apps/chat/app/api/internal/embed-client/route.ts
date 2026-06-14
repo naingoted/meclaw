@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getChatDb, resolveEmbedClient } from "@/lib/embed/auth";
+import { checkPublicApiLimit } from "@/lib/public-api-rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -9,6 +10,9 @@ export const dynamic = "force-dynamic";
  * this endpoint to get the client info and caches the result.
  */
 export async function GET(request: Request) {
+  const limited = checkPublicApiLimit(request, "internal-embed-client");
+  if (limited) return limited;
+
   const { searchParams } = new URL(request.url);
   const token = searchParams.get("token");
 

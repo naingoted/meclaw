@@ -7,6 +7,7 @@ const mockLoadUnionAllowedOrigins = vi.fn();
 const mockGetChatDb = vi.fn(() => Promise.resolve({}));
 const mockGetSettings = vi.fn();
 const mockGetSettingsVersion = vi.fn();
+const mockCheckPublicApiLimit = vi.fn((_: Request, _scope: string): Response | null => null);
 
 vi.mock("@/lib/embed/auth", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/embed/auth")>();
@@ -38,6 +39,10 @@ vi.mock("@meclaw/core/settings", async (importOriginal) => {
 
 vi.mock("@/lib/version", () => ({
   VERSION_LABEL: "meclaw · v9.9.9 · deadbeef",
+}));
+
+vi.mock("@/lib/public-api-rate-limit", () => ({
+  checkPublicApiLimit: (req: Request, scope: string) => mockCheckPublicApiLimit(req, scope),
 }));
 
 const client = {
@@ -78,6 +83,7 @@ describe("OPTIONS /api/embed-config — CORS preflight", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubEnv("CHAT_APP_ORIGIN", "http://localhost:3000");
+    mockCheckPublicApiLimit.mockReturnValue(null);
     mockGetCachedUnionOrigins.mockReturnValue(["http://localhost:3002"]);
   });
 
@@ -116,6 +122,7 @@ describe("GET /api/embed-config", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubEnv("CHAT_APP_ORIGIN", "http://localhost:3000");
+    mockCheckPublicApiLimit.mockReturnValue(null);
     mockResolveEmbedClient.mockResolvedValue(client);
     mockIsAllowedOrigin.mockReturnValue(true);
     mockGetSettings.mockResolvedValue(publicSettings);
@@ -158,6 +165,26 @@ describe("GET /api/embed-config", () => {
       copy: DEFAULT_PUBLIC_COPY,
     });
     expect(mockIsAllowedOrigin).toHaveBeenCalledWith(client, "http://localhost:3002");
+  });
+
+  it("429s before DB work when the public API limiter rejects", async () => {
+    mockCheckPublicApiLimit.mockReturnValue(
+      Response.json(
+        { error: "Too many requests. Please try again later." },
+        { status: 429, headers: { "Retry-After": "30" } },
+      ),
+    );
+    const { GET } = await import("./route");
+
+    const res = await GET(
+      new Request(configUrl(), {
+        headers: { Origin: "http://localhost:3002" },
+      }),
+    );
+
+    expect(res.status).toBe(429);
+    expect(res.headers.get("Retry-After")).toBe("30");
+    expect(mockGetChatDb).not.toHaveBeenCalled();
   });
 
   it("400s when embedToken is missing", async () => {

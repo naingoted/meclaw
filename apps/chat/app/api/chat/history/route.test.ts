@@ -23,6 +23,12 @@ vi.mock("@/lib/embed/resume", () => ({
   verifyResumeToken: vi.fn(),
 }));
 
+const checkPublicApiLimit = vi.fn((_: Request, _scope: string): Response | null => null);
+
+vi.mock("@/lib/public-api-rate-limit", () => ({
+  checkPublicApiLimit: (req: Request, scope: string) => checkPublicApiLimit(req, scope),
+}));
+
 import { isAllowedOrigin, resolveEmbedClient } from "@/lib/embed/auth";
 import { verifyResumeToken } from "@/lib/embed/resume";
 import { GET } from "./route";
@@ -45,9 +51,26 @@ function makeReq(search: string, parentOrigin: string | null = "https://acme.com
 
 describe("GET /api/chat/history", () => {
   beforeEach(() => {
+    checkPublicApiLimit.mockReset();
+    checkPublicApiLimit.mockReturnValue(null);
     vi.mocked(resolveEmbedClient).mockReset();
     vi.mocked(isAllowedOrigin).mockReset();
     vi.mocked(verifyResumeToken).mockReset();
+  });
+
+  it("429s before token verification when the public API limiter rejects", async () => {
+    checkPublicApiLimit.mockReturnValue(
+      Response.json(
+        { error: "Too many requests. Please try again later." },
+        { status: 429, headers: { "Retry-After": "30" } },
+      ),
+    );
+
+    const res = await GET(makeReq("conversationId=c-known&resumeToken=rt", null));
+
+    expect(res.status).toBe(429);
+    expect(res.headers.get("Retry-After")).toBe("30");
+    expect(verifyResumeToken).not.toHaveBeenCalled();
   });
 
   it("returns 400 when required params are missing", async () => {

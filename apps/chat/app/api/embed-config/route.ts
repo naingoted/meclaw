@@ -8,12 +8,16 @@ import {
   resolveVerifiedOrigin,
 } from "@/lib/embed/auth";
 import { corsPreflightHeaders, jsonWithCors } from "@/lib/embed/cors";
+import { checkPublicApiLimit } from "@/lib/public-api-rate-limit";
 import { VERSION_LABEL } from "@/lib/version";
 
 const NO_STORE = { "Cache-Control": "no-store" };
 
 /** OPTIONS preflight — gated on the union of all active clients' allowed origins. */
 export async function OPTIONS(req: Request) {
+  const limited = checkPublicApiLimit(req, "embed-config-options");
+  if (limited) return limited;
+
   const origin = req.headers.get("Origin");
   if (!origin) {
     return new Response(null, { status: 204 });
@@ -37,6 +41,9 @@ export async function OPTIONS(req: Request) {
 }
 
 export async function GET(req: Request) {
+  const limited = checkPublicApiLimit(req, "embed-config");
+  if (limited) return limited;
+
   const requestOrigin = req.headers.get("Origin");
   const url = new URL(req.url);
   const embedToken = url.searchParams.get("embedToken");

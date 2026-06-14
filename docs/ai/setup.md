@@ -37,6 +37,11 @@ Chat at http://localhost:3000 · Admin at http://localhost:3001 · Sidecar at ht
 | `OLLAMA_EMBED_MODEL` | `nomic-embed-text` |
 | `RAG_TOP_K` | Retrieval fan-out. Default: `4` |
 | `RAG_DEV_SOURCES` | `true` to show sources in dev; `false` to omit. |
+| `RATE_LIMIT_MAX_REQUESTS` | Public chat `POST /api/chat` per-IP requests/min. Default: `20`. |
+| `CHAT_GLOBAL_LIMIT_PER_MIN` | Public chat `POST /api/chat` stack-wide requests/min. Default: `120`. |
+| `EMBED_RATE_LIMIT_PER_MIN` | Default per-embed-client chat requests/min. Admin per-client overrides take precedence. Default: `60`. |
+| `PUBLIC_API_RATE_LIMIT_MAX_REQUESTS` | Cheap public GET route per-IP requests/min before DB work. Default: `120`. |
+| `PUBLIC_API_GLOBAL_RATE_LIMIT_PER_MIN` | Cheap public GET route stack-wide requests/min before DB work. Default: `600`. |
 | `AUTH_SECRET` | Auth.js secret. Random 32-byte hex. Only needed for admin (next-auth). |
 | `ADMIN_PASSWORD_HASH` | scrypt hash in `salt:hash` format. Mint via `pnpm --filter @meclaw/admin gen:admin-hash <password>` |
 

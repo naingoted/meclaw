@@ -1,9 +1,13 @@
 import { initDb } from "@meclaw/core/db";
 import { getSettings, getSettingsVersion } from "@meclaw/core/settings";
+import { checkPublicApiLimit } from "@/lib/public-api-rate-limit";
 
 const NO_STORE = { "Cache-Control": "no-store" };
 
-export async function GET() {
+export async function GET(req: Request) {
+  const limited = checkPublicApiLimit(req, "config-version");
+  if (limited) return limited;
+
   try {
     const database = await initDb();
     let version = await getSettingsVersion(database);

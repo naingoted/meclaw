@@ -2,7 +2,7 @@
 
 ## High level
 
-A monorepo with two Next.js apps (public chat + admin) sharing three packages (core DB, RAG, UI), plus a Python LLM sidecar and Docker infra. Visitors chat with a personal bot; admins ingest + edit knowledge. Everything local-first; VPS deploy via GitHub Actions.
+A monorepo with two Next.js apps (public chat + admin) sharing backend packages, an internal UI package, and a published presentational chat UI package, plus a Python LLM sidecar and Docker infra. Visitors chat with a personal bot; admins ingest + edit knowledge. Everything local-first; VPS deploy via GitHub Actions.
 
 ```
 User (browser)
@@ -13,7 +13,8 @@ Next.js apps (chat + admin) @ :3000 + :3001 (dev) / subdomain (prod)
   └─ shared packages
       ├─ @meclaw/core   — DB (Drizzle + postgres-js), content loader, settings
       ├─ @meclaw/rag    — ingest (chunk → embed → store) + retrieval config
-      ├─ @meclaw/ui     — shadcn components + design system
+      ├─ @meclaw/ui     — internal shadcn components + design system
+      ├─ @naingoted/meclaw-chat-ui — presentational chat UI reused by apps/consumers
       └─ @meclaw/mcp    — standalone read-only MCP server (out of the chat path)
   ↓
 Python sidecar (services/ai) @ :8000
@@ -46,6 +47,20 @@ Ollama (nomic-embed-text embeddings)
 6. On stream finish → best-effort persist of conversation + messages to Postgres (failures logged, never break stream).
 7. The server emits an HMAC-signed resume token (`data-resume-token` SSE event) the client stores in `localStorage`. On reload, the client presents it to `GET /api/chat/history` to re-hydrate the transcript; continuing an existing conversation over POST requires the same token, otherwise the server assigns a fresh conversation id.
 
+## Request flow: external consumer (Leanior)
+
+Leanior is a frontend consumer of Meclaw, not a second Meclaw backend.
+
+1. Leanior renders its local `MeclawChat` host wrapper.
+2. That wrapper imports presentational pieces from `@naingoted/meclaw-chat-ui`.
+3. It reads `NEXT_PUBLIC_MECLAW_API_BASE` and calls Meclaw's public routes:
+   - `GET /api/embed-config`
+   - `POST /api/chat`
+   - `GET /api/chat/history`
+4. Those requests terminate in the Meclaw Next chat app (`apps/chat/app/api/*`), which owns CORS, embed-token validation, rate limits, prompt-injection checks, resume-token verification, history reads, and the persistence tee.
+5. The Meclaw Next chat route calls the internal Python sidecar through `AI_SERVICE_URL`.
+6. Leanior does not define Meclaw API routes, does not connect to Meclaw Postgres, and does not call the Python sidecar directly.
+
 ## Request flow: admin console
 
 1. Visitor hits `/` in `apps/admin/app/page.tsx` → redirects to Auth.js login.
@@ -58,6 +73,8 @@ Ollama (nomic-embed-text embeddings)
 
 - **Anthropic-compatible gateway** (not real Anthropic) via DashScope. Model: `qwen3.6-plus` (draft, streaming) + `glm-4.7` (triage, non-stream). Vercel AI SDK `@ai-sdk/anthropic` with custom `baseURL` (must include `/v1` suffix for TS, must OMIT `/v1` for Python sidecar).
 - **Python sidecar for LLM calls** (Phase 3 cutover). Allows multi-step reasoning (triage → retrieve → draft), tool integration via LangGraph, and easy model swaps without Next rebuild.
+- **One public chat API boundary.** Public chat traffic terminates in the Next chat app. The Python sidecar is internal, and external sites such as Leanior consume Meclaw through the Next routes, not through Python or direct database access.
+- **Shared chat UI is presentational.** `@naingoted/meclaw-chat-ui` exports React components, copy/types, and formatting helpers. It does not own transport, persistence, embed authorization, resume-token verification, rate limiting, or database access. Host apps supply those concerns.
 - **Postgres pgvector for RAG** (single datastore). Ollama `nomic-embed-text` (768-dim) → embedded locally → stored in `rag_chunks` table with HNSW cosine index. Retrieval always runs (the tiny-corpus full-text stuffing path was removed in v1.0.5); ungroundable turns are answered conservatively and recorded as misses.
 - **Drizzle migrations** owned by schema; migrations live in `packages/core/drizzle/` and are applied automatically at deploy time by the one-shot `migrations` init-service (reuses the `ops` image; apps wait on its completion before booting).
 - **No multi-tenant auth in v1.** Single admin (scrypt + JWT), single visitor stream per session.
@@ -78,6 +95,16 @@ All tables live in one `DATABASE_URL` instance; schema is Drizzle-owned (`packag
 - **embed_clients** — widget tokens + origin allowlists.
 - **agent_runs**, **agent_steps** — research-graph observability.
 
+## Database ownership
+
+Both Next and Python access Postgres, but they do not expose equal public API surfaces. This is intentional for the single-stack deployment: Next owns public request handling, while Python owns internal AI work. Keep table ownership explicit:
+
+- **Next chat app:** public API persistence and auth-adjacent chat state — `conversations`, `messages`, `leads`, `embed_clients`, chat-side settings snapshots, `chat_misses`, and `retrieval_events` captured from the streamed turn.
+- **Admin/ingest paths:** `documents`, `ingestion_jobs`, `settings`, `audit_log`, and `rag_chunks` writes during ingest.
+- **Python sidecar:** AI-internal reads/writes — retrieval reads from `rag_chunks`, corpus-status reads, resolved-gap matching, gap clustering, and research observability writes to `agent_runs` / `agent_steps`.
+
+If this grows beyond one stack or table ownership stops being disjoint, the upgrade path is to move Python writes behind internal Next/core APIs or a dedicated worker boundary. That is unnecessary for the current personal/single-customer scale.
+
 ## Production topology
 
 Production runs on a single EC2 box via **Dokploy** (Traefik reverse proxy, Let's Encrypt). Full guide + debugging runbook: `docs/ai/deploy.md`.
@@ -92,7 +119,7 @@ Production runs on a single EC2 box via **Dokploy** (Traefik reverse proxy, Let'
 
 This system is designed for **one owner, one VPS, replicas = 1 per service**. A few pieces of state live in process memory and would break silently behind a load balancer:
 
-- **Rate limits** — the IP limiter (`apps/chat/lib/rate-limit.ts`) and the per-embed-client limiter (`apps/chat/lib/embed/rate-limit.ts`) are in-memory maps. With N chat replicas, each caller gets N× the budget. Upgrade path: move counters to Postgres (`INSERT … ON CONFLICT` token bucket) or Redis.
+- **Rate limits** — the chat IP/global limiters (`apps/chat/lib/rate-limit.ts`), per-embed-client limiter (`apps/chat/lib/embed/rate-limit.ts`), and cheaper public API GET limiter (`apps/chat/lib/public-api-rate-limit.ts`) are in-memory maps. With N chat replicas, each caller gets N× the budget. Upgrade path: move counters to Postgres (`INSERT … ON CONFLICT` token bucket), Redis, or Traefik/edge middleware.
 - **Config caches** — the settings cache (`packages/core`, bounded TTL) and the Edge-runtime embed-client cache (CSP `frame-ancestors`, 5-min TTL) each refresh per process. With replicas, admin saves and embed-client revocations propagate per-process within the TTL, so brief inconsistency across replicas. Upgrade path: Postgres `LISTEN/NOTIFY` invalidation.
 
 What scales without changes: the data plane. pgvector with an HNSW index is comfortable far beyond a personal corpus (≥10⁶ chunks); transcripts and telemetry are append-only rows. The Python sidecar is stateless and can replicate freely — only the Next chat edge holds the in-memory state above.
@@ -101,7 +128,7 @@ These are documented constraints, not oversights: at this scale, distributed rat
 
 ## Error handling
 
-- **Rate limiting:** 429 Retry-After before parsing body.
+- **Rate limiting:** 429 Retry-After before parsing body or doing DB work on public API routes.
 - **Injection guard:** request with high-confidence extraction patterns → UI stream refusal (never reaches sidecar).
 - **Retrieval can't ground the answer** (zero chunks / low score / Ollama or Postgres down): the bot answers conservatively or defers, and the turn is recorded as a miss → gap cluster.
 - **Gateway error/timeout:** stream error event → UI retry, no crash.
