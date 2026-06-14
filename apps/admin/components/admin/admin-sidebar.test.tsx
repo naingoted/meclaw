@@ -28,4 +28,12 @@ describe("AdminSidebar", () => {
     expect(btn.className).toContain("hover:text-destructive");
     expect(btn.className).not.toContain("hover:text-accent");
   });
+
+  it("links to the conversations dashboard", () => {
+    render(<AdminSidebar />);
+    expect(screen.getByRole("link", { name: /Conversations/ })).toHaveAttribute(
+      "href",
+      "/admin/conversations",
+    );
+  });
 });

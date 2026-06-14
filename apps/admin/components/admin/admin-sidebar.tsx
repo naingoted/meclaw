@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   ListChecks,
   LogOut,
+  MessageSquare,
   Radar,
   ScrollText,
   SlidersHorizontal,
@@ -39,6 +40,7 @@ const GROUPS = [
     label: "Activity",
     items: [
       { label: "Dashboard", href: "/admin", Icon: LayoutDashboard },
+      { label: "Conversations", href: "/admin/conversations", Icon: MessageSquare },
       { label: "Audit log", href: "/admin/audit", Icon: ScrollText },
     ],
   },
