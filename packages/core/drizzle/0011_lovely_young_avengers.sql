@@ -1,0 +1,2 @@
+CREATE INDEX "idx_conversations_createdAt" ON "conversations" USING btree ("createdAt");--> statement-breakpoint
+CREATE INDEX "idx_messages_conversationId_createdAt" ON "messages" USING btree ("conversationId","createdAt");

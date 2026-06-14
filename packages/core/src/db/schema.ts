@@ -20,14 +20,18 @@ import {
  * contract (saveTurn) is unchanged; only the column types move to Postgres.
  */
 
-export const conversations = pgTable("conversations", {
-  /** Unique conversation ID (UUID v4, app-generated) */
-  id: text("id").primaryKey(),
-  /** When the conversation started */
-  createdAt: timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
-  /** Optional visitor metadata (future: locale, fingerprint, etc.) */
-  visitorMeta: jsonb("visitorMeta"),
-});
+export const conversations = pgTable(
+  "conversations",
+  {
+    /** Unique conversation ID (UUID v4, app-generated) */
+    id: text("id").primaryKey(),
+    /** When the conversation started */
+    createdAt: timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
+    /** Optional visitor metadata (future: locale, fingerprint, etc.) */
+    visitorMeta: jsonb("visitorMeta"),
+  },
+  (t) => [index("idx_conversations_createdAt").on(t.createdAt)],
+);
 
 export const messages = pgTable(
   "messages",
@@ -48,6 +52,7 @@ export const messages = pgTable(
   (table) => [
     check("messages_role_check", sql`${table.role} in ('user', 'assistant', 'tool')`),
     index("idx_messages_conversationId").on(table.conversationId),
+    index("idx_messages_conversationId_createdAt").on(table.conversationId, table.createdAt),
   ],
 );
 
