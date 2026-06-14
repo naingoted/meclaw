@@ -77,4 +77,22 @@ describe("ConversationsClient", () => {
     await waitFor(() => expect(screen.getByText("second")).toBeInTheDocument());
     expect(screen.getByText("what is your salary?")).toBeInTheDocument(); // still present (appended)
   });
+
+  it("debounces search input into the list fetch", async () => {
+    const fetchMock = vi.fn(async () => page([c1]));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ConversationsClient />);
+    await waitFor(() => expect(screen.getByText("what is your salary?")).toBeInTheDocument());
+
+    fireEvent.change(screen.getByPlaceholderText(/search messages/i), {
+      target: { value: "rust" },
+    });
+
+    // Real-timer debounce (300ms) → assert the eventual q=rust fetch lands.
+    await waitFor(() =>
+      expect(
+        (fetchMock.mock.calls as unknown[][]).some(([url]) => String(url).includes("q=rust")),
+      ).toBe(true),
+    );
+  });
 });

@@ -2,6 +2,7 @@
 import {
   Button,
   EmptyState,
+  Input,
   relativeTime,
   Skeleton,
   Table,
@@ -28,6 +29,13 @@ const POLL_MS = 30_000;
 export function ConversationsClient() {
   const [outcome, setOutcome] = useUrlState("outcome", "all", OUTCOMES);
 
+  const [rawQuery, setRawQuery] = React.useState("");
+  const [query, setQuery] = React.useState("");
+  React.useEffect(() => {
+    const t = setTimeout(() => setQuery(rawQuery.trim()), 300);
+    return () => clearTimeout(t);
+  }, [rawQuery]);
+
   const [items, setItems] = React.useState<ConversationSummary[]>([]);
   const [nextCursor, setNextCursor] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -36,8 +44,9 @@ export function ConversationsClient() {
   const baseQuery = React.useMemo(() => {
     const p = new URLSearchParams();
     if (outcome !== "all") p.set("outcome", outcome);
+    if (query) p.set("q", query);
     return p.toString();
-  }, [outcome]);
+  }, [outcome, query]);
 
   const load = React.useCallback(
     async (cursor: string | null, append: boolean) => {
@@ -79,6 +88,13 @@ export function ConversationsClient() {
 
   return (
     <AdminPage title="Conversations" subtitle={loading ? undefined : `${items.length} loaded`}>
+      <Input
+        className="mb-item"
+        placeholder="Search messages…"
+        value={rawQuery}
+        onChange={(e) => setRawQuery(e.target.value)}
+        aria-label="Search conversation messages"
+      />
       <div className="mb-item flex gap-2">
         {OUTCOMES.map((o) => (
           <Button
