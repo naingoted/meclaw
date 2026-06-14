@@ -131,3 +131,18 @@ def test_gap_match_threshold_env_fallback(monkeypatch):
     # request value still wins over env
     cfg = resolve_config({"rag": {"gapMatchThreshold": 0.1}})
     assert cfg.gap_match_threshold == 0.1
+
+
+def test_rag_top_k_default(monkeypatch):
+    monkeypatch.delenv("RAG_TOP_K", raising=False)
+    cfg = resolve_config({})
+    assert cfg.top_k == 3
+
+
+def test_rag_top_k_env_fallback(monkeypatch):
+    monkeypatch.setenv("RAG_TOP_K", "6")
+    cfg = resolve_config({})
+    assert cfg.top_k == 6
+    # request value still wins over env
+    cfg = resolve_config({"rag": {"topK": 2}})
+    assert cfg.top_k == 2

@@ -74,7 +74,7 @@ def resolve_config(payload: dict | None) -> RuntimeConfig:
                 draft_model = req_model
 
     # Resolve top_k: request > env > default
-    top_k = int(os.getenv("RAG_TOP_K", "4"))
+    top_k = int(os.getenv("RAG_TOP_K", "3"))
     rag = payload.get("rag", {})
     if isinstance(rag, dict) and "topK" in rag:
         req_top_k = rag["topK"]

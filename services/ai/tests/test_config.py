@@ -46,3 +46,19 @@ def test_gap_env_overrides(monkeypatch):
         monkeypatch.delenv("RAG_SCORE_FLOOR", raising=False)
         monkeypatch.delenv("CLUSTER_RADIUS", raising=False)
         importlib.reload(config)
+
+
+def test_rag_top_k_default(monkeypatch):
+    monkeypatch.delenv("RAG_TOP_K", raising=False)
+    importlib.reload(config)
+    assert config.RAG_TOP_K == 3
+
+
+def test_rag_top_k_env_override(monkeypatch):
+    monkeypatch.setenv("RAG_TOP_K", "5")
+    importlib.reload(config)
+    try:
+        assert config.RAG_TOP_K == 5
+    finally:
+        monkeypatch.delenv("RAG_TOP_K", raising=False)
+        importlib.reload(config)

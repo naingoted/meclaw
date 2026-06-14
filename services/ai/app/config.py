@@ -22,7 +22,7 @@ VECTOR_SIZE = 768  # nomic-embed-text dimension
 DISTANCE = "Cosine"
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_EMBED_MODEL = os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text")
-RAG_TOP_K = int(os.getenv("RAG_TOP_K", "4"))
+RAG_TOP_K = int(os.getenv("RAG_TOP_K", "3"))
 
 # Triage confidence threshold below which we ask a clarifying question.
 TRIAGE_CONFIDENCE_THRESHOLD = float(os.getenv("TRIAGE_CONFIDENCE_THRESHOLD", "0.5"))
