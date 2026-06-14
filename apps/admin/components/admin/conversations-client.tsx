@@ -41,6 +41,40 @@ export function ConversationsClient() {
   const [loading, setLoading] = React.useState(true);
   const [loadingMore, setLoadingMore] = React.useState(false);
 
+  const [selected, setSelected] = React.useState<Set<string>>(new Set());
+  const [exporting, setExporting] = React.useState(false);
+
+  function toggle(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function exportSelected() {
+    if (selected.size === 0) return;
+    setExporting(true);
+    try {
+      const res = await fetch("/api/admin/conversations/export", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ids: [...selected] }),
+      });
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "conversations.jsonl";
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
+  }
+
   const baseQuery = React.useMemo(() => {
     const p = new URLSearchParams();
     if (outcome !== "all") p.set("outcome", outcome);
@@ -87,7 +121,23 @@ export function ConversationsClient() {
   }
 
   return (
-    <AdminPage title="Conversations" subtitle={loading ? undefined : `${items.length} loaded`}>
+    <AdminPage
+      title="Conversations"
+      subtitle={loading ? undefined : `${items.length} loaded · ${selected.size} selected`}
+      action={
+        selected.size > 0 ? (
+          <Button loading={exporting} onClick={exportSelected}>
+            Export JSONL ({selected.size})
+          </Button>
+        ) : undefined
+      }
+    >
+      {selected.size > 10 ? (
+        <p className="mb-item rounded-sm bg-accent/15 px-3 py-2 text-xs text-accent" role="status">
+          {selected.size} conversations selected. These contain real visitor questions — do not
+          share externally.
+        </p>
+      ) : null}
       <Input
         className="mb-item"
         placeholder="Search messages…"
@@ -125,6 +175,7 @@ export function ConversationsClient() {
           <Table>
             <THead>
               <TR>
+                <TH className="w-8" />
                 <TH>Question</TH>
                 <TH>Turns</TH>
                 <TH>Outcome</TH>
@@ -135,6 +186,14 @@ export function ConversationsClient() {
             <TBody>
               {items.map((c) => (
                 <TR key={c.id}>
+                  <TD className="w-8">
+                    <input
+                      type="checkbox"
+                      aria-label={`Select conversation ${c.id}`}
+                      checked={selected.has(c.id)}
+                      onChange={() => toggle(c.id)}
+                    />
+                  </TD>
                   <TD>
                     <Link
                       href={`/admin/conversations/${c.id}`}

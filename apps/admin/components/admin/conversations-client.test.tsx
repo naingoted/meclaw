@@ -95,4 +95,32 @@ describe("ConversationsClient", () => {
       ).toBe(true),
     );
   });
+
+  it("selects rows and POSTs the ids to the export endpoint", async () => {
+    const exported: unknown[] = [];
+    // jsdom lacks these; define them so the download side-effect doesn't throw.
+    Object.defineProperty(URL, "createObjectURL", {
+      value: vi.fn(() => "blob:x"),
+      configurable: true,
+    });
+    Object.defineProperty(URL, "revokeObjectURL", { value: vi.fn(), configurable: true });
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.includes("/export") && init?.method === "POST") {
+        exported.push(JSON.parse(String(init.body)));
+        return new Response("{}", {
+          headers: { "content-disposition": 'attachment; filename="conversations.jsonl"' },
+        });
+      }
+      return page([c1]);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<ConversationsClient />);
+    await waitFor(() => expect(screen.getByText("what is your salary?")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("checkbox", { name: /select conversation c1/i }));
+    fireEvent.click(screen.getByRole("button", { name: /export jsonl/i }));
+
+    await waitFor(() => expect(exported).toHaveLength(1));
+    expect(exported[0]).toEqual({ ids: ["c1"] });
+  });
 });
