@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/lib/admin/request", () => ({ clientIp: () => "ip", db: async () => ({}) }));
 
 const listConversations = vi.hoisted(() =>
-  vi.fn(async () => ({ items: [{ id: "c1" }], nextCursor: null })),
+  vi.fn(async (_db: unknown, _opts: unknown) => ({ items: [{ id: "c1" }], nextCursor: null })),
 );
 vi.mock("@/lib/admin/conversations", () => ({ listConversations }));
 
