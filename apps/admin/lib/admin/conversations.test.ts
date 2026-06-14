@@ -135,6 +135,25 @@ describe("listConversations", () => {
   });
 });
 
+describe("listConversations search (q)", () => {
+  const wide = { from: new Date("2026-06-01T00:00:00Z"), to: new Date("2026-07-01T00:00:00Z") };
+
+  it("returns only conversations whose messages match q (case-insensitive)", async () => {
+    const { db } = await makeTestDb();
+    await seed(db); // c1 mentions "salary", c2 mentions "rust"
+    const res = await listConversations(db, { ...wide, q: "RUST" });
+    expect(res.items.map((c) => c.id)).toEqual(["c2"]);
+  });
+
+  it("returns an empty page when nothing matches", async () => {
+    const { db } = await makeTestDb();
+    await seed(db);
+    const res = await listConversations(db, { ...wide, q: "zzz-no-match" });
+    expect(res.items).toEqual([]);
+    expect(res.nextCursor).toBeNull();
+  });
+});
+
 describe("getConversation", () => {
   it("returns null for an unknown id", async () => {
     const { db } = await makeTestDb();
