@@ -126,4 +126,52 @@ describe("GapsClient", () => {
     expect(payload.body).toBe("Rust.");
     expect(payload.requestId).toMatch(/^[0-9a-f-]{36}$/);
   });
+
+  it("links each miss to its conversation (retrieval tab)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.startsWith("/api/admin/gaps?") || url === "/api/admin/gaps") {
+          return new Response(
+            JSON.stringify([
+              {
+                id: "c1",
+                exemplarQuery: "q",
+                count: 1,
+                status: "new",
+                updatedAt: new Date().toISOString(),
+                reasons: {},
+              },
+            ]),
+          );
+        }
+        if (url === "/api/admin/gaps/c1") {
+          return new Response(
+            JSON.stringify({
+              cluster: { id: "c1", exemplarQuery: "q", count: 1, status: "new" },
+              misses: [
+                {
+                  id: "m1",
+                  query: "do you know rust?",
+                  reason: "floor",
+                  topScore: 0.2,
+                  conversationId: "conv-9",
+                  createdAt: new Date().toISOString(),
+                },
+              ],
+            }),
+          );
+        }
+        return new Response(JSON.stringify({}));
+      }),
+    );
+    render(<GapsClient />);
+    await waitFor(() => expect(screen.getByText("q")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("q"));
+    await waitFor(() => expect(screen.getByText("do you know rust?")).toBeInTheDocument());
+    expect(screen.getByRole("link", { name: /view conversation/i })).toHaveAttribute(
+      "href",
+      "/admin/conversations/conv-9?tab=retrieval",
+    );
+  });
 });

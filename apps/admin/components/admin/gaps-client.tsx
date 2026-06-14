@@ -225,6 +225,7 @@ function GapDetail({ id, onBack }: { id: string; onBack: () => void }) {
             <TH>Reason</TH>
             <TH>Top score</TH>
             <TH>When</TH>
+            <TH>Conversation</TH>
           </TR>
         </THead>
         <TBody>
@@ -238,6 +239,18 @@ function GapDetail({ id, onBack }: { id: string; onBack: () => void }) {
                 {m.topScore == null ? "—" : m.topScore.toFixed(2)}
               </TD>
               <TD className="text-muted-foreground">{relativeTime(m.createdAt)}</TD>
+              <TD>
+                {m.conversationId ? (
+                  <a
+                    href={`/admin/conversations/${m.conversationId}?tab=retrieval`}
+                    className="text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    View conversation
+                  </a>
+                ) : (
+                  <span className="text-xs text-muted-foreground">No conversation</span>
+                )}
+              </TD>
             </TR>
           ))}
         </TBody>
