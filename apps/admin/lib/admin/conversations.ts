@@ -127,7 +127,7 @@ export async function listConversations(
 
   // q filter narrows the candidate conversation set first (empty q-match => empty page).
   let qIds: string[] | null = null;
-  if (opts.q && opts.q.trim()) {
+  if (opts.q?.trim()) {
     qIds = await searchConversationIds(db, opts.q.trim());
     if (qIds.length === 0) return { items: [], nextCursor: null };
   }

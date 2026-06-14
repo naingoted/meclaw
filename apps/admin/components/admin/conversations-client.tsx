@@ -19,7 +19,6 @@ import type {
   ConversationListResult,
   ConversationStats,
   ConversationSummary,
-  Outcome,
 } from "@/lib/admin/conversations";
 import { useUrlState } from "@/lib/use-url-state";
 import { OutcomeBadge, TurnCountBadge } from "./conversation-badges";
@@ -223,7 +222,7 @@ export function ConversationsClient() {
                     <TurnCountBadge count={c.turnCount} />
                   </TD>
                   <TD>
-                    <OutcomeBadge outcome={c.outcome as Outcome} />
+                    <OutcomeBadge outcome={c.outcome} />
                   </TD>
                   <TD className="text-muted-foreground">{relativeTime(c.createdAt)}</TD>
                   <TD className="text-muted-foreground">

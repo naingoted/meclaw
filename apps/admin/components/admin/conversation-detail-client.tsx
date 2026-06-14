@@ -1,6 +1,5 @@
 "use client";
 import { cn, relativeTime, Skeleton, Tabs, TabsContent, TabsList, TabsTrigger } from "@meclaw/ui";
-import * as React from "react";
 import type { ConversationDetail, RetrievalEventView } from "@/lib/admin/conversations";
 import { useUrlState } from "@/lib/use-url-state";
 import { AdminPage, useAdminFetch } from "./framework";
