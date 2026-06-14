@@ -123,4 +123,20 @@ describe("ConversationsClient", () => {
     await waitFor(() => expect(exported).toHaveLength(1));
     expect(exported[0]).toEqual({ ids: ["c1"] });
   });
+
+  it("renders stat tiles from the stats endpoint", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.includes("/stats")) {
+          return new Response(JSON.stringify({ total: 127, gapRatePct: 14, avgTurns: 3.2 }));
+        }
+        return page([c1]);
+      }),
+    );
+    render(<ConversationsClient />);
+    await waitFor(() => expect(screen.getByText("127")).toBeInTheDocument());
+    expect(screen.getByText("14%")).toBeInTheDocument();
+    expect(screen.getByText("3.2")).toBeInTheDocument();
+  });
 });

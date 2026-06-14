@@ -5,6 +5,7 @@ import {
   Input,
   relativeTime,
   Skeleton,
+  StatTile,
   Table,
   TBody,
   TD,
@@ -16,18 +17,23 @@ import Link from "next/link";
 import * as React from "react";
 import type {
   ConversationListResult,
+  ConversationStats,
   ConversationSummary,
   Outcome,
 } from "@/lib/admin/conversations";
 import { useUrlState } from "@/lib/use-url-state";
 import { OutcomeBadge, TurnCountBadge } from "./conversation-badges";
-import { AdminPage } from "./framework";
+import { AdminPage, useAdminFetch } from "./framework";
 
 const OUTCOMES = ["all", "answered", "gap", "abandoned"] as const;
 const POLL_MS = 30_000;
 
 export function ConversationsClient() {
   const [outcome, setOutcome] = useUrlState("outcome", "all", OUTCOMES);
+
+  const { data: stats } = useAdminFetch<ConversationStats>("/api/admin/conversations/stats", {
+    pollInterval: POLL_MS,
+  });
 
   const [rawQuery, setRawQuery] = React.useState("");
   const [query, setQuery] = React.useState("");
@@ -132,6 +138,17 @@ export function ConversationsClient() {
         ) : undefined
       }
     >
+      {stats ? (
+        <div className="mb-section grid grid-cols-3 gap-3">
+          <StatTile label="Conversations (7d)" value={stats.total} />
+          <StatTile
+            label="Gap rate"
+            value={`${stats.gapRatePct}%`}
+            tone={stats.gapRatePct > 20 ? "warning" : "neutral"}
+          />
+          <StatTile label="Avg turns" value={stats.avgTurns} />
+        </div>
+      ) : null}
       {selected.size > 10 ? (
         <p className="mb-item rounded-sm bg-accent/15 px-3 py-2 text-xs text-accent" role="status">
           {selected.size} conversations selected. These contain real visitor questions — do not
