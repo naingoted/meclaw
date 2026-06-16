@@ -220,9 +220,7 @@ def test_fit_to_budget_under_budget_unchanged():
     chunks = [_chunk("a" * 100)]
     messages = [_msg("user", "hello"), _msg("assistant", "world")]
     # Each chunk/message is small; total is ~75 tokens
-    kept_chunks, kept_messages = fit_to_budget(
-        chunks, messages, budget=1000
-    )
+    kept_chunks, kept_messages = fit_to_budget(chunks, messages, budget=1000)
     assert kept_chunks == chunks
     assert kept_messages == messages
 
@@ -237,9 +235,7 @@ def test_fit_to_budget_drops_oldest_chunks_first():
     messages = [_msg("user", "x")]
 
     # Budget barely fits only chunk3
-    kept_chunks, kept_messages = fit_to_budget(
-        chunks, messages, budget=30
-    )
+    kept_chunks, kept_messages = fit_to_budget(chunks, messages, budget=30)
     # Oldest chunks (1 and 2) should be dropped
     assert len(kept_chunks) == 1
     assert kept_chunks[0].id == "c3"
@@ -250,14 +246,12 @@ def test_fit_to_budget_drops_oldest_messages_after_chunks_empty():
     """When chunks are empty, drops oldest messages (but keeps the last)."""
     chunks = []
     messages = [
-        _msg("user", "m1" * 200),   # 100 tokens
+        _msg("user", "m1" * 200),  # 100 tokens
         _msg("assistant", "m2" * 200),
         _msg("user", "m3" * 200),
     ]
     # Budget is small: only room for the final message (~100 tokens)
-    kept_chunks, kept_messages = fit_to_budget(
-        chunks, messages, budget=120
-    )
+    kept_chunks, kept_messages = fit_to_budget(chunks, messages, budget=120)
     assert kept_chunks == []
     # Should keep only the last message
     assert len(kept_messages) == 1
@@ -273,9 +267,7 @@ def test_fit_to_budget_keeps_final_message_never_dropped():
         _msg("user", "x" * 50000),  # Final message, very large
     ]
     # Tiny budget
-    kept_chunks, kept_messages = fit_to_budget(
-        chunks, messages, budget=10
-    )
+    kept_chunks, kept_messages = fit_to_budget(chunks, messages, budget=10)
     assert kept_chunks == []
     # Must keep the final message
     assert len(kept_messages) == 1
@@ -293,9 +285,7 @@ def test_fit_to_budget_drops_chunks_then_messages():
     ]
     # Budget: ~20 tokens. Chunks are ~25 tokens each, first message ~25.
     # Should drop both chunks, then the oldest message.
-    kept_chunks, kept_messages = fit_to_budget(
-        [chunk1, chunk2], messages, budget=20
-    )
+    kept_chunks, kept_messages = fit_to_budget([chunk1, chunk2], messages, budget=20)
     assert kept_chunks == []
     assert len(kept_messages) == 2
     # Oldest message dropped, kept the last two

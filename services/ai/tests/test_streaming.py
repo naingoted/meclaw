@@ -368,7 +368,9 @@ def test_greeting_path_skips_triage_and_retrieval():
     # Assertions: the draft streamed, but triage/retrieval were skipped
     assert drafted["called"] is True, "draft_stream_fn should have been called"
     assert triaged["called"] is False, "triage_fn should NOT have been called"
-    assert retrieved["called"] is False, "retriever_retrieve should NOT have been called"
+    assert retrieved["called"] is False, (
+        "retriever_retrieve should NOT have been called"
+    )
 
     # Draft called with empty context (persona-only)
     assert drafted["context"] == "", "context should be empty for greeting path"
@@ -1313,9 +1315,15 @@ def test_knowledge_path_applies_token_budget_drops_oldest_chunks():
         # Return 3 chunks, each ~100 chars = ~25 tokens
         return RetrievalResult(
             chunks=[
-                _chunk("chunk1: " + "a" * 92, ),
-                _chunk("chunk2: " + "b" * 92, ),
-                _chunk("chunk3: " + "c" * 92, ),
+                _chunk(
+                    "chunk1: " + "a" * 92,
+                ),
+                _chunk(
+                    "chunk2: " + "b" * 92,
+                ),
+                _chunk(
+                    "chunk3: " + "c" * 92,
+                ),
             ],
             sources=[
                 {"source": "about.md", "title": "About", "score": 0.8},

@@ -386,8 +386,14 @@ def run_stream(
         # Token-aware assembly (L6): cap prompt to budget. Drop oldest chunks first,
         # then oldest history messages.
         system = knowledge_system or PERSONAS.get(intent, PERSONAS["general"])
-        system_for_budget = f"{persona_prefix}\n\n{system}" if persona_prefix else system
-        budget = model_context_window - estimate_tokens(system_for_budget) - estimate_tokens(query)
+        system_for_budget = (
+            f"{persona_prefix}\n\n{system}" if persona_prefix else system
+        )
+        budget = (
+            model_context_window
+            - estimate_tokens(system_for_budget)
+            - estimate_tokens(query)
+        )
         kept, llm_messages = fit_to_budget(kept, llm_messages, budget=budget)
         context = "\n\n".join(chunk.text for chunk in kept)
         kept_sources = {c.source for c in kept}
