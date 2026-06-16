@@ -66,8 +66,8 @@ Leanior is a frontend consumer of Meclaw, not a second Meclaw backend.
 1. Visitor hits `/` in `apps/admin/app/page.tsx` → redirects to Auth.js login.
 2. Admin enters scrypt-verified password (salt:hash in env), gets JWT in session.
 3. Authenticated pages: **Documents** (knowledge editor), **Config**, **Gaps**, **Embed clients**, **Research**, **Audit log** → `POST/PATCH /api/admin/*` for mutations (all audit-logged).
-4. Knowledge lives in the `documents` table — markdown in `content/` is only the first-run seed (`seed:docs`). Edits happen in the Documents page.
-5. Per-document "Ingest" enqueues an `ingestion_jobs` row; the admin app chunks + embeds **in-process** (needs `OLLAMA_*` env) and writes `rag_chunks` (replace-on-edit). The `pnpm ingest` CLI covers bulk/first-run ingest of `content/` + PDFs + work-impact packs.
+4. Knowledge lives in the `documents` table — `content/` is only the first-run seed (the `seed` one-shot). Edits happen in the Documents page.
+5. Per-document "Ingest" enqueues an `ingestion_jobs` row; the admin app chunks + embeds **in-process** (needs `OLLAMA_*` env) and writes `rag_chunks` (replace-on-edit). The `pnpm --filter @meclaw/rag seed` one-shot covers bulk/first-run: it imports `content/` markdown + PDFs + work-impact packs **into `documents`** and embeds each through the same per-doc path — so first-run and admin edits share one writer (`source = document:<id>`), with no separate file-slug corpus to drift.
 
 ## Decisions
 
@@ -86,7 +86,7 @@ All tables live in one `DATABASE_URL` instance; schema is Drizzle-owned (`packag
 
 - **conversations**, **messages** — transcript persistence (best-effort).
 - **leads** — captured visitor contact details.
-- **rag_chunks** — embedded knowledge (768-dim pgvector, HNSW cosine). Written by ingest, read by the sidecar retriever.
+- **rag_chunks** — embedded knowledge (768-dim pgvector, HNSW cosine). Written by the `seed` one-shot + admin per-doc ingest, read by the sidecar retriever.
 - **documents**, **ingestion_jobs** — admin-managed knowledge + ingest job tracking.
 - **settings** — single-row live config (agents / persona / rag / public).
 - **audit_log** — every admin mutation.
@@ -111,8 +111,8 @@ Production runs on a single EC2 box via **Dokploy** (Traefik reverse proxy, Let'
 
 - **Stack file:** `infra/docker-compose.dokploy.yml`. (`infra/docker-compose.prod.yml` + `Caddyfile` are the legacy self-managed-VPS alternative.)
 - **Routing (Traefik labels):** `meclaw.leanior.com` → chat, `meclaw-admin.leanior.com` → admin.
-- **Services:** `chat`, `admin`, `ai` (internal :8000), `ollama`, `postgres`, plus one-shots: `migrations` (auto-runs Drizzle migrations on every deploy; apps gate on its completion) and `ops` (`tools` profile — manual ingest).
-- **Data:** `postgres_data` + `ollama_storage` volumes; `content/` bind-mounted into ops for first-run ingest.
+- **Services:** `chat`, `admin`, `ai` (internal :8000), `ollama`, `postgres`, plus one-shots: `migrations` (auto-runs Drizzle migrations on every deploy; apps gate on its completion) and `ops` (`tools` profile — manual `seed` / db tasks).
+- **Data:** `postgres_data` + `ollama_storage` volumes; `content/` bind-mounted into ops for the first-run `seed`.
 - **Release:** `git tag v*` → CI builds four GHCR images → CI calls the Dokploy API to deploy that tag.
 
 ## Scaling assumptions (deliberate, single-instance)

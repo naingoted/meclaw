@@ -15,8 +15,8 @@ comes from the markdown here — nothing else.
 | `private/**/*.{md,pdf}` | Local-only sensitive-but-ingestable notes. Feeds RAG, never the public repo. | 🚫 git-ignored (`.gitkeep` only) |
 
 The markdown loader (`packages/core/src/content`) reads **all `*.md` under
-`content/` recursively**, so markdown you add here can be seeded into the admin
-Documents table. The RAG ingest loader also reads PDFs under `content/`.
+`content/` recursively**, and the `seed` one-shot also text-extracts PDFs under
+`content/` — both land in the admin Documents table, where you can edit them.
 
 ### Work-impact packs (`data/work_impact_<company>/`)
 
@@ -29,8 +29,9 @@ auto-discovers every such folder and renders it into one RAG doc per company
 (slug `work/<company>`, H2 per category).
 
 **Add another company** (shopback, asiaone, …): drop a new
-`data/work_impact_<company>/04_rag_entries.json` and re-run `pnpm ingest`. No
-code change. `data/**` is git-ignored, so internal history stays local.
+`data/work_impact_<company>/04_rag_entries.json` and re-run
+`pnpm --filter @meclaw/rag seed`. No code change. `data/**` is git-ignored, so
+internal history stays local.
 
 ## Privacy model
 
@@ -54,8 +55,7 @@ so the repo shows the expected first-run shape.
 4. For structured employer impact, copy
    `data/work_impact_example/04_rag_entries.example.json` to
    `data/work_impact_<company>/04_rag_entries.json` and fill it in.
-5. First setup:
+5. First setup — one idempotent command imports everything into Documents and embeds it:
    ```bash
-   pnpm --filter @meclaw/admin seed:docs  # imports content/**/*.md into Documents
-   pnpm ingest                            # embeds markdown, PDFs, and work-impact packs
+   pnpm --filter @meclaw/rag seed  # content/ (md + pdf) + work-impact packs → Documents → rag_chunks
    ```

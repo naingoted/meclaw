@@ -16,7 +16,7 @@
     "verify": "sh scripts/check-typography.sh && biome check . && turbo run typecheck build",
     "db:generate": "pnpm --filter @meclaw/core db:generate",
     "db:migrate": "pnpm --filter @meclaw/core db:migrate",
-    "ingest": "pnpm --filter @meclaw/rag ingest",
+    "seed": "pnpm --filter @meclaw/rag seed",
     "dev:full": "docker compose -f infra/docker-compose.yml up --build",
     "services": "docker compose -f infra/docker-compose.yml up -d ollama postgres",
     "dev:ai": "cd services/ai && uv run --env-file .env uvicorn app.main:app --port 8000 --reload",

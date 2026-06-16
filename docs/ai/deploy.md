@@ -155,11 +155,14 @@ DC="sudo docker compose -p $APP -f docker-compose.dokploy.yml"
 $DC --profile tools run --rm ops pnpm --filter @meclaw/core db:migrate
 # 2. pull embed model (CPU embedding is slow on t3.large — expect minutes)
 $DC exec ollama ollama pull nomic-embed-text
-# 3. ingest the corpus into rag_chunks
-$DC --profile tools run --rm ops pnpm --filter @meclaw/rag ingest
+# 3. seed the corpus into the `documents` table + embed → rag_chunks (one idempotent command)
+$DC --profile tools run --rm ops pnpm --filter @meclaw/rag seed
 ```
 The corpus is bind-mounted (`../content` → `/app/content`, `MECLAW_CONTENT_DIR=/app/content`), not
-baked in. Drop the real `.md`/`.pdf` corpus into `<code>/content/` before ingest.
+baked in. Drop the real `.md`/`.pdf` corpus into `<code>/content/` before seeding. The `seed` one-shot
+imports it into `documents` (admin-manageable) and embeds it as `document:<id>` chunks — the same writer
+the admin Documents console uses, so there is no second file-slug corpus to drift. (Note: `ops`'s `--rm`
+can hang on exit — Node finishes but holds the postgres handle; `docker rm -f` the lingering container.)
 
 ### One-shot: reset dangling resolved gap clusters (2026-06-10)
 

@@ -26,9 +26,9 @@ meclaw/
 │  │  ├─ drizzle/{migrations}/       # versioned Postgres migration files
 │  │  ├─ drizzle.config.ts
 │  │  └─ package.json (exports: types, lib, migrations)
-│  ├─ rag/                           # @meclaw/rag — ingest + retrieval logic
-│  │  ├─ lib/rag/{pgvector,ingest,chunk,embed,loaders,config,types}.ts
-│  │  ├─ scripts/ingest.ts           # `pnpm ingest` entry — embeds content/ → Postgres
+│  ├─ rag/                           # @meclaw/rag — seed + ingest + retrieval logic
+│  │  ├─ src/{pgvector,seed,ingest-document,chunk,embed,loaders,config,types}.ts
+│  │  ├─ scripts/seed.ts             # `pnpm --filter @meclaw/rag seed` — content/ → documents → embed
 │  │  └─ package.json
 │  ├─ mcp/                           # @meclaw/mcp — unified MCP tool layer (TS-defined, two transports)
 │  │  ├─ src/{registry,scope,guard,redact,auth,env,db}.ts   # tool registry + two-scope model (public/operator) + safety
@@ -93,9 +93,9 @@ meclaw/
 - **External chat consumers:** Leanior and similar host apps import `@naingoted/meclaw-chat-ui`, then call Meclaw's Next routes through `NEXT_PUBLIC_MECLAW_API_BASE` (`/api/embed-config`, `/api/chat`, `/api/chat/history`). They must not define Meclaw API routes or connect to Meclaw Postgres directly.
 - **LLM calls (host):** `lib/ai/provider.ts` in each app (Vercel AI SDK config).
 - **LLM calls (sidecar):** `services/ai/app/provider.py` + `app/graph/` (glm-4.7 non-stream triage routing, then qwen3.6-plus streaming draft — both thinking-off).
-- **Knowledge corpus:** the `documents` table is the source of truth (admin-edited); `content/` markdown is the first-run seed. Ingest (`@meclaw/rag` `scripts/ingest.ts` for bulk, admin in-process per-doc) embeds into `rag_chunks`; the sidecar retrieves via `services/ai/app/retriever.py`.
+- **Knowledge corpus:** the `documents` table is the source of truth (admin-edited); `content/` is the first-run seed. The `seed` one-shot (`@meclaw/rag` `scripts/seed.ts` for bulk first-run, admin in-process per-doc for edits) imports `content/` into `documents` and embeds into `rag_chunks` (`source = document:<id>`); the sidecar retrieves via `services/ai/app/retriever.py`.
 - **Database:** PostgreSQL via `@meclaw/core` (Drizzle ORM + `postgres-js`). Persistence (conversations, messages) + RAG vectors (`rag_chunks`, pgvector, HNSW cosine) in the same store. Migrations live in `packages/core/drizzle/`.
-- **RAG infra:** local Ollama (`nomic-embed-text`) + PostgreSQL (pgvector) configured by `infra/docker-compose.yml`. Ingestion runs on-demand (`pnpm ingest` = `pnpm --filter @meclaw/rag ingest`). Retrieval happens in Python sidecar (`services/ai/app/retriever.py`) via psycopg cosine kNN over `rag_chunks`.
+- **RAG infra:** local Ollama (`nomic-embed-text`) + PostgreSQL (pgvector) configured by `infra/docker-compose.yml`. First-run seeding runs on-demand (`pnpm seed` = `pnpm --filter @meclaw/rag seed`); admin per-doc ingest is in-process. Retrieval happens in Python sidecar (`services/ai/app/retriever.py`) via psycopg cosine kNN over `rag_chunks`.
 - **Deploy config:** `git tag v*` → CI builds four GHCR images (chat → `apps/chat/Dockerfile`, admin → `apps/admin/Dockerfile`, ai → `services/ai/Dockerfile`, ops → `infra/Dockerfile.ops`) → Dokploy API deploys `infra/docker-compose.dokploy.yml` (Traefik subdomain routing, auto-migrations). Guide: `docs/ai/deploy.md`.
 - **Multi-tenant (customer stacks):** isolated per-customer stacks (`infra/docker-compose.customer.yml`) provisioned/upgraded/torn-down one at a time via `infra/{provision,upgrade,teardown}-customer.sh` (Dokploy API). Not touched by tag-push CD. Shared Ollama + gateway key; isolated Postgres/content. Runbook: `docs/ai/customer-ops.md`.
 - **Environment variables:** Each app reads `.env` / `.env.local` (dev) or the Dokploy Environment tab (prod). See `infra/.env.example` (dev) + `infra/.env.dokploy.example` (prod) and `docs/ai/setup.md` for details.

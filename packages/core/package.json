@@ -11,6 +11,7 @@
     "./db/test-db": "./src/db/test-db.ts",
     "./db/migrate": "./src/db/migrate.ts",
     "./content": "./src/content/index.ts",
+    "./documents": "./src/documents/index.ts",
     "./settings": "./src/settings/index.ts",
     "./embed-cache": "./src/embed-cache.ts"
   },

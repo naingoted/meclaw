@@ -79,7 +79,7 @@ Keep both if switching between paths, or symlink one to the other.
 | `pnpm --filter @meclaw/admin dev` | Admin Next dev server (:3001 with HMR, requires `AUTH_SECRET` + `ADMIN_PASSWORD_HASH`). |
 | `pnpm --filter @meclaw/core db:generate` | Regenerate Drizzle migrations from `packages/core/src/db/schema.ts` → `packages/core/drizzle/`. |
 | `pnpm --filter @meclaw/core db:migrate` | Apply pending migrations to `DATABASE_URL`. |
-| `pnpm --filter @meclaw/rag ingest` | Embed `content/` → Postgres `rag_chunks` table. |
+| `pnpm --filter @meclaw/rag seed` | Import `content/` (markdown + PDFs + work-impact packs) into the `documents` table, then embed each into Postgres `rag_chunks`. Idempotent. |
 | `pnpm --filter @meclaw/admin gen:admin-hash <password>` | Mint scrypt admin password hash. |
 | `pnpm install` | Install all monorepo dependencies (pnpm workspaces). |
 | `pnpm verify` | Biome lint/format check + typecheck + build (pre-merge gate). Runs `biome check . && turbo run typecheck build`. |
@@ -160,15 +160,14 @@ After `pnpm services` (or `pnpm dev:full`), run once:
 
 ```bash
 docker compose exec ollama ollama pull nomic-embed-text   # download embed model
-pnpm --filter @meclaw/admin seed:docs                     # import content/**/*.md into Documents
-pnpm --filter @meclaw/rag ingest                           # embed corpus → Postgres
+pnpm --filter @meclaw/rag seed                            # content/ → documents table → embed → Postgres
 ```
 
 If Ollama or Postgres is down, retrieval can't ground answers — the bot defers conservatively and records misses. App stays usable.
 
 ## Knowledge corpus
 
-Folder layout, first-run ingest paths, and privacy rules are documented in the root [`README.md`](../../README.md) ("Knowledge & privacy") and `content/README.md`. Short version: the `documents` table is the source of truth; `content/` is the gitignored local corpus that gets seeded once (`seed:docs`) and embedded (`pnpm ingest`).
+Folder layout, first-run seed paths, and privacy rules are documented in the root [`README.md`](../../README.md) ("Knowledge & privacy") and `content/README.md`. Short version: the `documents` table is the source of truth; `content/` is the gitignored local corpus that gets imported into `documents` and embedded once via `pnpm --filter @meclaw/rag seed` (then edit in the admin Documents console).
 
 ## Adding a shadcn component
 

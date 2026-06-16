@@ -153,8 +153,7 @@ cp content/personal.example.md content/personal.md
 # Drop .md/.pdf files into content/knowledge/ or content/private/
 # Optional structured packs: data/work_impact_<company>/04_rag_entries.json
 
-pnpm --filter @meclaw/admin seed:docs                     # import content/**/*.md into Documents
-pnpm ingest                                                # embed markdown/pdf/work-impact docs → Postgres
+pnpm --filter @meclaw/rag seed                            # content/ (md + pdf + work-impact) → Documents table → embed → Postgres
 ```
 
 ## Quickstart B — Host dev (fast UI loop)
@@ -186,8 +185,7 @@ pnpm --filter @meclaw/admin dev   # admin :3001 (needs AUTH_SECRET + ADMIN_PASSW
 | `pnpm --filter @meclaw/admin dev`                       | Admin Next.js dev :3001.                                                    |
 | `pnpm db:migrate`                                       | Apply Drizzle migrations to `DATABASE_URL`.                                 |
 | `pnpm db:generate`                                      | Generate a new migration from schema changes.                               |
-| `pnpm --filter @meclaw/admin seed:docs`                 | Import `content/**/*.md` into the admin Documents table.                    |
-| `pnpm ingest`                                           | Embed ingestable markdown, PDFs, and work-impact packs → Postgres pgvector. |
+| `pnpm --filter @meclaw/rag seed`                        | Import `content/` (markdown, PDFs, work-impact packs) into the Documents table, then embed → Postgres pgvector. Idempotent. |
 | `pnpm --filter @meclaw/admin gen:admin-hash <password>` | Mint scrypt admin password hash.                                            |
 | `pnpm verify`                                           | Lint + typecheck + build (turbo, all packages) — run before claiming done.  |
 | `pnpm test`                                             | Vitest (all JS packages).                                                   |
@@ -199,7 +197,7 @@ All tables live in one `DATABASE_URL` instance; vectors use the pgvector extensi
 
 - **conversations**, **messages** — transcript persistence (best-effort).
 - **leads** — captured visitor contact (email/phone) when the bot offers to connect.
-- **rag_chunks** — embedded knowledge chunks (written by ingest, read by the sidecar retriever).
+- **rag_chunks** — embedded knowledge chunks (written by the `seed` one-shot + admin per-doc ingest, read by the sidecar retriever).
 - **documents**, **ingestion_jobs** — admin-managed knowledge + ingest job tracking.
 - **settings** — single-row config (agents / shared persona / rag / public) driving chat live.
 - **audit_log** — every admin mutation.
@@ -265,27 +263,27 @@ Everything else (`ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `DATABASE_URL`, `AI_SER
 
 The flow:
 
-1. **Seed once** — `content/**.md` is imported into the `documents` table (`pnpm --filter @meclaw/admin seed:docs`, idempotent by content hash, `origin: "seed"`). After this, the markdown is just a starter snapshot.
+1. **Seed once** — `pnpm --filter @meclaw/rag seed` imports the `content/` corpus (markdown + PDFs + work-impact packs) into the `documents` table (idempotent by content hash, `origin: "seed"`) **and** embeds each one. After this, `content/` is just a starter snapshot.
 2. **Edit in the admin console** — create/edit knowledge in **Documents** (`origin: "manual"`); the gap loop adds docs (`origin: "gap"`). The `documents` table is now the editable source of truth.
-3. **Ingest** — each document is chunked, embedded (Ollama `nomic-embed-text`), and written to `rag_chunks` (`source = document:<id>`, replace-on-edit so no stale vectors).
+3. **Ingest** — every doc (seeded or admin-created) is chunked, embedded (Ollama `nomic-embed-text`), and written to `rag_chunks` (`source = document:<id>`, replace-on-edit so no stale vectors). The `seed` one-shot and the admin per-doc ingest are the **same writer** — there is no second corpus.
 4. **Chat reads `rag_chunks`** — cosine kNN over pgvector. DB only.
 
-**Local vs live.** The markdown path is a *bootstrap*, not a runtime dependency:
+**Local vs live.** `content/` is a *bootstrap*, not a runtime dependency:
 
-- **First-run / local** — drop files in `content/`, then `seed:docs` + `pnpm ingest` to fill `rag_chunks`.
-- **Live (ongoing)** — manage knowledge in the admin **Documents** console; the admin app embeds in-process (Ollama → `rag_chunks`), so no CLI or redeploy is needed to add or edit knowledge. The markdown path is still available on the server as a one-shot (the `ops` ingest image + the mounted `content/` volume) for bulk re-seeding — see `docs/ai/deploy.md`.
+- **First-run / local** — drop files in `content/`, then `pnpm --filter @meclaw/rag seed` to fill `documents` + `rag_chunks`.
+- **Live (ongoing)** — manage knowledge in the admin **Documents** console; the admin app embeds in-process (Ollama → `rag_chunks`), so no CLI or redeploy is needed to add or edit knowledge. On the server the same `seed` one-shot is available (the `ops` image + the mounted `content/` volume) for bulk re-seeding — see `docs/ai/deploy.md`.
 
-> **Use one ingest path per deployment.** The `content/` CLI writes file-slug chunk sources; the admin console writes `document:<id>` sources. Running both ingests the same knowledge twice under different keys. Seed once via markdown, then edit in the admin console — or stay entirely in one or the other.
+> **One corpus, one writer.** Both the `seed` one-shot and the admin console write `document:<id>` chunk sources into the same `documents`-backed corpus — re-running `seed` is idempotent (skips unchanged bodies) and never creates a competing file-slug corpus. Everything ends up editable in the admin **Documents** page.
 
-**First-run ingest folders:**
+**First-run seed folders:**
 
 
 | Local path                                       | File types    | What happens                                                                                                                                     |
 | ------------------------------------------------ | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `content/personal.md`                            | Markdown      | Copy from `content/personal.example.md`; seed imports it into Documents, ingest embeds it.                                                       |
-| `content/knowledge/`**                           | Markdown, PDF | Main private RAG corpus. Markdown can be seeded into Documents; markdown + PDFs are embedded by `pnpm ingest`.                                   |
-| `content/private/**`                             | Markdown, PDF | Local-only sensitive-but-ingestable notes. Same ingest behavior as `content/knowledge/**`.                                                       |
-| `data/work_impact_<company>/04_rag_entries.json` | JSON          | Optional structured work-impact pack. `pnpm ingest` renders one RAG doc per company. See `data/work_impact_example/04_rag_entries.example.json`. |
+| `content/personal.md`                            | Markdown      | Copy from `content/personal.example.md`; `seed` imports it into Documents and embeds it.                                                         |
+| `content/knowledge/`**                           | Markdown, PDF | Main private RAG corpus. `seed` imports markdown + PDFs (text-extracted) into Documents and embeds them.                                          |
+| `content/private/**`                             | Markdown, PDF | Local-only sensitive-but-ingestable notes. Same `seed` behavior as `content/knowledge/**`.                                                        |
+| `data/work_impact_<company>/04_rag_entries.json` | JSON          | Optional structured work-impact pack. `seed` renders one Document per company. See `data/work_impact_example/04_rag_entries.example.json`. Mount `data/` into `ops` to seed it on the server. |
 
 
 **Privacy:** `content/` ships only public-safe templates + samples so a fresh clone chats immediately. Real `content/personal.md`, `content/private/`**, real `content/knowledge/**` files, and `data/**` payloads are gitignored and stay local. The tracked `.gitkeep` and `.example` files exist only to show the expected folder shape. See `content/README.md`.
