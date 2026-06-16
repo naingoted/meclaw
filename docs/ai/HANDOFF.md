@@ -54,6 +54,7 @@ ANTHROPIC_MODEL=qwen3.6-plus
 - Parent theme sync — embed.js detects host dark/light theme, passes via query param + live postMessage relay
 - Embed multi-session history — namespaced localStorage index per embedToken, legacy migration, History drawer in embed mode
 - Pre-commit/CI hardening; auto-migration on deploy (CI-proven)
+- Single seed path (v1.1.4-alpha): `pnpm --filter @meclaw/rag seed` imports `content/` (markdown + PDFs + work-impact) into the `documents` table (origin=seed, admin-manageable) and embeds each as `document:<id>` — the same writer the admin UI uses. File-slug `ingest` CLI + admin `seed:docs` removed; doc CRUD + `contentHash` moved to `@meclaw/core/documents`. Resolves the `rag_chunks` dual-writer collision. New-EC2 one-shot validated on a throwaway box from a clean DB: `ops db:migrate` + `ops seed` → 15 docs / 51 `document:` chunks / 0 orphan, chat grounded.
 
 **Complete on `worktree-conversation-dashboard` (pending merge):**
 
