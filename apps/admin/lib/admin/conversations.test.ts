@@ -130,6 +130,97 @@ describe("listConversations", () => {
     expect(page2.nextCursor).toBeNull();
   });
 
+  it("paginates over filtered outcomes instead of returning an empty first page", async () => {
+    const { db } = await makeTestDb();
+    const base = new Date("2026-06-10T00:00:00.000Z").getTime();
+    const at = (mins: number) => new Date(base + mins * 60_000);
+
+    await db.insert(conversations).values([
+      { id: "c-gap-newer", createdAt: at(10) },
+      { id: "c-answered-newest", createdAt: at(20) },
+      { id: "c-gap-older", createdAt: at(0) },
+    ]);
+    await db.insert(messages).values([
+      {
+        id: "m-gap-newer-user",
+        conversationId: "c-gap-newer",
+        role: "user",
+        content: "newer gap",
+        createdAt: at(10),
+      },
+      {
+        id: "m-gap-newer-assistant",
+        conversationId: "c-gap-newer",
+        role: "assistant",
+        content: "not enough info",
+        createdAt: at(11),
+      },
+      {
+        id: "m-answered-user",
+        conversationId: "c-answered-newest",
+        role: "user",
+        content: "latest answered",
+        createdAt: at(20),
+      },
+      {
+        id: "m-answered-assistant",
+        conversationId: "c-answered-newest",
+        role: "assistant",
+        content: "answer",
+        createdAt: at(21),
+      },
+      {
+        id: "m-gap-older-user",
+        conversationId: "c-gap-older",
+        role: "user",
+        content: "older gap",
+        createdAt: at(0),
+      },
+      {
+        id: "m-gap-older-assistant",
+        conversationId: "c-gap-older",
+        role: "assistant",
+        content: "still missing",
+        createdAt: at(1),
+      },
+    ]);
+    await db.insert(chatMisses).values([
+      {
+        id: "00000000-0000-4000-8000-000000000101",
+        messageId: "m-gap-newer-assistant",
+        conversationId: "c-gap-newer",
+        clusterId: "00000000-0000-4000-8000-0000000001aa",
+        query: "newer gap",
+        reason: "floor",
+        topScore: 0.2,
+        createdAt: at(11),
+      },
+      {
+        id: "00000000-0000-4000-8000-000000000102",
+        messageId: "m-gap-older-assistant",
+        conversationId: "c-gap-older",
+        clusterId: "00000000-0000-4000-8000-0000000001ab",
+        query: "older gap",
+        reason: "floor",
+        topScore: 0.2,
+        createdAt: at(1),
+      },
+    ]);
+
+    const page1 = await listConversations(db, { ...wide, outcome: "gap", limit: 1 });
+    expect(page1.items.map((c) => c.id)).toEqual(["c-gap-newer"]);
+    expect(page1.nextCursor).not.toBeNull();
+
+    const page2 = await listConversations(db, {
+      ...wide,
+      outcome: "gap",
+      limit: 1,
+      cursor: page1.nextCursor,
+    });
+    expect(page2.items.map((c) => c.id)).toEqual(["c-gap-older"]);
+    expect(page2.nextCursor).toBeNull();
+  });
+
   it("respects the date range", async () => {
     const { db } = await makeTestDb();
     await seed(db);
@@ -245,5 +336,62 @@ describe("conversationStats", () => {
     const { db } = await makeTestDb();
     const stats = await conversationStats(db, 7);
     expect(stats).toEqual({ total: 0, gapRatePct: 0, avgTurns: 0 });
+  });
+
+  it("counts gap conversations from the same created-at cohort as the total", async () => {
+    const { db } = await makeTestDb();
+    const now = Date.now();
+    const oldCreatedAt = new Date(now - 10 * 24 * 60 * 60 * 1000);
+    const recentCreatedAt = new Date(now - 2 * 24 * 60 * 60 * 1000);
+
+    await db.insert(conversations).values([
+      { id: "c-old-gap", createdAt: oldCreatedAt },
+      { id: "c-recent-answered", createdAt: recentCreatedAt },
+    ]);
+    await db.insert(messages).values([
+      {
+        id: "m-old-gap-user",
+        conversationId: "c-old-gap",
+        role: "user",
+        content: "old conversation",
+        createdAt: oldCreatedAt,
+      },
+      {
+        id: "m-old-gap-assistant",
+        conversationId: "c-old-gap",
+        role: "assistant",
+        content: "old gap response",
+        createdAt: new Date(oldCreatedAt.getTime() + 60_000),
+      },
+      {
+        id: "m-recent-user",
+        conversationId: "c-recent-answered",
+        role: "user",
+        content: "recent conversation",
+        createdAt: recentCreatedAt,
+      },
+      {
+        id: "m-recent-assistant",
+        conversationId: "c-recent-answered",
+        role: "assistant",
+        content: "recent answer",
+        createdAt: new Date(recentCreatedAt.getTime() + 60_000),
+      },
+    ]);
+    await db.insert(chatMisses).values({
+      id: "00000000-0000-4000-8000-000000000201",
+      messageId: "m-old-gap-assistant",
+      conversationId: "c-old-gap",
+      clusterId: "00000000-0000-4000-8000-0000000002aa",
+      query: "old conversation",
+      reason: "floor",
+      topScore: 0.1,
+      createdAt: new Date(now - 24 * 60 * 60 * 1000),
+    });
+
+    const stats = await conversationStats(db, 7);
+    expect(stats.total).toBe(1);
+    expect(stats.gapRatePct).toBe(0);
+    expect(stats.avgTurns).toBe(1);
   });
 });

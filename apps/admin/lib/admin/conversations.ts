@@ -114,49 +114,15 @@ function buildSummaries(
   });
 }
 
-/**
- * Cursor-paginated conversation summaries, newest first. Metrics (turn count,
- * preview, last message, outcome) are computed on-read from `messages` +
- * `chat_misses` — no persisted columns. Two follow-up batch queries (not N+1).
- */
-export async function listConversations(
+async function loadConversationSummaries(
   db: Db,
-  opts: ListConversationsOpts,
-): Promise<ConversationListResult> {
-  const limit = opts.limit ?? 50;
+  rows: Array<{ id: string; createdAt: Date }>,
+  now: number,
+): Promise<ConversationSummary[]> {
+  if (rows.length === 0) return [];
 
-  // q filter narrows the candidate conversation set first (empty q-match => empty page).
-  let qIds: string[] | null = null;
-  if (opts.q?.trim()) {
-    qIds = await searchConversationIds(db, opts.q.trim());
-    if (qIds.length === 0) return { items: [], nextCursor: null };
-  }
+  const ids = rows.map((r) => r.id);
 
-  const cursor = opts.cursor ? decodeCursor(opts.cursor) : null;
-  const where = and(
-    gte(conversations.createdAt, opts.from),
-    lte(conversations.createdAt, opts.to),
-    qIds ? inArray(conversations.id, qIds) : undefined,
-    cursor
-      ? sql`(${conversations.createdAt}, ${conversations.id}) < (${cursor.ts}, ${cursor.id})`
-      : undefined,
-  );
-
-  // Fetch one extra row to know whether a next page exists.
-  const rows = await db
-    .select({ id: conversations.id, createdAt: conversations.createdAt })
-    .from(conversations)
-    .where(where)
-    .orderBy(desc(conversations.createdAt), desc(conversations.id))
-    .limit(limit + 1);
-
-  const hasMore = rows.length > limit;
-  const page = hasMore ? rows.slice(0, limit) : rows;
-  if (page.length === 0) return { items: [], nextCursor: null };
-
-  const ids = page.map((r) => r.id);
-
-  // Batch query 1: all messages for the page (ordered) → derive per-conversation metrics.
   const msgs = await db
     .select({
       conversationId: messages.conversationId,
@@ -168,7 +134,6 @@ export async function listConversations(
     .where(inArray(messages.conversationId, ids))
     .orderBy(asc(messages.createdAt), asc(messages.id));
 
-  // Batch query 2: which of the page's conversations have a miss.
   const missRows = await db
     .selectDistinct({ conversationId: chatMisses.conversationId })
     .from(chatMisses)
@@ -176,16 +141,152 @@ export async function listConversations(
   const missSet = new Set(missRows.map((r) => r.conversationId));
 
   const agg = aggregateMetrics(ids, msgs);
-  const now = Date.now();
-  let items = buildSummaries(page, agg, missSet, now);
+  return buildSummaries(rows, agg, missSet, now);
+}
 
-  if (opts.outcome) items = items.filter((c) => c.outcome === opts.outcome);
+type Cursor = { ts: Date; id: string };
 
+/** Shared candidate-set predicate: time window + optional q-match + optional cursor. */
+function conversationWhere(
+  opts: ListConversationsOpts,
+  qIds: string[] | null,
+  cursor: Cursor | null,
+) {
+  return and(
+    gte(conversations.createdAt, opts.from),
+    lte(conversations.createdAt, opts.to),
+    qIds ? inArray(conversations.id, qIds) : undefined,
+    cursor
+      ? sql`(${conversations.createdAt}, ${conversations.id}) < (${cursor.ts}, ${cursor.id})`
+      : undefined,
+  );
+}
+
+/** Unfiltered page: one windowed query (+1 row to detect a next page). */
+async function listUnfiltered(
+  db: Db,
+  opts: ListConversationsOpts,
+  qIds: string[] | null,
+  cursor: Cursor | null,
+  limit: number,
+  now: number,
+): Promise<ConversationListResult> {
+  const rows = await db
+    .select({ id: conversations.id, createdAt: conversations.createdAt })
+    .from(conversations)
+    .where(conversationWhere(opts, qIds, cursor))
+    .orderBy(desc(conversations.createdAt), desc(conversations.id))
+    .limit(limit + 1);
+
+  const hasMore = rows.length > limit;
+  const page = hasMore ? rows.slice(0, limit) : rows;
+  if (page.length === 0) return { items: [], nextCursor: null };
+
+  const items = await loadConversationSummaries(db, page, now);
   const last = page[page.length - 1];
   return {
     items,
     nextCursor: hasMore ? `${last.createdAt.toISOString()}|${last.id}` : null,
   };
+}
+
+/** Rows + their index-aligned summaries, filtered to a target outcome. */
+function matchesForOutcome(
+  rows: Array<{ id: string; createdAt: Date }>,
+  summaries: ConversationSummary[],
+  outcome: Outcome,
+): { rows: Array<{ id: string; createdAt: Date }>; items: ConversationSummary[] } {
+  const rowsOut: Array<{ id: string; createdAt: Date }> = [];
+  const itemsOut: ConversationSummary[] = [];
+  for (const [index, item] of summaries.entries()) {
+    if (item.outcome !== outcome) continue;
+    rowsOut.push(rows[index]!);
+    itemsOut.push(item);
+  }
+  return { rows: rowsOut, items: itemsOut };
+}
+
+/** Trim accumulated matches to one page and derive the next cursor. */
+function buildOutcomePage(
+  matchedRows: Array<{ id: string; createdAt: Date }>,
+  matchedItems: ConversationSummary[],
+  limit: number,
+): ConversationListResult {
+  if (matchedItems.length === 0) return { items: [], nextCursor: null };
+  const items = matchedItems.slice(0, limit);
+  const hasMore = matchedItems.length > limit;
+  const last = matchedRows[items.length - 1];
+  return {
+    items,
+    nextCursor: hasMore && last ? `${last.createdAt.toISOString()}|${last.id}` : null,
+  };
+}
+
+/**
+ * Outcome is derived on-read, so it can't be a SQL predicate: batch-scan raw
+ * pages and keep matching rows until a full page (+1) accumulates or the
+ * candidate set is exhausted. Cursor advances by the last raw row scanned.
+ */
+async function listByOutcome(
+  db: Db,
+  opts: ListConversationsOpts,
+  qIds: string[] | null,
+  cursor: Cursor | null,
+  limit: number,
+  now: number,
+): Promise<ConversationListResult> {
+  const rawBatchSize = Math.max(limit + 1, 50);
+  let scanCursor = cursor;
+  const matchedRows: Array<{ id: string; createdAt: Date }> = [];
+  const matchedItems: ConversationSummary[] = [];
+
+  while (matchedItems.length < limit + 1) {
+    const rows = await db
+      .select({ id: conversations.id, createdAt: conversations.createdAt })
+      .from(conversations)
+      .where(conversationWhere(opts, qIds, scanCursor))
+      .orderBy(desc(conversations.createdAt), desc(conversations.id))
+      .limit(rawBatchSize);
+
+    if (rows.length === 0) break;
+
+    const summaries = await loadConversationSummaries(db, rows, now);
+    const matched = matchesForOutcome(rows, summaries, opts.outcome!);
+    matchedRows.push(...matched.rows);
+    matchedItems.push(...matched.items);
+
+    if (rows.length < rawBatchSize) break;
+    const lastRow = rows[rows.length - 1]!;
+    scanCursor = { ts: lastRow.createdAt, id: lastRow.id };
+  }
+
+  return buildOutcomePage(matchedRows, matchedItems, limit);
+}
+
+/**
+ * Cursor-paginated conversation summaries, newest first. Metrics (turn count,
+ * preview, last message, outcome) are computed on-read from `messages` +
+ * `chat_misses` — no persisted columns. Two follow-up batch queries (not N+1).
+ */
+export async function listConversations(
+  db: Db,
+  opts: ListConversationsOpts,
+): Promise<ConversationListResult> {
+  const limit = opts.limit ?? 50;
+  const now = Date.now();
+
+  // q filter narrows the candidate conversation set first (empty q-match => empty page).
+  let qIds: string[] | null = null;
+  if (opts.q?.trim()) {
+    qIds = await searchConversationIds(db, opts.q.trim());
+    if (qIds.length === 0) return { items: [], nextCursor: null };
+  }
+
+  const cursor = opts.cursor ? decodeCursor(opts.cursor) : null;
+
+  return opts.outcome
+    ? listByOutcome(db, opts, qIds, cursor, limit, now)
+    : listUnfiltered(db, opts, qIds, cursor, limit, now);
 }
 
 export type MessageRow = { id: string; role: string; content: string; createdAt: string };
@@ -297,7 +398,8 @@ export async function conversationStats(db: Db, sinceDays = 7): Promise<Conversa
   const [{ gapConvos }] = await db
     .select({ gapConvos: sql<number>`count(distinct ${chatMisses.conversationId})::int` })
     .from(chatMisses)
-    .where(gte(chatMisses.createdAt, since));
+    .innerJoin(conversations, eq(chatMisses.conversationId, conversations.id))
+    .where(gte(conversations.createdAt, since));
 
   const [{ userTurns }] = await db
     .select({ userTurns: sql<number>`count(*)::int` })
