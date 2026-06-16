@@ -111,7 +111,10 @@ jobs:
 
   deploy:
     needs: build
-    if: startsWith(github.ref, 'refs/tags/')
+    # Prod deploy runs by default on a tag. Set repo variable SKIP_PROD_DEPLOY=true
+    # to publish images for a tag WITHOUT touching prod (build-only release), then
+    # unset it to restore normal behavior.
+    if: ${{ startsWith(github.ref, 'refs/tags/') && vars.SKIP_PROD_DEPLOY != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
