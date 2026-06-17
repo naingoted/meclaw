@@ -15,8 +15,9 @@ Personal AI-twin chatbot (single user). Public chat page; an AI answers about th
 - **Where things live:** `docs/ai/repo-index.md`.
 - **How it fits together:** `docs/ai/architecture.md`.
 - **Local setup:** `docs/ai/setup.md`.
+- **Every env var (source of truth):** `docs/ai/config.md` — complete table, defaults, required-vs-optional, which service reads it. **The `.env*.example` templates may lag; this file wins.** Adding a `process.env.*` / `os.getenv(...)` read means updating this table in the same change. Note the silent-failure traps (lead alerts, branding defaults to the author's identity, embed resume secret).
 - **Code style / rules:** `docs/ai/conventions.md`.
-- **Deploy + prod debugging:** `docs/ai/deploy.md` — Dokploy-on-AWS from-scratch provisioning, post-deploy one-shots, and a debugging runbook (container-naming, panel TLS, login reset). Read before touching production.
+- **Deploy + prod debugging:** `docs/ai/deploy.md` — Caddy-on-EC2 deployment (SSH CD → GHCR → Docker Compose), from-scratch box provisioning, post-deploy one-shots, and a debugging runbook. Read before touching production.
 
 ## Stack
 

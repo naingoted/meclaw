@@ -45,18 +45,21 @@ Chat at http://localhost:3000 · Admin at http://localhost:3001 · Sidecar at ht
 | `AUTH_SECRET` | Auth.js secret. Random 32-byte hex. Only needed for admin (next-auth). |
 | `ADMIN_PASSWORD_HASH` | scrypt hash in `salt:hash` format. Mint via `pnpm --filter @meclaw/admin gen:admin-hash <password>` |
 
-### Prod (Dokploy Environment tab)
+### Prod (Caddy box, `infra/.env`)
 
-Production env lives in the Dokploy app's Environment tab (never in a committed file). Template: `infra/.env.dokploy.example`. Keys beyond dev:
+Production env lives in `/opt/meclaw/infra/.env` on the box (gitignored, never committed). `docker-compose.prod.yml` forwards it to every service via `env_file: .env` — a key present there reaches the container with no `environment:` entry needed. Template: `infra/.env.prod.example`. **Full var reference: `docs/ai/config.md`.** Keys beyond dev:
 
 - `IMAGE_TAG` — GHCR image tag. **CI-managed**: the deploy job pins it to the released git tag; don't hand-edit during a normal release.
 - `GHCR_OWNER` — GitHub username for `ghcr.io/<owner>/meclaw-*`
-- `AUTH_URL` — admin host (e.g. `https://meclaw-admin.<domain>`)
+- `DOMAIN` / `ADMIN_DOMAIN` — Caddy chat + admin hosts (A records → box; auto LE TLS)
+- `AUTH_URL` — admin host, must equal `https://<ADMIN_DOMAIN>`
 - `POSTGRES_PASSWORD` — mint on-box (`openssl rand -base64 24`), mirror into `DATABASE_URL`
 - `AUTH_SECRET` — mint: `openssl rand -hex 32`
 - `ADMIN_PASSWORD_HASH` — mint: `pnpm --filter @meclaw/admin gen:admin-hash <password>`
 
-Full provisioning + debugging runbook: `docs/ai/deploy.md`. (`infra/.env.prod.example` belongs to the legacy self-managed compose path.)
+Don't forget the silent-if-unset operator vars (lead alerts `TELEGRAM_*`/`LEAD_WEBHOOK_URL`, branding `BOT_*`/`BRAND_*`, `RESUME_TOKEN_SECRET`, `CHAT_APP_ORIGIN`) — see `docs/ai/config.md`. To add one to a running box: append to `/opt/meclaw/infra/.env`, then `docker compose -f infra/docker-compose.prod.yml up -d --no-deps <service>`.
+
+Full provisioning + debugging runbook: `docs/ai/deploy.md`.
 
 ## Key differences: `.env` vs `.env.local`
 

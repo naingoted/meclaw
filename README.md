@@ -129,7 +129,7 @@ sequenceDiagram
 | `packages/ui`   | `@meclaw/ui`    | shadcn/ui + shared design system                                 |
 | `packages/mcp`  | `@meclaw/mcp`   | MCP server: read-only telemetry/schema tools (scoped + redacted) |
 | `services/ai`   | —               | Python FastAPI + LangGraph sidecar (:8000) + Ragas eval harness  |
-| `infra/`        | —               | Docker Compose (dev + Dokploy prod stack), deploy config         |
+| `infra/`        | —               | Docker Compose (dev + Caddy prod stack), deploy config           |
 
 
 **Tech:** Next.js 16 (App Router) · React 19 · TypeScript · Tailwind 4 · shadcn/ui · Vercel AI SDK · Python (FastAPI + LangGraph) · PostgreSQL + pgvector · Ollama (`nomic-embed-text`, 768-dim) · Drizzle ORM · Auth.js v5 · Zod · Vitest + pytest · turbo.
@@ -246,16 +246,24 @@ Env: `MCP_DATABASE_URL` (read-only role), `MCP_AUTH_TOKEN` (http auth), `MCP_ALL
 
 ## Environment variables
 
+**Complete reference — every var, default, and which service reads it: `docs/ai/config.md`.** Placeholders in `infra/.env.example`; when a template lags the code, the config doc wins.
+
 The two you can't guess:
 
 - `ANTHROPIC_BASE_URL` — Anthropic-compatible endpoint root (the Anthropic API, or a compatible gateway like DashScope). **TS AI SDK needs the `/v1` suffix; the Python sidecar must OMIT it** (it appends `/v1/messages` itself).
 - `OLLAMA_BASE_URL` / `OLLAMA_EMBED_MODEL` — the admin app embeds in-process, so it needs these too (not just the ingest CLI).
 
-Everything else (`ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `DATABASE_URL`, `AI_SERVICE_URL`, `AUTH_SECRET`, `ADMIN_PASSWORD_HASH`, …) is standard — full table in `docs/ai/setup.md`, placeholders in `infra/.env.example`.
+**Set these or they silently misbehave** (no error in logs):
+
+- **Branding/persona** — `BOT_NAME`, `BOT_OWNER_NAME`, `BOT_TAGLINE`, `BOT_CONTACT_EMAIL`, `BRAND_ACCENT`, `BRAND_LOGO_URL`. Unset → the bot ships as the **original author's identity**.
+- **Lead alerts** — `LEAD_WEBHOOK_URL` and/or `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` (both, together). Captured contact info notifies the owner; unset → no alert, no error.
+- **Embed persistence** — `RESUME_TOKEN_SECRET`. Unset → resume tokens are `.insecure` and history 401s.
+
+Everything else (`ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `DATABASE_URL`, `AI_SERVICE_URL`, `AUTH_SECRET`, `ADMIN_PASSWORD_HASH`, …) is standard — see `docs/ai/config.md`.
 
 ## Deployment
 
-`git tag v*` + push → GitHub Actions runs quality gates, builds four GHCR images (**chat**, **admin**, **ai**, **ops**), then calls the Dokploy REST API to deploy `infra/docker-compose.dokploy.yml` on the VPS. A one-shot **migrations** service applies pending schema before the apps boot; Traefik routes the chat and admin subdomains with auto-TLS. A plain push to `main` only runs the quality job — images build on tags. Full guide: `docs/ai/deploy.md`.
+`git tag v*` + push → GitHub Actions runs quality gates, builds four GHCR images (**chat**, **admin**, **ai**, **ops**), then SSHes into the EC2 box to check out the released tag and converge `infra/docker-compose.prod.yml` (`compose pull && up -d`). A one-shot **migrations** service applies pending schema before the apps boot; **Caddy** routes the chat and admin hosts with auto Let's Encrypt TLS. A plain push to `main` only runs the quality job — images build on tags. Full guide: `docs/ai/deploy.md`.
 
 ## Knowledge & privacy
 
