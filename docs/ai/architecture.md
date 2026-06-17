@@ -109,7 +109,7 @@ If this grows beyond one stack or table ownership stops being disjoint, the upgr
 
 Production runs on a single EC2 box behind **Caddy** (reverse proxy, auto Let's Encrypt). Full guide + debugging runbook: `docs/ai/deploy.md`.
 
-- **Stack file:** `infra/docker-compose.prod.yml` + `infra/Caddyfile`. (`infra/docker-compose.dokploy.yml` is the earlier Dokploy/Traefik PaaS alternative.)
+- **Stack file:** `infra/docker-compose.prod.yml` + `infra/Caddyfile`.
 - **Routing (Caddy hosts):** `chat.example.com` → chat (`DOMAIN`), `admin.example.com` → admin (`ADMIN_DOMAIN`).
 - **Services:** `chat`, `admin`, `ai` (internal :8000), `ollama`, `postgres`, `caddy`, plus one-shots: `migrations` (auto-runs Drizzle migrations on every deploy; apps gate on its completion) and `ops` (`tools` profile — manual `seed` / db tasks).
 - **Data:** `pgdata` + `ollama_storage` + `caddy_data`/`caddy_config` volumes; `content/` bind-mounted into chat + ops.
@@ -119,7 +119,7 @@ Production runs on a single EC2 box behind **Caddy** (reverse proxy, auto Let's 
 
 This system is designed for **one owner, one VPS, replicas = 1 per service**. A few pieces of state live in process memory and would break silently behind a load balancer:
 
-- **Rate limits** — the chat IP/global limiters (`apps/chat/lib/rate-limit.ts`), per-embed-client limiter (`apps/chat/lib/embed/rate-limit.ts`), and cheaper public API GET limiter (`apps/chat/lib/public-api-rate-limit.ts`) are in-memory maps. With N chat replicas, each caller gets N× the budget. Upgrade path: move counters to Postgres (`INSERT … ON CONFLICT` token bucket), Redis, or Traefik/edge middleware.
+- **Rate limits** — the chat IP/global limiters (`apps/chat/lib/rate-limit.ts`), per-embed-client limiter (`apps/chat/lib/embed/rate-limit.ts`), and cheaper public API GET limiter (`apps/chat/lib/public-api-rate-limit.ts`) are in-memory maps. With N chat replicas, each caller gets N× the budget. Upgrade path: move counters to Postgres (`INSERT … ON CONFLICT` token bucket), Redis, or edge middleware.
 - **Config caches** — the settings cache (`packages/core`, bounded TTL) and the Edge-runtime embed-client cache (CSP `frame-ancestors`, 5-min TTL) each refresh per process. With replicas, admin saves and embed-client revocations propagate per-process within the TTL, so brief inconsistency across replicas. Upgrade path: Postgres `LISTEN/NOTIFY` invalidation.
 
 What scales without changes: the data plane. pgvector with an HNSW index is comfortable far beyond a personal corpus (≥10⁶ chunks); transcripts and telemetry are append-only rows. The Python sidecar is stateless and can replicate freely — only the Next chat edge holds the in-memory state above.

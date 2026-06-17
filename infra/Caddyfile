@@ -2,8 +2,7 @@
 	reverse_proxy chat:3000
 }
 
-# Admin host is its own domain (not a subdomain of chat) so it can be
-# admin.example.com — matches the Traefik labels in docker-compose.dokploy.yml.
+# Admin host is its own domain (not a subdomain of chat), e.g. admin.example.com.
 {$ADMIN_DOMAIN} {
 	reverse_proxy admin:3000
 }

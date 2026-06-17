@@ -14,7 +14,6 @@ services:
   # Runs pending Drizzle migrations to completion, then exits. Apps depend on it
   # via service_completed_successfully so they never start against an unmigrated
   # DB; a failed migrate (exit!=0) blocks dependents and fails the deploy loudly.
-  # Mirrors the `migrations` service in docker-compose.dokploy.yml.
   migrations:
     image: ghcr.io/${GHCR_OWNER}/meclaw-ops:${IMAGE_TAG:-latest}
     restart: "no"
