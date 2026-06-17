@@ -14,12 +14,8 @@ ever pasted into chat/logs.
 > **Caddy hosts** (A records → the box's public IP; set in `.env`):
 > `${DOMAIN}` → chat, `${ADMIN_DOMAIN}` → admin. Caddy reads both from the box `.env` and
 > requests certs once each host resolves to the box.
->
-> An earlier **Dokploy + Traefik** path (`infra/docker-compose.dokploy.yml`) exists as a
-> self-hosted-PaaS alternative; it is no longer the live prod path.
 
-Related runbooks: per-customer (multi-tenant) lifecycle — [customer-ops.md](customer-ops.md);
-post-leak rotation checklist — [secrets-rotation.md](secrets-rotation.md).
+Related runbook: post-leak rotation checklist — [secrets-rotation.md](secrets-rotation.md).
 
 ## CI/CD pipeline
 

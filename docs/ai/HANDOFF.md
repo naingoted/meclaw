@@ -21,7 +21,7 @@ Personal bot (single user). Public chat page; AI answers about the owner (Thet N
 - **Admin auth:** single admin (scrypt password hash in env), JWT session (Auth.js v5). No multi-tenant, no OAuth in v1.
 - **UI:** Tailwind 4 + shadcn/ui (internal design system in `packages/ui`) plus the published/shared presentational chat package `@naingoted/meclaw-chat-ui` in `packages/meclaw-chat-ui`. Validation: Zod. Tests: Vitest (TDD) + pytest.
 - **Public API boundary:** `apps/chat/app/api/*` is the only public Meclaw chat API surface. External consumers such as Leanior call it through `NEXT_PUBLIC_MECLAW_API_BASE`; they do not expose Meclaw routes or connect to Meclaw Postgres directly. The Python sidecar is internal behind `AI_SERVICE_URL`.
-- **Deploy:** `git tag v*` → GitHub Actions `quality → build` (four GHCR images: chat, admin, ai, ops) → `deploy` job **SSHes to the EC2 box**, checks out the tag at `/opt/meclaw`, pins `IMAGE_TAG` in `infra/.env`, and runs `compose pull && up -d` of `infra/docker-compose.prod.yml` (Caddy subdomain routing + auto Let's Encrypt; one-shot `migrations` service auto-applies Drizzle migrations, apps gate on its completion). Convergence verified by polling `/api/health` for the deployed SHA. The earlier Dokploy/Traefik path (`docker-compose.dokploy.yml`) is retired (old box terminated 2026-06-17). See `docs/ai/deploy.md`.
+- **Deploy:** `git tag v*` → GitHub Actions `quality → build` (four GHCR images: chat, admin, ai, ops) → `deploy` job **SSHes to the EC2 box**, checks out the tag at `/opt/meclaw`, pins `IMAGE_TAG` in `infra/.env`, and runs `compose pull && up -d` of `infra/docker-compose.prod.yml` (Caddy subdomain routing + auto Let's Encrypt; one-shot `migrations` service auto-applies Drizzle migrations, apps gate on its completion). Convergence verified by polling `/api/health` for the deployed SHA. The earlier Dokploy/Traefik deploy path was retired (old box terminated 2026-06-17). See `docs/ai/deploy.md`.
 
 ## Environment (names only — NEVER commit values)
 
@@ -60,12 +60,9 @@ ANTHROPIC_MODEL=qwen3.6-plus
 
 - Conversation dashboard (admin, read-only): list with outcome filter · debounced message search · cursor "Load more" · 30s poll · stat tiles (total / gap rate / avg turns); thread + retrieval-telemetry detail view (low-score `<0.65` flagged); multi-select JSONL export (≤50, >10 warning); gap-miss rows deep-link into the conversation Retrieval tab. New `apps/admin/lib/admin/conversations.ts` (on-read metrics, no persisted columns) + 4 API routes (`/api/admin/conversations` list/detail/export/stats) + migration `0011` (conversation/message pagination indexes). All unit-tested; `pnpm verify` + `pnpm test` green. Interactive browser smoke (admin login + seeded data) still pending.
 
-**In progress on `worktree-first-customer-readiness`** (instance-per-customer multi-tenancy, see `docs/ai/customer-ops.md` + `docs/ai/secrets-rotation.md`):
+**Shelved — instance-per-customer multi-tenancy** (`worktree-first-customer-readiness`):
 
-- History cap in sidecar (D8) · Telegram lead notify (D6) · Shared Ollama network (D1)
-- Customer compose template + env (D2+D4) · Provision/upgrade/teardown scripts (D3)
-- Per-customer ops runbook · Secrets-rotation runbook · Owner-name parameterization in sidecar
-- Remaining: branding settings + chat UI (D5), global rate ceiling (D7.2), nightly backups (D7.3), final verification drill.
+Paused: prod is the single-owner bare-Caddy box, and the Dokploy control plane this work assumed is gone. The per-customer compose template, provision/upgrade/teardown scripts, and the multi-tenant ops runbook were removed when Dokploy was retired (recoverable from git history). Pieces that landed standalone: sidecar history cap, Telegram lead notify, shared Ollama network, owner-name parameterization. Open if resumed: branding settings + chat UI (D5), global rate ceiling (D7.2), nightly backups (D7.3), final verification drill. The post-leak rotation checklist stays live as `docs/ai/secrets-rotation.md`.
 
 **Open items:**
 

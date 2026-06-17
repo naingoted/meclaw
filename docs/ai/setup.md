@@ -93,7 +93,7 @@ Keep both if switching between paths, or symlink one to the other.
 | `pnpm coverage` | Run all package tests with Istanbul coverage, merge → `coverage/coverage-final.json`. |
 | `pnpm fallow:cov` | `pnpm coverage` then `fallow health --coverage` — **exact** per-function CRAP from real test coverage. |
 | `docker compose -f infra/docker-compose.yml config -q` | Validate dev compose. |
-| `docker compose -f infra/docker-compose.dokploy.yml config -q` | Validate prod (Dokploy) compose. |
+| `docker compose -f infra/docker-compose.prod.yml config -q` | Validate prod (Caddy) compose. |
 
 ## Git hooks (Fallow + Husky)
 
