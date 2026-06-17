@@ -426,7 +426,7 @@ Edit `/Users/naingthet/Projects/leanior/src/app/layout.tsx`. Find the Script tag
 **Before:**
 ```tsx
 <Script
-  src="https://meclaw.leanior.com/embed.js"
+  src="https://chat.example.com/embed.js"
   data-meclaw-token="pk_c535d74f082a1d8b8b2b22c153017a74"
   strategy="afterInteractive"
 />
@@ -527,7 +527,7 @@ cd /Users/naingthet/Projects/leanior
 git checkout src/app/layout.tsx
 ```
 
-Expected: leanior points back to production embed (`https://meclaw.leanior.com/embed.js`).
+Expected: leanior points back to production embed (`https://chat.example.com/embed.js`).
 
 - [ ] **Step 10: Verify no regressions in echo-clone**
 

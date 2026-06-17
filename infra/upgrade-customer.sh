@@ -7,6 +7,7 @@ COMPOSE_ID="${1:?usage: upgrade-customer.sh <composeId> <slug> <tag>}"
 SLUG="${2:?usage: upgrade-customer.sh <composeId> <slug> <tag>}"
 TAG="${3:?usage: upgrade-customer.sh <composeId> <slug> <tag>}"
 : "${DOKPLOY_API:?set DOKPLOY_API}" "${DOKPLOY_API_TOKEN:?set DOKPLOY_API_TOKEN}"
+: "${BASE_DOMAIN:?set BASE_DOMAIN (your apex domain for routing, e.g. example.com)}"
 [[ "$SLUG" =~ ^[a-z0-9][a-z0-9-]{0,29}[a-z0-9]$ ]] || { echo "bad slug: $SLUG" >&2; exit 1; }
 
 resp=$(curl -sS "${DOKPLOY_API}/compose.one?composeId=${COMPOSE_ID}" \
@@ -34,7 +35,7 @@ code=$(curl -sS -o /dev/null -w '%{http_code}' -X POST "${DOKPLOY_API}/compose.d
 
 echo "deploy triggered for ${SLUG} -> ${TAG}; polling health..."
 deadline=$(( $(date +%s) + 600 ))
-until curl -sSf "https://${SLUG}.leanior.com/api/health" >/dev/null 2>&1; do
+until curl -sSf "https://${SLUG}.${BASE_DOMAIN}/api/health" >/dev/null 2>&1; do
   [ "$(date +%s)" -lt "$deadline" ] || { echo "ERROR: ${SLUG} unhealthy after upgrade" >&2; exit 1; }
   sleep 10
 done

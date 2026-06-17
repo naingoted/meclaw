@@ -33,11 +33,11 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=dokploy-network
-      - traefik.http.routers.${CUSTOMER_SLUG}-chat.rule=Host(`${CUSTOMER_SLUG}.leanior.com`)
+      - traefik.http.routers.${CUSTOMER_SLUG}-chat.rule=Host(`${CUSTOMER_SLUG}.${BASE_DOMAIN}`)
       - traefik.http.routers.${CUSTOMER_SLUG}-chat.entrypoints=websecure
       - traefik.http.routers.${CUSTOMER_SLUG}-chat.tls.certresolver=letsencrypt
       - traefik.http.services.${CUSTOMER_SLUG}-chat.loadbalancer.server.port=3000
-      - traefik.http.routers.${CUSTOMER_SLUG}-chat-web.rule=Host(`${CUSTOMER_SLUG}.leanior.com`)
+      - traefik.http.routers.${CUSTOMER_SLUG}-chat-web.rule=Host(`${CUSTOMER_SLUG}.${BASE_DOMAIN}`)
       - traefik.http.routers.${CUSTOMER_SLUG}-chat-web.entrypoints=web
       - traefik.http.routers.${CUSTOMER_SLUG}-chat-web.middlewares=${CUSTOMER_SLUG}-https
       - traefik.http.middlewares.${CUSTOMER_SLUG}-https.redirectscheme.scheme=https
@@ -56,11 +56,11 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=dokploy-network
-      - traefik.http.routers.${CUSTOMER_SLUG}-admin.rule=Host(`${CUSTOMER_SLUG}-admin.leanior.com`)
+      - traefik.http.routers.${CUSTOMER_SLUG}-admin.rule=Host(`${CUSTOMER_SLUG}-admin.${BASE_DOMAIN}`)
       - traefik.http.routers.${CUSTOMER_SLUG}-admin.entrypoints=websecure
       - traefik.http.routers.${CUSTOMER_SLUG}-admin.tls.certresolver=letsencrypt
       - traefik.http.services.${CUSTOMER_SLUG}-admin.loadbalancer.server.port=3000
-      - traefik.http.routers.${CUSTOMER_SLUG}-admin-web.rule=Host(`${CUSTOMER_SLUG}-admin.leanior.com`)
+      - traefik.http.routers.${CUSTOMER_SLUG}-admin-web.rule=Host(`${CUSTOMER_SLUG}-admin.${BASE_DOMAIN}`)
       - traefik.http.routers.${CUSTOMER_SLUG}-admin-web.entrypoints=web
       - traefik.http.routers.${CUSTOMER_SLUG}-admin-web.middlewares=${CUSTOMER_SLUG}-https
 

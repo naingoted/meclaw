@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Provision a per-customer meclaw stack in Dokploy.
 #
-# Usage: DOKPLOY_API=https://dokploy.leanior.com/api \
+# Usage: DOKPLOY_API=https://dokploy.example.com/api BASE_DOMAIN=example.com \
 #        DOKPLOY_API_TOKEN=... DOKPLOY_PROJECT_ID=... \
 #        ./provision-customer.sh <slug> <image-tag> [--dry-run]
 #
@@ -17,6 +17,7 @@ DRY_RUN="${3:-}"
 [[ "$SLUG" =~ ^[a-z0-9][a-z0-9-]{0,29}[a-z0-9]$ ]] || { echo "bad slug: $SLUG" >&2; exit 1; }
 : "${DOKPLOY_API:?set DOKPLOY_API}" "${DOKPLOY_API_TOKEN:?set DOKPLOY_API_TOKEN}" "${DOKPLOY_PROJECT_ID:?set DOKPLOY_PROJECT_ID}"
 : "${ANTHROPIC_API_KEY:?export the shared gateway key (not stored in repo)}"
+: "${BASE_DOMAIN:?set BASE_DOMAIN (your apex domain for routing, e.g. example.com)}"
 GHCR_OWNER="${GHCR_OWNER:-naingoted}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -55,7 +56,8 @@ ENV_CONTENT=$(sed \
   -e "s|^AUTH_SECRET=.*|AUTH_SECRET=${AUTH_SECRET}|" \
   -e "s|^RESUME_TOKEN_SECRET=.*|RESUME_TOKEN_SECRET=${RESUME_TOKEN_SECRET}|" \
   -e "s|^ADMIN_PASSWORD_HASH=.*|ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH}|" \
-  -e "s|^AUTH_URL=.*|AUTH_URL=https://${SLUG}-admin.leanior.com|" \
+  -e "s|^BASE_DOMAIN=.*|BASE_DOMAIN=${BASE_DOMAIN}|" \
+  -e "s|^AUTH_URL=.*|AUTH_URL=https://${SLUG}-admin.${BASE_DOMAIN}|" \
   "$SCRIPT_DIR/.env.customer.example")
 
 COMPOSE_CONTENT=$(cat "$SCRIPT_DIR/docker-compose.customer.yml")
@@ -85,11 +87,11 @@ echo "uploaded compose file + env"
 
 # 5. Deploy.
 api POST /compose.deploy "$(jq -nc --arg id "$COMPOSE_ID" '{composeId: $id}')"
-echo "deploy triggered; polling https://${SLUG}.leanior.com/api/health ..."
+echo "deploy triggered; polling https://${SLUG}.${BASE_DOMAIN}/api/health ..."
 
 # 6. Health poll (15 min budget).
 deadline=$(( $(date +%s) + 900 ))
-until curl -sSf "https://${SLUG}.leanior.com/api/health" >/dev/null 2>&1; do
+until curl -sSf "https://${SLUG}.${BASE_DOMAIN}/api/health" >/dev/null 2>&1; do
   [ "$(date +%s)" -lt "$deadline" ] || { echo "ERROR: stack did not become healthy in 15m (composeId=${COMPOSE_ID})" >&2; exit 1; }
   sleep 15
 done
@@ -98,8 +100,8 @@ cat <<EOF
 
 ==================================================================
  Stack ready.
-   chat:   https://${SLUG}.leanior.com
-   admin:  https://${SLUG}-admin.leanior.com  (user: admin)
+   chat:   https://${SLUG}.${BASE_DOMAIN}
+   admin:  https://${SLUG}-admin.${BASE_DOMAIN}  (user: admin)
    composeId: ${COMPOSE_ID}
 
  Admin password (shown ONCE — store in the password manager now):

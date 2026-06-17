@@ -7,6 +7,7 @@ set -euo pipefail
 COMPOSE_ID="${1:?usage: teardown-customer.sh <composeId> <slug>}"
 SLUG="${2:?usage: teardown-customer.sh <composeId> <slug>}"
 : "${DOKPLOY_API:?set DOKPLOY_API}" "${DOKPLOY_API_TOKEN:?set DOKPLOY_API_TOKEN}"
+: "${BASE_DOMAIN:?set BASE_DOMAIN (your apex domain for routing, e.g. example.com)}"
 [[ "$SLUG" =~ ^[a-z0-9][a-z0-9-]{0,29}[a-z0-9]$ ]] || { echo "bad slug: $SLUG" >&2; exit 1; }
 
 read -r -p "Delete stack meclaw-${SLUG} AND its data volumes? Type the slug to confirm: " confirm
@@ -19,6 +20,6 @@ code=$(curl -sS -o /dev/null -w '%{http_code}' -X POST "${DOKPLOY_API}/compose.d
 
 echo "deleted. verifying endpoints are gone..."
 sleep 10
-chat_code=$(curl -s -o /dev/null -w '%{http_code}' "https://${SLUG}.leanior.com/api/health" || true)
+chat_code=$(curl -s -o /dev/null -w '%{http_code}' "https://${SLUG}.${BASE_DOMAIN}/api/health" || true)
 echo "chat health now returns: ${chat_code} (expect 404/502/000)"
 echo "if volumes linger, on the box: docker volume ls | grep meclaw-${SLUG}"

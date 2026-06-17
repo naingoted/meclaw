@@ -11,8 +11,8 @@
 # registry in Dokploy, or make the packages public.
 #
 # Domains (hardcoded — public DNS names, not secrets):
-#   meclaw.leanior.com        -> chat  (:3000)
-#   meclaw-admin.leanior.com  -> admin (:3000)
+#   chat.example.com        -> chat  (:3000)
+#   admin.example.com  -> admin (:3000)
 name: meclaw
 services:
   chat:
@@ -36,12 +36,12 @@ services:
       - traefik.enable=true
       - traefik.docker.network=dokploy-network
       # https
-      - traefik.http.routers.meclaw-chat.rule=Host(`meclaw.leanior.com`)
+      - traefik.http.routers.meclaw-chat.rule=Host(`chat.example.com`)
       - traefik.http.routers.meclaw-chat.entrypoints=websecure
       - traefik.http.routers.meclaw-chat.tls.certresolver=letsencrypt
       - traefik.http.services.meclaw-chat.loadbalancer.server.port=3000
       # http -> https redirect
-      - traefik.http.routers.meclaw-chat-web.rule=Host(`meclaw.leanior.com`)
+      - traefik.http.routers.meclaw-chat-web.rule=Host(`chat.example.com`)
       - traefik.http.routers.meclaw-chat-web.entrypoints=web
       - traefik.http.routers.meclaw-chat-web.middlewares=meclaw-https
       - traefik.http.middlewares.meclaw-https.redirectscheme.scheme=https
@@ -61,12 +61,12 @@ services:
       - traefik.enable=true
       - traefik.docker.network=dokploy-network
       # https
-      - traefik.http.routers.meclaw-admin.rule=Host(`meclaw-admin.leanior.com`)
+      - traefik.http.routers.meclaw-admin.rule=Host(`admin.example.com`)
       - traefik.http.routers.meclaw-admin.entrypoints=websecure
       - traefik.http.routers.meclaw-admin.tls.certresolver=letsencrypt
       - traefik.http.services.meclaw-admin.loadbalancer.server.port=3000
       # http -> https redirect (reuse the meclaw-https middleware)
-      - traefik.http.routers.meclaw-admin-web.rule=Host(`meclaw-admin.leanior.com`)
+      - traefik.http.routers.meclaw-admin-web.rule=Host(`admin.example.com`)
       - traefik.http.routers.meclaw-admin-web.entrypoints=web
       - traefik.http.routers.meclaw-admin-web.middlewares=meclaw-https
 

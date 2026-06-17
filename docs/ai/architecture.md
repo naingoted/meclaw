@@ -110,7 +110,7 @@ If this grows beyond one stack or table ownership stops being disjoint, the upgr
 Production runs on a single EC2 box behind **Caddy** (reverse proxy, auto Let's Encrypt). Full guide + debugging runbook: `docs/ai/deploy.md`.
 
 - **Stack file:** `infra/docker-compose.prod.yml` + `infra/Caddyfile`. (`infra/docker-compose.dokploy.yml` is the earlier Dokploy/Traefik PaaS alternative.)
-- **Routing (Caddy hosts):** `meclaw.leanior.com` → chat (`DOMAIN`), `meclaw-admin.leanior.com` → admin (`ADMIN_DOMAIN`).
+- **Routing (Caddy hosts):** `chat.example.com` → chat (`DOMAIN`), `admin.example.com` → admin (`ADMIN_DOMAIN`).
 - **Services:** `chat`, `admin`, `ai` (internal :8000), `ollama`, `postgres`, `caddy`, plus one-shots: `migrations` (auto-runs Drizzle migrations on every deploy; apps gate on its completion) and `ops` (`tools` profile — manual `seed` / db tasks).
 - **Data:** `pgdata` + `ollama_storage` + `caddy_data`/`caddy_config` volumes; `content/` bind-mounted into chat + ops.
 - **Release:** `git tag v*` → CI builds four GHCR images → CI SSHes to the box to check out the tag and `compose pull && up -d`.

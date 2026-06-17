@@ -40,12 +40,19 @@ export async function resolveEmbedClient(
   };
 }
 
-/** The chat app's own browser origin (same-origin iframe requests carry this Origin). */
+/**
+ * The chat app's own browser origin (same-origin iframe requests carry this Origin).
+ *
+ * Resolution order: explicit `CHAT_APP_ORIGIN` → `https://${DOMAIN}` in production
+ * (the deploy box sets `DOMAIN` in its `.env`) → localhost in dev. No host is
+ * hardcoded so this repo carries no deployment-specific domain.
+ */
 export function getChatAppOrigin(): string {
   if (process.env.CHAT_APP_ORIGIN) return process.env.CHAT_APP_ORIGIN;
-  return process.env.NODE_ENV === "production"
-    ? "https://meclaw.leanior.com"
-    : "http://localhost:3000";
+  if (process.env.NODE_ENV === "production" && process.env.DOMAIN) {
+    return `https://${process.env.DOMAIN}`;
+  }
+  return "http://localhost:3000";
 }
 
 /**

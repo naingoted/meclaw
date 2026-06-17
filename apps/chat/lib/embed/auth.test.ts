@@ -108,6 +108,21 @@ describe("getChatAppOrigin", () => {
     expect(getChatAppOrigin()).toBe("http://localhost:3000");
     vi.unstubAllEnvs();
   });
+
+  it("derives the origin from DOMAIN in production when CHAT_APP_ORIGIN is unset", () => {
+    vi.stubEnv("CHAT_APP_ORIGIN", "");
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("DOMAIN", "chat.example.com");
+    expect(getChatAppOrigin()).toBe("https://chat.example.com");
+    vi.unstubAllEnvs();
+  });
+
+  it("falls back to localhost in dev when CHAT_APP_ORIGIN is unset", () => {
+    vi.stubEnv("CHAT_APP_ORIGIN", "");
+    vi.stubEnv("NODE_ENV", "development");
+    expect(getChatAppOrigin()).toBe("http://localhost:3000");
+    vi.unstubAllEnvs();
+  });
 });
 
 describe("resolveVerifiedOrigin", () => {

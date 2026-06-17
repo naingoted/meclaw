@@ -354,7 +354,7 @@ Reference: `apps/chat/lib/embed/auth.ts` handles CSP enforcement via `resolveEmb
    Edit `/Users/naingthet/Projects/leanior/src/app/layout.tsx`:
    ```tsx
    <Script
-     src="http://localhost:3000/embed.js"  // Changed from https://meclaw.leanior.com/embed.js
+     src="http://localhost:3000/embed.js"  // Changed from https://chat.example.com/embed.js
      data-meclaw-token="pk_c535d74f082a1d8b8b2b22c153017a74"
      strategy="afterInteractive"
    />
@@ -378,7 +378,7 @@ Reference: `apps/chat/lib/embed/auth.ts` handles CSP enforcement via `resolveEmb
 **Critical:** Test real-world scenario where embed.js is served from different origin than parent site (triggers CORS/CSP behavior).
 
 **Option 1: Use production embed (recommended)**
-- Keep leanior pointing to `https://meclaw.leanior.com/embed.js` (production)
+- Keep leanior pointing to `https://chat.example.com/embed.js` (production)
 - Deploy echo-clone changes to staging/production
 - Test on real mobile device (not just DevTools)
 

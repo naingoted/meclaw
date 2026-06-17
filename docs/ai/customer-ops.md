@@ -25,7 +25,7 @@ app named `meclaw-<slug>`. Compose project scoping isolates each customer's volu
 | `ops` | **none** (owner-only tooling) | present |
 | `content` | **named volume, starts EMPTY by design** — the owner's `content/` must never leak into a customer stack. The `documents` table (admin uploads) is the knowledge source of truth | repo-mounted seed |
 | Postgres + `pgdata` volume | per-customer (isolated) | owner's own |
-| Routing | Traefik hosts `<slug>.leanior.com` + `<slug>-admin.leanior.com` | `meclaw.leanior.com` + `meclaw-admin.leanior.com` |
+| Routing | Traefik hosts `<slug>.example.com` + `<slug>-admin.example.com` | `chat.example.com` + `admin.example.com` |
 | Deploy trigger | **manual only** — tag-push CD never touches customer stacks | tag-push CD |
 
 **Shared across all stacks (owner + customers):**
@@ -51,8 +51,8 @@ Done once on the box, in order:
    docker network inspect meclaw-shared --format '{{range .Containers}}{{.Name}} {{end}}'
    # expect the owner ollama container to appear
    ```
-3. **DNS.** Each customer needs `<slug>.leanior.com` and `<slug>-admin.leanior.com` resolving
-   to the box. Either add a wildcard `*.leanior.com` A record once, or add the two records per
+3. **DNS.** Each customer needs `<slug>.example.com` and `<slug>-admin.example.com` resolving
+   to the box. Either add a wildcard `*.example.com` A record once, or add the two records per
    slug. (See `deploy.md` §3 for the DNS provider.)
 4. **GHCR images public** — already true for the owner stack (`deploy.md` §4); customer stacks
    pull the same `ghcr.io/<owner>/meclaw-*` images, so nothing extra.
@@ -90,7 +90,7 @@ ANTHROPIC_API_KEY=<shared-gateway-key> \
    `gen:admin-hash`, scrypt — only the hash is uploaded).
 2. Renders `infra/.env.customer.example` with those values + the slug/tag/key.
 3. `compose.create` → `compose.update` (raw compose file + env) → `compose.deploy`.
-4. Health-polls `https://<slug>.leanior.com/api/health` for up to 15 min.
+4. Health-polls `https://<slug>.example.com/api/health` for up to 15 min.
 5. Prints the chat/admin URLs, the **`composeId`** (save it — upgrade and teardown need it),
    and the admin password **once**. Store the password in the password manager immediately; it
    is never written to disk.
@@ -110,7 +110,7 @@ redeploy), or pre-fill before provisioning. Names and defaults live in
   `EMBED_RATE_LIMIT_PER_MIN`, `RATE_LIMIT_MAX_REQUESTS`, `CHAT_GLOBAL_LIMIT_PER_MIN`.
 
 **Load knowledge.** The `content` volume is empty by design — knowledge is the `documents`
-table. Log in at `https://<slug>-admin.leanior.com` (user `admin`, the printed password),
+table. Log in at `https://<slug>-admin.example.com` (user `admin`, the printed password),
 upload the customer's markdown, and run ingest from the admin console so `rag_chunks` gets
 embeddings (the admin app embeds in-process via the shared Ollama — `OLLAMA_BASE_URL` /
 `OLLAMA_EMBED_MODEL` are already set in the template). Until documents are ingested, the chat
@@ -167,8 +167,8 @@ secrets.
 
 ## Troubleshooting
 
-- **Chat/admin 404/502 after provision:** DNS for `<slug>.leanior.com` not resolving to the
-  box, or the deploy still in progress — re-check `https://<slug>.leanior.com/api/health`.
+- **Chat/admin 404/502 after provision:** DNS for `<slug>.example.com` not resolving to the
+  box, or the deploy still in progress — re-check `https://<slug>.example.com/api/health`.
 - **Ingest/embeddings fail ("fetch failed", retry loop):** the customer's `ai`/`admin` can't
   reach Ollama. Confirm `meclaw-shared` exists and the owner `ollama` is attached
   (`docker network inspect meclaw-shared`). The customer env must have

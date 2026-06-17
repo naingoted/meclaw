@@ -88,10 +88,10 @@ Run these **after** redeploy — each must fail with the OLD value:
 ```bash
 # 1. Old Dokploy token must 401/403:
 curl -s -o /dev/null -w '%{http_code}\n' \
-  "https://dokploy.leanior.com/api/compose.one?composeId=x" \
+  "https://dokploy.example.com/api/compose.one?composeId=x" \
   -H "x-api-key: <OLD token>"
 
-# 2. Old admin password must fail login at https://meclaw-admin.leanior.com
+# 2. Old admin password must fail login at https://admin.example.com
 #    (try it in a browser, or POST to the login endpoint)
 
 # 3. Old gateway key must be rejected by DashScope — test from the console UI,
