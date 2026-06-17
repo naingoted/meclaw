@@ -1,12 +1,21 @@
-# Deployment — Dokploy on AWS (Traefik → GHCR → Docker Compose)
+# Deployment — Caddy on AWS EC2 (SSH CD → GHCR → Docker Compose)
 
-Production runs on a single AWS EC2 box via **Dokploy** (self-hosted PaaS). Dokploy's
-bundled **Traefik** owns `:80`/`:443` and issues Let's Encrypt certs. The app stack is a
-Dokploy "Docker Compose" application pulling CI-built `amd64` images from GHCR.
+Production runs on a single AWS EC2 box (`47.130.181.129`) as a bare Docker Compose stack
+(`infra/docker-compose.prod.yml`, project `meclaw`) fronted by **Caddy**, which owns
+`:80`/`:443` and auto-issues Let's Encrypt certs for the chat + admin hosts. CI builds
+`amd64` images on GHCR, then deploys by **SSHing into the box** to check out the released
+tag and converge the stack.
 
 This public guide is the deployment source of truth; internal planning notes are not tracked.
-**No secrets live in this file** — real values go in the Dokploy app's Environment tab (which
-writes the `.env` the compose file reads). Rotate any key ever pasted into chat/logs.
+**No secrets live in this file** — real values go in `/opt/meclaw/infra/.env` on the box.
+Rotate any key ever pasted into chat/logs.
+
+> **Caddy hosts** (A records → the box's Elastic IP, set in `.env`):
+> `meclaw.leanior.com` → chat (`DOMAIN`), `meclaw-admin.leanior.com` → admin (`ADMIN_DOMAIN`).
+>
+> The **Dokploy + Traefik** path (`infra/docker-compose.dokploy.yml`), documented from
+> *"Provision from scratch"* onward, is the earlier self-hosted-PaaS alternative — no longer
+> the live prod path, kept for reference/fallback.
 
 Related runbooks: per-customer (multi-tenant) lifecycle — [customer-ops.md](customer-ops.md);
 post-leak rotation checklist — [secrets-rotation.md](secrets-rotation.md).
@@ -22,30 +31,48 @@ post-leak rotation checklist — [secrets-rotation.md](secrets-rotation.md).
 
 **`build`** — builds and pushes four `amd64` images to GHCR: `meclaw-chat`, `meclaw-admin`, `meclaw-ai`, `meclaw-ops`, tagged `latest`, the commit SHA, and the git tag (e.g. `v1.2.3`).
 
-**`deploy`** — pins `IMAGE_TAG` to the released git tag, then calls the Dokploy REST API `POST /api/compose.deploy` (auth `x-api-key`, body `{"composeId"}`) to pull that tag and restart containers. Polls the health endpoint until the running chat reports the released commit SHA. The job **fails on any non-200** so a broken deploy can't pass silently.
+**`deploy`** — SSHes into the EC2 box (no sudo: the deploy user owns `/opt/meclaw` and is in the `docker` group), checks out the released tag at `/opt/meclaw` (picks up compose, Caddyfile, migrations, content), pins `IMAGE_TAG` in `infra/.env`, then `docker compose -f infra/docker-compose.prod.yml pull && up -d --remove-orphans`. The `migrations` service runs `db:migrate` to completion **before** chat/admin/ai start (`depends_on: service_completed_successfully`), so apps never serve against an unmigrated DB. A final step polls `PROD_CHAT_URL/api/health` until the running chat reports the released commit SHA. Every step **fails on non-zero** so a broken deploy can't pass silently.
 
-**Why the API, not a webhook or the GitHub App:** Dokploy's compose **auto-deploy is OFF** on purpose (a push to `main` rebuilds nothing — images only build on tags — so auto-deploy would ship stale `latest`). But that same `autoDeploy` flag *also* gates Dokploy's generic deploy webhook (`/api/deploy/compose/<token>` returns `400 "Automatic deployments are disabled"` when it's off). The REST API deploy endpoint bypasses that gate, so CI deploys explicitly only after the `build` job has pushed fresh images — no race, no stale ship.
+Set repo variable `SKIP_PROD_DEPLOY=true` to publish images for a tag **without** touching prod (build-only release), then unset to restore.
 
-### GitHub Actions secrets required
+### GitHub Actions secrets / variables required
 
 | Secret | Purpose |
 |--------|---------|
-| `DOKPLOY_API_TOKEN` | Dokploy API key (`x-api-key`) — mint in panel → Settings → Profile → API/CLI Keys. Revocable. |
-| `DOKPLOY_COMPOSE_ID` | Dokploy compose service id (`UdfZAh1jHD092knNc-jZi`) — body of the deploy call |
-| `DOKPLOY_APP_NAME` | Dokploy-assigned compose project prefix (`compose-parse-solid-state-interface-shk6l5`) — used by manual `docker compose -p` ops |
-| `SSH_KEY` | Private key to SSH into EC2 (manual ops only) |
-| `SSH_HOST` | EC2 hostname / IP (manual ops only) |
-| `SSH_USER` | SSH username (manual ops only) |
-| `SSH_PORT` | SSH port (manual ops only) |
+| `SSH_HOST` | EC2 IP (`47.130.181.129`) the deploy SSHes into |
+| `SSH_USER` | SSH user that owns `/opt/meclaw` + is in the `docker` group (`ubuntu`) |
+| `SSH_KEY` | Private key whose public half is in the box's `authorized_keys` |
+| `SSH_PORT` | SSH port (defaults to `22` if unset) |
 
+| Variable | Purpose |
+|----------|---------|
+| `PROD_CHAT_URL` | `https://meclaw.leanior.com` — polled for SHA convergence |
+| `SKIP_PROD_DEPLOY` | `true` to build images without deploying |
+
+The `DOKPLOY_*` secrets are no longer used by CI (legacy Dokploy path); safe to delete.
 
 ### Release flow
 
 ```bash
 git tag v1.2.3
 git push origin v1.2.3
-# → CI: quality → build (pushes 4 GHCR images) → deploy (API compose.deploy → Dokploy pulls fresh images)
+# → CI: quality → build (pushes 4 GHCR images) → deploy (SSH → git checkout tag → compose pull && up -d → migrations → health-SHA poll)
 ```
+
+## Cutover runbook (Dokploy/old-box → Caddy/new-box)
+
+One-time steps to repoint prod at the Caddy box (`47.130.181.129`) and retire the old box (`13.228.213.235`):
+
+1. **Box `.env`** (`/opt/meclaw/infra/.env`) — set the live hosts (these are runtime config, not in git):
+   ```bash
+   DOMAIN=meclaw.leanior.com
+   ADMIN_DOMAIN=meclaw-admin.leanior.com
+   AUTH_URL=https://meclaw-admin.leanior.com   # must equal https://<ADMIN_DOMAIN>
+   ```
+2. **GitHub** — set `SSH_HOST=47.130.181.129`, confirm `SSH_KEY`/`SSH_USER` reach the box, `PROD_CHAT_URL=https://meclaw.leanior.com`.
+3. **DNS (Namecheap)** — A records `meclaw` + `meclaw-admin` → `47.130.181.129`; **delete the old `13.228.213.235` records**. `dig +short <host>` must return only the new IP. (`dokploy.leanior.com` is irrelevant to the Caddy box.) Caddy auto-issues LE certs once each host resolves — flip DNS **before/with** restarting Caddy or ACME fails until it does.
+4. **Deploy** — `git tag vX.Y.Z && git push origin vX.Y.Z`. CI converges the box on the tag; health poll confirms the SHA.
+5. **Retire old box** — stop its stack, then terminate the `13.228.213.235` EC2 instance + release its Elastic IP.
 
 ## Topology
 

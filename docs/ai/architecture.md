@@ -107,13 +107,13 @@ If this grows beyond one stack or table ownership stops being disjoint, the upgr
 
 ## Production topology
 
-Production runs on a single EC2 box via **Dokploy** (Traefik reverse proxy, Let's Encrypt). Full guide + debugging runbook: `docs/ai/deploy.md`.
+Production runs on a single EC2 box behind **Caddy** (reverse proxy, auto Let's Encrypt). Full guide + debugging runbook: `docs/ai/deploy.md`.
 
-- **Stack file:** `infra/docker-compose.dokploy.yml`. (`infra/docker-compose.prod.yml` + `Caddyfile` are the legacy self-managed-VPS alternative.)
-- **Routing (Traefik labels):** `meclaw.leanior.com` → chat, `meclaw-admin.leanior.com` → admin.
-- **Services:** `chat`, `admin`, `ai` (internal :8000), `ollama`, `postgres`, plus one-shots: `migrations` (auto-runs Drizzle migrations on every deploy; apps gate on its completion) and `ops` (`tools` profile — manual `seed` / db tasks).
-- **Data:** `postgres_data` + `ollama_storage` volumes; `content/` bind-mounted into ops for the first-run `seed`.
-- **Release:** `git tag v*` → CI builds four GHCR images → CI calls the Dokploy API to deploy that tag.
+- **Stack file:** `infra/docker-compose.prod.yml` + `infra/Caddyfile`. (`infra/docker-compose.dokploy.yml` is the earlier Dokploy/Traefik PaaS alternative.)
+- **Routing (Caddy hosts):** `meclaw.leanior.com` → chat (`DOMAIN`), `meclaw-admin.leanior.com` → admin (`ADMIN_DOMAIN`).
+- **Services:** `chat`, `admin`, `ai` (internal :8000), `ollama`, `postgres`, `caddy`, plus one-shots: `migrations` (auto-runs Drizzle migrations on every deploy; apps gate on its completion) and `ops` (`tools` profile — manual `seed` / db tasks).
+- **Data:** `pgdata` + `ollama_storage` + `caddy_data`/`caddy_config` volumes; `content/` bind-mounted into chat + ops.
+- **Release:** `git tag v*` → CI builds four GHCR images → CI SSHes to the box to check out the tag and `compose pull && up -d`.
 
 ## Scaling assumptions (deliberate, single-instance)
 

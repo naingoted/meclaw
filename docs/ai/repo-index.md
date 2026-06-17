@@ -56,13 +56,13 @@ meclaw/
 │     └─ Dockerfile (built by docker-compose)
 ├─ infra/                            # Deploy config & compose files
 │  ├─ docker-compose.yml             # dev: postgres + ollama + ai sidecar + chat + admin
-│  ├─ docker-compose.dokploy.yml     # PROD (live): owner Dokploy/Traefik stack — see docs/ai/deploy.md
+│  ├─ docker-compose.prod.yml        # PROD (live): owner Caddy stack, SSH-deployed — see docs/ai/deploy.md
+│  ├─ Caddyfile                      # PROD reverse proxy: DOMAIN → chat, ADMIN_DOMAIN → admin (auto Let's Encrypt)
+│  ├─ docker-compose.dokploy.yml     # earlier Dokploy/Traefik PaaS alternative — see docs/ai/deploy.md
 │  ├─ docker-compose.customer.yml     # PROD: per-customer (multi-tenant) stack — see docs/ai/customer-ops.md
 │  ├─ {provision,upgrade,teardown}-customer.sh # customer lifecycle via Dokploy API
 │  ├─ .env.customer.example          # per-customer env template (rendered by provision script)
-│  ├─ .env.dokploy.example           # prod env template (real values live in Dokploy's Environment tab)
-│  ├─ docker-compose.prod.yml        # legacy self-managed-VPS alternative (+ Caddyfile)
-│  ├─ Caddyfile                      # (legacy) reverse proxy: apex → chat, admin.* → admin
+│  ├─ .env.dokploy.example           # Dokploy-path env template (real values live in Dokploy's Environment tab)
 │  ├─ Dockerfile.ops                 # one-shot migrate + ingest runner image
 │  └─ .env.example                   # dev env placeholders; copy to root .env for compose
 ├─ content/                          # owner's knowledge corpus (markdown + PDF)
@@ -96,6 +96,6 @@ meclaw/
 - **Knowledge corpus:** the `documents` table is the source of truth (admin-edited); `content/` is the first-run seed. The `seed` one-shot (`@meclaw/rag` `scripts/seed.ts` for bulk first-run, admin in-process per-doc for edits) imports `content/` into `documents` and embeds into `rag_chunks` (`source = document:<id>`); the sidecar retrieves via `services/ai/app/retriever.py`.
 - **Database:** PostgreSQL via `@meclaw/core` (Drizzle ORM + `postgres-js`). Persistence (conversations, messages) + RAG vectors (`rag_chunks`, pgvector, HNSW cosine) in the same store. Migrations live in `packages/core/drizzle/`.
 - **RAG infra:** local Ollama (`nomic-embed-text`) + PostgreSQL (pgvector) configured by `infra/docker-compose.yml`. First-run seeding runs on-demand (`pnpm seed` = `pnpm --filter @meclaw/rag seed`); admin per-doc ingest is in-process. Retrieval happens in Python sidecar (`services/ai/app/retriever.py`) via psycopg cosine kNN over `rag_chunks`.
-- **Deploy config:** `git tag v*` → CI builds four GHCR images (chat → `apps/chat/Dockerfile`, admin → `apps/admin/Dockerfile`, ai → `services/ai/Dockerfile`, ops → `infra/Dockerfile.ops`) → Dokploy API deploys `infra/docker-compose.dokploy.yml` (Traefik subdomain routing, auto-migrations). Guide: `docs/ai/deploy.md`.
+- **Deploy config:** `git tag v*` → CI builds four GHCR images (chat → `apps/chat/Dockerfile`, admin → `apps/admin/Dockerfile`, ai → `services/ai/Dockerfile`, ops → `infra/Dockerfile.ops`) → CI SSHes to the EC2 box and `compose pull && up -d` of `infra/docker-compose.prod.yml` (Caddy host routing, auto-migrations). Guide: `docs/ai/deploy.md`.
 - **Multi-tenant (customer stacks):** isolated per-customer stacks (`infra/docker-compose.customer.yml`) provisioned/upgraded/torn-down one at a time via `infra/{provision,upgrade,teardown}-customer.sh` (Dokploy API). Not touched by tag-push CD. Shared Ollama + gateway key; isolated Postgres/content. Runbook: `docs/ai/customer-ops.md`.
-- **Environment variables:** Each app reads `.env` / `.env.local` (dev) or the Dokploy Environment tab (prod). See `infra/.env.example` (dev) + `infra/.env.dokploy.example` (prod) and `docs/ai/setup.md` for details.
+- **Environment variables:** Each app reads `.env` / `.env.local` (dev) or `/opt/meclaw/infra/.env` on the box (prod). See `infra/.env.example` (dev) + `infra/.env.prod.example` (Caddy prod) and `docs/ai/setup.md` for details.

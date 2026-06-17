@@ -117,65 +117,52 @@ jobs:
     if: ${{ startsWith(github.ref, 'refs/tags/') && vars.SKIP_PROD_DEPLOY != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    env:
-      DOKPLOY_API: https://dokploy.leanior.com/api
-      DOKPLOY_API_TOKEN: ${{ secrets.DOKPLOY_API_TOKEN }}
-      DOKPLOY_COMPOSE_ID: ${{ secrets.DOKPLOY_COMPOSE_ID }}
     steps:
-      - name: Pin IMAGE_TAG in the Dokploy compose env
+      - name: Deploy the released tag to the EC2 Caddy stack over SSH
         env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
           IMAGE_TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
 
-          # 1. Read current env. Abort on failure — prod untouched.
-          resp=$(curl -sS "${DOKPLOY_API}/compose.one?composeId=${DOKPLOY_COMPOSE_ID}" \
-            -H "x-api-key: ${DOKPLOY_API_TOKEN}" -w '\n%{http_code}')
-          code=$(printf '%s' "$resp" | tail -n1)
-          body=$(printf '%s' "$resp" | sed '$d')
-          if [ "$code" != "200" ]; then
-            echo "::error::compose.one failed (HTTP ${code}): ${body}"
-            exit 1
-          fi
-          env_text=$(printf '%s' "$body" | jq -r '.env // ""')
+          # Write the deploy key + pin the host key (no interactive prompt).
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "${SSH_PORT:-22}" -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
-          # 2. Upsert the IMAGE_TAG line; every other byte unchanged.
-          if printf '%s\n' "$env_text" | grep -q '^IMAGE_TAG='; then
-            new_env=$(printf '%s\n' "$env_text" | sed "s|^IMAGE_TAG=.*|IMAGE_TAG=${IMAGE_TAG}|")
+          # The remote runs as a non-root user that owns /opt/meclaw and is in the
+          # docker group, so no sudo is needed. IMAGE_TAG expands locally into the
+          # command; the quoted heredoc body is sent verbatim and reads it from the
+          # remote environment.
+          ssh -i ~/.ssh/deploy_key -p "${SSH_PORT:-22}" "${SSH_USER}@${SSH_HOST}" \
+            "IMAGE_TAG='${IMAGE_TAG}' bash -seuo pipefail" <<'REMOTE'
+          cd /opt/meclaw
+
+          # 1. Move the checkout to the released tag — picks up compose, Caddyfile,
+          #    migrations, and the bundled content corpus. -f discards any drift in
+          #    tracked files; the gitignored infra/.env is untouched.
+          git fetch --tags --prune origin
+          git checkout -f "refs/tags/${IMAGE_TAG}"
+
+          # 2. Pin IMAGE_TAG in the env file so pull/up use the released images.
+          if grep -q '^IMAGE_TAG=' infra/.env; then
+            sed -i "s|^IMAGE_TAG=.*|IMAGE_TAG=${IMAGE_TAG}|" infra/.env
           else
-            new_env=$(printf '%s\nIMAGE_TAG=%s\n' "$env_text" "$IMAGE_TAG")
+            printf 'IMAGE_TAG=%s\n' "${IMAGE_TAG}" >> infra/.env
           fi
 
-          # 3. Partial update — only env touched. Abort on non-200; old version keeps running.
-          payload=$(jq -nc --arg id "$DOKPLOY_COMPOSE_ID" --arg env "$new_env" \
-            '{composeId: $id, env: $env}')
-          resp=$(curl -sS -X POST "${DOKPLOY_API}/compose.update" \
-            -H "x-api-key: ${DOKPLOY_API_TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d "$payload" -w '\n%{http_code}')
-          code=$(printf '%s' "$resp" | tail -n1)
-          body=$(printf '%s' "$resp" | sed '$d')
-          if [ "$code" != "200" ]; then
-            echo "::error::compose.update failed (HTTP ${code}): ${body}"
-            exit 1
-          fi
-          echo "IMAGE_TAG pinned to ${IMAGE_TAG}"
-
-      - name: Trigger Dokploy deploy
-        run: |
-          set -euo pipefail
-          resp=$(curl -sS -X POST "${DOKPLOY_API}/compose.deploy" \
-            -H "x-api-key: ${DOKPLOY_API_TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d "{\"composeId\":\"${DOKPLOY_COMPOSE_ID}\"}" \
-            -w '\n%{http_code}')
-          code=$(printf '%s' "$resp" | tail -n1)
-          body=$(printf '%s' "$resp" | sed '$d')
-          echo "Dokploy response (HTTP ${code}): ${body}"
-          if [ "$code" != "200" ]; then
-            echo "::error::Dokploy deploy failed (HTTP ${code})"
-            exit 1
-          fi
+          # 3. Pull released images, then converge. The `migrations` service runs to
+          #    completion before chat/admin/ai start (service_completed_successfully),
+          #    so apps never serve against an unmigrated DB.
+          cd infra
+          docker compose -f docker-compose.prod.yml pull
+          docker compose -f docker-compose.prod.yml up -d --remove-orphans
+          docker image prune -f
+          REMOTE
 
       - name: Verify deploy convergence
         if: ${{ vars.PROD_CHAT_URL != '' }}

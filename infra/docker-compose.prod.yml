@@ -11,6 +11,19 @@ services:
       - caddy_config:/config
     depends_on: [chat, admin]
 
+  # Runs pending Drizzle migrations to completion, then exits. Apps depend on it
+  # via service_completed_successfully so they never start against an unmigrated
+  # DB; a failed migrate (exit!=0) blocks dependents and fails the deploy loudly.
+  # Mirrors the `migrations` service in docker-compose.dokploy.yml.
+  migrations:
+    image: ghcr.io/${GHCR_OWNER}/meclaw-ops:${IMAGE_TAG:-latest}
+    restart: "no"
+    env_file: .env
+    command: ["pnpm", "--filter", "@meclaw/core", "db:migrate"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   chat:
     image: ghcr.io/${GHCR_OWNER}/meclaw-chat:${IMAGE_TAG:-latest}
     restart: unless-stopped
@@ -23,21 +36,37 @@ services:
     expose: ["3000"]
     volumes:
       - ../content:/app/content:ro
-    depends_on: [ai, postgres]
+    depends_on:
+      ai:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
 
   admin:
     image: ghcr.io/${GHCR_OWNER}/meclaw-admin:${IMAGE_TAG:-latest}
     restart: unless-stopped
     env_file: .env
     expose: ["3000"]
-    depends_on: [postgres]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
 
   ai:
     image: ghcr.io/${GHCR_OWNER}/meclaw-ai:${IMAGE_TAG:-latest}
     restart: unless-stopped
     env_file: .env
     expose: ["8000"]
-    depends_on: [postgres, ollama]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+      migrations:
+        condition: service_completed_successfully
 
   ollama:
     image: ollama/ollama:0.3.14
