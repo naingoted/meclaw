@@ -43,6 +43,7 @@ Chat at http://localhost:3000 · Admin at http://localhost:3001 · Sidecar at ht
 | `PUBLIC_API_RATE_LIMIT_MAX_REQUESTS` | Cheap public GET route per-IP requests/min before DB work. Default: `120`. |
 | `PUBLIC_API_GLOBAL_RATE_LIMIT_PER_MIN` | Cheap public GET route stack-wide requests/min before DB work. Default: `600`. |
 | `AUTH_SECRET` | Auth.js secret. Random 32-byte hex. Only needed for admin (next-auth). |
+| `ADMIN_USERNAME` | Bootstrap/recovery username for the initial `super_admin`. Default: `admin`. |
 | `ADMIN_PASSWORD_HASH` | scrypt hash in `salt:hash` format. Mint via `pnpm --filter @meclaw/admin gen:admin-hash <password>` |
 
 ### Prod (Caddy box, `infra/.env`)
@@ -55,6 +56,7 @@ Production env lives in `/opt/meclaw/infra/.env` on the box (gitignored, never c
 - `AUTH_URL` — admin host, must equal `https://<ADMIN_DOMAIN>`
 - `POSTGRES_PASSWORD` — mint on-box (`openssl rand -base64 24`), mirror into `DATABASE_URL`
 - `AUTH_SECRET` — mint: `openssl rand -hex 32`
+- `ADMIN_USERNAME` and `ADMIN_PASSWORD_HASH` are bootstrap/recovery inputs. On first login after migrations, the admin app creates the initial `super_admin` row if `admin_users` is empty. After DB users exist, login validates against the database.
 - `ADMIN_PASSWORD_HASH` — mint: `pnpm --filter @meclaw/admin gen:admin-hash <password>`
 
 Don't forget the silent-if-unset operator vars (lead alerts `TELEGRAM_*`/`LEAD_WEBHOOK_URL`, branding `BOT_*`/`BRAND_*`, `RESUME_TOKEN_SECRET`, `CHAT_APP_ORIGIN`) — see `docs/ai/config.md`. To add one to a running box: append to `/opt/meclaw/infra/.env`, then `docker compose -f infra/docker-compose.prod.yml up -d --no-deps <service>`.
@@ -79,7 +81,7 @@ Keep both if switching between paths, or symlink one to the other.
 | `pnpm dev:ai` | Python sidecar on :8000 (host, via `uv`). Requires sidecar `.env` with `ANTHROPIC_*` (no `/v1`), `OLLAMA_BASE_URL`, and `DATABASE_URL`. |
 | `pnpm services` | Docker Compose data plane: postgres + ollama only (no app containers). |
 | `pnpm --filter @meclaw/chat dev` | Chat Next dev server (:3000 with HMR). |
-| `pnpm --filter @meclaw/admin dev` | Admin Next dev server (:3001 with HMR, requires `AUTH_SECRET` + `ADMIN_PASSWORD_HASH`). |
+| `pnpm --filter @meclaw/admin dev` | Admin Next dev server (:3001 with HMR, requires `AUTH_SECRET` and bootstrap/recovery admin env if `admin_users` is empty). |
 | `pnpm --filter @meclaw/core db:generate` | Regenerate Drizzle migrations from `packages/core/src/db/schema.ts` → `packages/core/drizzle/`. |
 | `pnpm --filter @meclaw/core db:migrate` | Apply pending migrations to `DATABASE_URL`. |
 | `pnpm --filter @meclaw/rag seed` | Import `content/` (markdown + PDFs + work-impact packs) into the `documents` table, then embed each into Postgres `rag_chunks`. Idempotent. |

@@ -15,9 +15,11 @@ meclaw/
 │  │  ├─ public/embed.js             # third-party widget loader (bubble + iframe)
 │  │  └─ next.config.ts
 │  └─ admin/                         # @meclaw/admin — console (port 3001, Auth.js protected)
-│     ├─ app/admin/{documents,config,gaps,embed-clients,research,jobs,audit}/   # console pages
+│     ├─ app/admin/{documents,config,gaps,embed-clients,research,jobs,audit,account,users}/   # console pages
 │     ├─ app/{login,api}/            # Auth.js login wall + /api/admin/* mutations
+│     ├─ app/api/admin/{account,password,users}/
 │     ├─ lib/{admin,research}/       # services (incl. in-process ingest + corpus state) · research SSE hook
+│     ├─ lib/admin/{users,authz}.ts  # admin user lifecycle + role/capability guards
 │     ├─ scripts/{gen-admin-hash,seed-documents}.ts
 │     └─ next.config.ts
 ├─ packages/
@@ -82,7 +84,7 @@ meclaw/
 ## Key entry points
 
 - **Chat page:** `apps/chat/app/page.tsx` + `useChat` client component.
-- **Admin console:** `apps/admin/app/admin/*` pages behind the Auth.js login wall (`app/login`): documents, config, gaps, embed clients, research, jobs, audit.
+- **Admin console:** `apps/admin/app/admin/*` pages behind the Auth.js login wall (`app/login`): documents, config, gaps, embed clients, research, jobs, audit, account, users.
 - **Chat API (proxy):** `apps/chat/app/api/chat/route.ts` → Python sidecar at `AI_SERVICE_URL` (default `http://localhost:8000`).
 - **Shared chat UI package:** `packages/meclaw-chat-ui` (`@naingoted/meclaw-chat-ui`) exports presentational chat components and helpers only. Host apps own API transport, session storage, auth, and rate limiting.
 - **External chat consumers:** Leanior and similar host apps import `@naingoted/meclaw-chat-ui`, then call Meclaw's Next routes through `NEXT_PUBLIC_MECLAW_API_BASE` (`/api/embed-config`, `/api/chat`, `/api/chat/history`). They must not define Meclaw API routes or connect to Meclaw Postgres directly.
