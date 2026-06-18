@@ -1,6 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/admin/authz", () => ({
+  AuthzError: class AuthzError extends Error {
+    constructor(
+      public status: 401 | 403,
+      message: string,
+    ) {
+      super(message);
+    }
+  },
   requireAdmin: vi.fn(),
   requireSuperAdmin: vi.fn(),
 }));
@@ -54,5 +62,26 @@ describe("/api/admin/account/password", () => {
     expect(authz.requireAdmin).toHaveBeenCalledTimes(1);
     expect(res.status).toBe(400);
     expect(users.changeOwnPassword).not.toHaveBeenCalled();
+  });
+
+  it("PATCH /api/admin/account/password returns 401 when unauthenticated", async () => {
+    vi.mocked(authz.requireAdmin).mockRejectedValueOnce(
+      new authz.AuthzError(401, "Authentication required."),
+    );
+
+    const res = await PATCH(
+      new Request("http://x/api/admin/account/password", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          currentPassword: "old-password-1",
+          newPassword: "new-password-12",
+          confirmPassword: "new-password-12",
+        }),
+      }),
+    );
+
+    expect(res.status).toBe(401);
+    await expect(res.json()).resolves.toMatchObject({ error: "Authentication required." });
   });
 });

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireAdmin } from "@/lib/admin/authz";
+import { AuthzError, requireAdmin } from "@/lib/admin/authz";
 import { clientIp, db } from "@/lib/admin/request";
 import { AdminUserError, changeOwnPassword } from "@/lib/admin/users";
 
@@ -16,15 +16,18 @@ const schema = z
   });
 
 export async function PATCH(req: Request) {
-  const actor = await requireAdmin();
-  const parsed = schema.safeParse(await req.json());
-  if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid password payload." }, { status: 400 });
-  }
   try {
+    const actor = await requireAdmin();
+    const parsed = schema.safeParse(await req.json());
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Invalid password payload." }, { status: 400 });
+    }
     await changeOwnPassword(await db(), actor, parsed.data, clientIp(req));
     return NextResponse.json({ ok: true });
   } catch (error) {
+    if (error instanceof AuthzError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     if (error instanceof AdminUserError) {
       return NextResponse.json({ error: error.message, code: error.code }, { status: 400 });
     }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireSuperAdmin } from "@/lib/admin/authz";
+import { AuthzError, requireSuperAdmin } from "@/lib/admin/authz";
 import { clientIp, db } from "@/lib/admin/request";
 import { AdminUserError, createAdminUser, listAdminUsers } from "@/lib/admin/users";
 
@@ -11,6 +11,9 @@ const createSchema = z.object({
 });
 
 function errorResponse(error: unknown) {
+  if (error instanceof AuthzError) {
+    return NextResponse.json({ error: error.message }, { status: error.status });
+  }
   if (error instanceof AdminUserError) {
     const status = error.code === "not_found" ? 404 : 400;
     return NextResponse.json({ error: error.message, code: error.code }, { status });
@@ -19,17 +22,21 @@ function errorResponse(error: unknown) {
 }
 
 export async function GET() {
-  await requireSuperAdmin();
-  return NextResponse.json(await listAdminUsers(await db()));
+  try {
+    await requireSuperAdmin();
+    return NextResponse.json(await listAdminUsers(await db()));
+  } catch (error) {
+    return errorResponse(error);
+  }
 }
 
 export async function POST(req: Request) {
-  const actor = await requireSuperAdmin();
-  const parsed = createSchema.safeParse(await req.json());
-  if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid user payload." }, { status: 400 });
-  }
   try {
+    const actor = await requireSuperAdmin();
+    const parsed = createSchema.safeParse(await req.json());
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Invalid user payload." }, { status: 400 });
+    }
     const user = await createAdminUser(await db(), parsed.data, actor, clientIp(req));
     return NextResponse.json(user, { status: 201 });
   } catch (error) {

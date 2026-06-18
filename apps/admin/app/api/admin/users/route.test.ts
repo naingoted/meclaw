@@ -1,6 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/admin/authz", () => ({
+  AuthzError: class AuthzError extends Error {
+    constructor(
+      public status: 401 | 403,
+      message: string,
+    ) {
+      super(message);
+    }
+  },
   requireAdmin: vi.fn(),
   requireSuperAdmin: vi.fn(),
 }));
@@ -79,5 +87,16 @@ describe("/api/admin/users", () => {
       actor,
       "ip",
     );
+  });
+
+  it("GET /api/admin/users returns 403 for non-super-admins", async () => {
+    vi.mocked(authz.requireSuperAdmin).mockRejectedValueOnce(
+      new authz.AuthzError(403, "Super admin required."),
+    );
+
+    const res = await GET();
+
+    expect(res.status).toBe(403);
+    await expect(res.json()).resolves.toMatchObject({ error: "Super admin required." });
   });
 });

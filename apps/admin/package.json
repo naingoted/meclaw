@@ -6,7 +6,7 @@
     "dev": "next dev --port 3001",
     "build": "next build",
     "start": "node .next/standalone/apps/admin/server.js",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
     "gen:admin-hash": "jiti scripts/gen-admin-hash.ts"
   },
