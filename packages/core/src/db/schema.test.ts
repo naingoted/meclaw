@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
+  adminUsers,
   chatMisses,
   documents,
   embedClients,
@@ -231,5 +232,40 @@ describe("schema additions for admin UI redesign", () => {
     };
     await db.insert(documents).values(values).execute();
     await expect(db.insert(documents).values({ ...values, id: randomUUID() })).rejects.toThrow();
+  });
+
+  it("admin_users accepts fixed roles and unique usernames", async () => {
+    const { db } = await makeTestDb();
+    const now = new Date();
+    await db.insert(adminUsers).values({
+      id: "11111111-1111-4111-8111-111111111111",
+      username: "root",
+      passwordHash: "salt:hash",
+      role: "super_admin",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await expect(
+      db.insert(adminUsers).values({
+        id: "22222222-2222-4222-8222-222222222222",
+        username: "root",
+        passwordHash: "salt:hash2",
+        role: "admin",
+        createdAt: now,
+        updatedAt: now,
+      }),
+    ).rejects.toThrow();
+
+    await expect(
+      db.insert(adminUsers).values({
+        id: "33333333-3333-4333-8333-333333333333",
+        username: "ops",
+        passwordHash: "salt:hash3",
+        role: "owner" as "admin",
+        createdAt: now,
+        updatedAt: now,
+      }),
+    ).rejects.toThrow();
   });
 });
