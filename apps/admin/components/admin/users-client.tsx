@@ -1,6 +1,21 @@
 "use client";
 
-import { Button, Input, Label, Table, TBody, TD, TH, THead, TR } from "@meclaw/ui";
+import {
+  Button,
+  Input,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Table,
+  TBody,
+  TD,
+  TH,
+  THead,
+  TR,
+} from "@meclaw/ui";
 import { type Dispatch, type SetStateAction, useEffect, useState } from "react";
 
 type Role = "super_admin" | "admin";
@@ -84,31 +99,41 @@ export function UsersClient({ currentUserId }: { currentUserId: string }) {
       <form action={createUser} className="grid max-w-xl gap-3 rounded-sm border border-border p-4">
         <div className="grid gap-2">
           <Label htmlFor="username">Username</Label>
-          <Input id="username" name="username" required />
+          <Input id="username" name="username" autoComplete="username" required />
         </div>
 
         <div className="grid gap-2">
           <Label htmlFor="password">Initial password</Label>
-          <Input id="password" name="password" type="password" minLength={12} required />
+          <Input
+            id="password"
+            name="password"
+            type="password"
+            autoComplete="new-password"
+            minLength={12}
+            required
+          />
         </div>
 
         <div className="grid gap-2">
           <Label htmlFor="role">Role</Label>
-          <select
-            id="role"
-            aria-label="Role"
-            className="h-9 rounded-sm border border-input bg-background px-3 text-sm"
-            value={role}
-            onChange={(event) => setRole(event.currentTarget.value as Role)}
-          >
-            <option value="admin">admin</option>
-            <option value="super_admin">super_admin</option>
-          </select>
+          <Select value={role} onValueChange={(value) => setRole(value as Role)}>
+            <SelectTrigger id="role" aria-label="Role">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="admin">admin</SelectItem>
+              <SelectItem value="super_admin">super_admin</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="flex items-center gap-3">
           <Button type="submit">Create user</Button>
-          {status ? <p className="text-sm text-muted-foreground">{status}</p> : null}
+          {status ? (
+            <p className="text-sm text-muted-foreground" role="status" aria-live="polite">
+              {status}
+            </p>
+          ) : null}
         </div>
       </form>
 
@@ -128,17 +153,18 @@ export function UsersClient({ currentUserId }: { currentUserId: string }) {
                 <div className="font-mono text-sm">{user.username}</div>
               </TD>
               <TD>
-                <select
-                  aria-label={`Role for ${user.username}`}
-                  className="h-9 rounded-sm border border-input bg-background px-3 text-sm"
+                <Select
                   value={user.role}
-                  onChange={(event) =>
-                    void patchUser(user.id, { role: event.currentTarget.value as Role })
-                  }
+                  onValueChange={(value) => void patchUser(user.id, { role: value as Role })}
                 >
-                  <option value="admin">admin</option>
-                  <option value="super_admin">super_admin</option>
-                </select>
+                  <SelectTrigger aria-label={`Role for ${user.username}`} className="w-40">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">admin</SelectItem>
+                    <SelectItem value="super_admin">super_admin</SelectItem>
+                  </SelectContent>
+                </Select>
               </TD>
               <TD>
                 <form
@@ -147,15 +173,31 @@ export function UsersClient({ currentUserId }: { currentUserId: string }) {
                   }
                   className="flex items-center gap-2"
                 >
+                  {/* Hidden username lets password managers associate the reset
+                      credential with this user (a11y password-form guidance). */}
+                  <input
+                    type="text"
+                    name="username"
+                    autoComplete="username"
+                    defaultValue={user.username}
+                    readOnly
+                    hidden
+                  />
                   <Input
                     aria-label={`New password for ${user.username}`}
                     name="password"
                     type="password"
+                    autoComplete="new-password"
                     minLength={12}
                     required
                   />
-                  <Button type="submit" size="sm">
-                    Reset password for {user.username}
+                  <Button
+                    type="submit"
+                    variant="outline"
+                    size="sm"
+                    aria-label={`Reset password for ${user.username}`}
+                  >
+                    Reset
                   </Button>
                 </form>
               </TD>

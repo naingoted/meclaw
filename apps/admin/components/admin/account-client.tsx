@@ -41,14 +41,37 @@ export function AccountClient({ admin }: { admin: AdminActor }) {
       <section className="rounded-sm border border-border bg-card p-4">
         <h2 className="text-sm font-semibold text-foreground">Password</h2>
         <form action={onSubmit} className="mt-4 grid gap-3">
+          {/* Hidden username so password managers can associate the credential
+              with this account (a11y: "password forms should have a username field"). */}
+          <input
+            type="text"
+            name="username"
+            autoComplete="username"
+            defaultValue={admin.username}
+            readOnly
+            hidden
+          />
           <div className="grid gap-2">
             <Label htmlFor="currentPassword">Current password</Label>
-            <Input id="currentPassword" name="currentPassword" type="password" required />
+            <Input
+              id="currentPassword"
+              name="currentPassword"
+              type="password"
+              autoComplete="current-password"
+              required
+            />
           </div>
 
           <div className="grid gap-2">
             <Label htmlFor="newPassword">New password</Label>
-            <Input id="newPassword" name="newPassword" type="password" minLength={12} required />
+            <Input
+              id="newPassword"
+              name="newPassword"
+              type="password"
+              autoComplete="new-password"
+              minLength={12}
+              required
+            />
           </div>
 
           <div className="grid gap-2">
@@ -57,6 +80,7 @@ export function AccountClient({ admin }: { admin: AdminActor }) {
               id="confirmPassword"
               name="confirmPassword"
               type="password"
+              autoComplete="new-password"
               minLength={12}
               required
             />
@@ -64,7 +88,11 @@ export function AccountClient({ admin }: { admin: AdminActor }) {
 
           <div className="flex items-center gap-3">
             <Button type="submit">Change password</Button>
-            {status ? <p className="text-sm text-muted-foreground">{status}</p> : null}
+            {status ? (
+              <p className="text-sm text-muted-foreground" role="status" aria-live="polite">
+                {status}
+              </p>
+            ) : null}
           </div>
         </form>
       </section>

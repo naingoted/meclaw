@@ -6,6 +6,14 @@ export { Input } from "./components/input";
 export { Label } from "./components/label";
 export { PageHeader } from "./components/page-header";
 export { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "./components/popover";
+export {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./components/select";
 export { Skeleton } from "./components/skeleton";
 export { Spinner } from "./components/spinner";
 export { StatTile } from "./components/stat-tile";

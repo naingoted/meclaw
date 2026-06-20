@@ -79,9 +79,12 @@ describe("UsersClient", () => {
     render(<UsersClient currentUserId="u1" />);
 
     expect(await screen.findByText("ops")).toBeTruthy();
-    fireEvent.change(screen.getByLabelText("Role for ops"), {
-      target: { value: "super_admin" },
-    });
+
+    // Drive the Radix Select: open the trigger, then pick the option.
+    const roleTrigger = screen.getByLabelText("Role for ops");
+    fireEvent.pointerDown(roleTrigger, { button: 0, ctrlKey: false, pointerType: "mouse" });
+    const option = await screen.findByRole("option", { name: "super_admin" });
+    fireEvent.click(option);
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
         "/api/admin/users/u2",
