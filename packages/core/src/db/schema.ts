@@ -163,6 +163,23 @@ export const auditLog = pgTable("audit_log", {
   actorIp: text("actorIp"),
 });
 
+export const adminUsers = pgTable(
+  "admin_users",
+  {
+    id: uuid("id").primaryKey(),
+    username: text("username").notNull(),
+    passwordHash: text("passwordHash").notNull(),
+    role: text("role", { enum: ["super_admin", "admin"] }).notNull(),
+    createdAt: timestamp("createdAt", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updatedAt", { withTimezone: true }).notNull(),
+    lastLoginAt: timestamp("lastLoginAt", { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex("uq_admin_users_username").on(t.username),
+    check("admin_users_role_check", sql`${t.role} in ('super_admin', 'admin')`),
+  ],
+);
+
 /**
  * RAG gap clusters — observability, NOT corpus. The Python router writes the
  * capture columns (centroid/count/exemplarQuery) on miss detection; the Next

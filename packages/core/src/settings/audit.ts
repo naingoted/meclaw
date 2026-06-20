@@ -15,11 +15,16 @@ export type AuditAction =
   | "gap.ignore"
   | "embed_client.create"
   | "embed_client.update"
-  | "embed_client.revoke";
+  | "embed_client.revoke"
+  | "user.create"
+  | "user.role_change"
+  | "user.password_reset"
+  | "user.password_change"
+  | "user.delete";
 
 export type AuditInput = {
   action: AuditAction;
-  entityType: "document" | "settings" | "job" | "gap" | "embed_client";
+  entityType: "document" | "settings" | "job" | "gap" | "embed_client" | "admin_user";
   entityId?: string;
   summary: string;
   meta?: unknown;

@@ -64,6 +64,17 @@ const SCHEMA_DDL: string[] = [
     meta jsonb,
     "actorIp" text
   );`,
+  `CREATE TABLE admin_users (
+    id uuid PRIMARY KEY,
+    username text NOT NULL,
+    "passwordHash" text NOT NULL,
+    role text NOT NULL,
+    "createdAt" timestamptz NOT NULL,
+    "updatedAt" timestamptz NOT NULL,
+    "lastLoginAt" timestamptz,
+    CONSTRAINT admin_users_role_check CHECK (role IN ('super_admin', 'admin'))
+  );`,
+  "CREATE UNIQUE INDEX uq_admin_users_username ON admin_users (username);",
   `CREATE TABLE rag_chunks (
     id text PRIMARY KEY,
     source text NOT NULL,

@@ -10,7 +10,9 @@ import {
   MessageSquare,
   Radar,
   ScrollText,
+  Shield,
   SlidersHorizontal,
+  UserRound,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -34,6 +36,7 @@ const GROUPS = [
     items: [
       { label: "Config", href: "/admin/config", Icon: SlidersHorizontal },
       { label: "Embed clients", href: "/admin/embed-clients", Icon: KeyRound },
+      { label: "Account", href: "/admin/account", Icon: UserRound },
     ],
   },
   {
@@ -46,7 +49,7 @@ const GROUPS = [
   },
 ] as const;
 
-export function AdminSidebar() {
+export function AdminSidebar({ adminRole }: { adminRole: "super_admin" | "admin" }) {
   const pathname = usePathname();
   return (
     <nav className="flex w-56 shrink-0 flex-col border-r border-border bg-sidebar p-4 text-sm">
@@ -77,6 +80,20 @@ export function AdminSidebar() {
                 </Link>
               );
             })}
+
+            {g.label === "Configuration" && adminRole === "super_admin" ? (
+              <Link
+                href="/admin/users"
+                className={cn(
+                  "flex items-center gap-2 rounded-sm border-l-2 border-transparent px-2 py-1.5 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  pathname.startsWith("/admin/users") &&
+                    "border-primary bg-primary/10 text-foreground",
+                )}
+              >
+                <Shield className="h-3.5 w-3.5" />
+                Users
+              </Link>
+            ) : null}
           </div>
         ))}
       </div>

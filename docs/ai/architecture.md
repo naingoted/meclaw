@@ -64,7 +64,7 @@ Leanior is a frontend consumer of Meclaw, not a second Meclaw backend.
 ## Request flow: admin console
 
 1. Visitor hits `/` in `apps/admin/app/page.tsx` → redirects to Auth.js login.
-2. Admin enters scrypt-verified password (salt:hash in env), gets JWT in session.
+2. Admin auth uses a DB-backed `admin_users` table with Auth.js JWT sessions. The first admin is bootstrapped as `super_admin` from `ADMIN_USERNAME` + `ADMIN_PASSWORD_HASH` when the table is empty.
 3. Authenticated pages: **Documents** (knowledge editor), **Config**, **Gaps**, **Embed clients**, **Research**, **Audit log** → `POST/PATCH /api/admin/*` for mutations (all audit-logged).
 4. Knowledge lives in the `documents` table — `content/` is only the first-run seed (the `seed` one-shot). Edits happen in the Documents page.
 5. Per-document "Ingest" enqueues an `ingestion_jobs` row; the admin app chunks + embeds **in-process** (needs `OLLAMA_*` env) and writes `rag_chunks` (replace-on-edit). The `pnpm --filter @meclaw/rag seed` one-shot covers bulk/first-run: it imports `content/` markdown + PDFs + work-impact packs **into `documents`** and embeds each through the same per-doc path — so first-run and admin edits share one writer (`source = document:<id>`), with no separate file-slug corpus to drift.
@@ -77,7 +77,7 @@ Leanior is a frontend consumer of Meclaw, not a second Meclaw backend.
 - **Shared chat UI is presentational.** `@naingoted/meclaw-chat-ui` exports React components, copy/types, and formatting helpers. It does not own transport, persistence, embed authorization, resume-token verification, rate limiting, or database access. Host apps supply those concerns.
 - **Postgres pgvector for RAG** (single datastore). Ollama `nomic-embed-text` (768-dim) → embedded locally → stored in `rag_chunks` table with HNSW cosine index. Retrieval always runs (the tiny-corpus full-text stuffing path was removed in v1.0.5); ungroundable turns are answered conservatively and recorded as misses.
 - **Drizzle migrations** owned by schema; migrations live in `packages/core/drizzle/` and are applied automatically at deploy time by the one-shot `migrations` init-service (reuses the `ops` image; apps wait on its completion before booting).
-- **No multi-tenant auth in v1.** Single admin (scrypt + JWT), single visitor stream per session.
+- **No multi-tenant auth in v1.** Admin auth is DB-backed `admin_users` + Auth.js JWT sessions, with the initial `super_admin` bootstrapped from `ADMIN_USERNAME` + `ADMIN_PASSWORD_HASH` when the table is empty. Visitor chat remains single-owner and single-tenant.
 - **Monorepo discipline.** Packages (`@meclaw/*`) use relative or package-name imports (never `@/` from root) to avoid breaking the Next build; `pnpm-workspace.yaml` + turbo for orchestration.
 
 ## Data model (PostgreSQL, single store)
