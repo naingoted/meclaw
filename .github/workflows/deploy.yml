@@ -159,6 +159,12 @@ jobs:
           #    completion before chat/admin/ai start (service_completed_successfully),
           #    so apps never serve against an unmigrated DB.
           cd infra
+          # Reclaim disk BEFORE pulling. A full root volume makes `pull` fail to
+          # extract layers ("no space left on device"). Drop images and build
+          # cache not used by a running container — the live stack's images are
+          # kept, so this is safe and only frees superseded tags.
+          docker image prune -af
+          docker builder prune -af
           docker compose -f docker-compose.prod.yml pull
           docker compose -f docker-compose.prod.yml up -d --remove-orphans
           docker image prune -f

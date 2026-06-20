@@ -28,7 +28,7 @@ Related runbook: post-leak rotation checklist — [secrets-rotation.md](secrets-
 
 **`build`** — builds and pushes four `amd64` images to GHCR: `meclaw-chat`, `meclaw-admin`, `meclaw-ai`, `meclaw-ops`, tagged `latest`, the commit SHA, and the git tag (e.g. `v1.2.3`).
 
-**`deploy`** — SSHes into the EC2 box (no sudo: the deploy user owns `/opt/meclaw` and is in the `docker` group), checks out the released tag at `/opt/meclaw` (picks up compose, Caddyfile, migrations, content), pins `IMAGE_TAG` in `infra/.env`, then `docker compose -f infra/docker-compose.prod.yml pull && up -d --remove-orphans`. The `migrations` service runs `db:migrate` to completion **before** chat/admin/ai start (`depends_on: service_completed_successfully`), so apps never serve against an unmigrated DB. A final step polls `PROD_CHAT_URL/api/health` until the running chat reports the released commit SHA. Every step **fails on non-zero** so a broken deploy can't pass silently.
+**`deploy`** — SSHes into the EC2 box (no sudo: the deploy user owns `/opt/meclaw` and is in the `docker` group), checks out the released tag at `/opt/meclaw` (picks up compose, Caddyfile, migrations, content), pins `IMAGE_TAG` in `infra/.env`, **prunes unused images + build cache so the pull has room** (`docker image prune -af && docker builder prune -af` — the live stack's images are kept; only superseded tags are freed), then `docker compose -f infra/docker-compose.prod.yml pull && up -d --remove-orphans`. Pruning happens *before* the pull on purpose: a full root volume otherwise makes layer extraction fail with `no space left on device` before the post-`up` cleanup ever runs. The `migrations` service runs `db:migrate` to completion **before** chat/admin/ai start (`depends_on: service_completed_successfully`), so apps never serve against an unmigrated DB. A final step polls `PROD_CHAT_URL/api/health` until the running chat reports the released commit SHA. Every step **fails on non-zero** so a broken deploy can't pass silently.
 
 Set repo variable `SKIP_PROD_DEPLOY=true` to publish images for a tag **without** touching prod (build-only release), then unset to restore.
 
@@ -86,7 +86,9 @@ publishes host ports. **Volumes:** `pgdata`, `ollama_storage`, `caddy_data`, `ca
 ## Provision a new box (from scratch)
 
 1. **EC2** — Ubuntu 24.04 **amd64**; size for two Next apps + the Python sidecar + Ollama + Postgres (≈t3.small with swap
-   is the proven floor; give more headroom if budget allows). Disk: gp3 ≥ 30 GB. Allocate +
+   is the proven floor; give more headroom if budget allows). Disk: gp3 **≥ 40 GB** — four
+   image repos × several retained tags plus build cache fill a smaller root volume, and the
+   deploy must prune *before* it can pull; 20 GB ran out mid-pull in practice. Allocate +
    associate an Elastic IP. Security group inbound: `22` (SSH), `80`, `443`.
 2. **Docker** — install Docker Engine + the Compose plugin. Create the deploy user, add it to the
    `docker` group, and `chown` `/opt/meclaw` to it (CI SSHes in as this user, no sudo).
