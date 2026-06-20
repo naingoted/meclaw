@@ -167,7 +167,12 @@ jobs:
           docker builder prune -af
           docker compose -f docker-compose.prod.yml pull
           docker compose -f docker-compose.prod.yml up -d --remove-orphans
-          docker image prune -f
+          # Containers now run the new images, so the previous release's tags are
+          # unused. Prune ALL unused images (-a, not just dangling) so disk stays
+          # flat across releases instead of growing one image-set per deploy.
+          # Running containers keep their images; the stopped one-shot migrations
+          # container keeps meclaw-ops.
+          docker image prune -af
           REMOTE
 
       - name: Verify deploy convergence
