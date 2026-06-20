@@ -9,7 +9,7 @@ This project applies what I learned from [RAG and Agentic AI](https://coursera.o
 
 ## How it works
 
-A monorepo of **two Next.js apps** (public chat + admin) sharing **three packages** (DB/core, RAG, UI), fronted by a **Python LLM sidecar** that does the actual reasoning, all backed by a single **PostgreSQL + pgvector** datastore and **Ollama** for embeddings.
+A monorepo of **two Next.js apps** (public chat + admin) sharing core/RAG/UI/MCP packages plus the published chat UI package, fronted by a **Python LLM sidecar** that does the actual reasoning, all backed by a single **PostgreSQL + pgvector** datastore and **Ollama** for embeddings.
 
 ```mermaid
 flowchart TB
@@ -25,10 +25,12 @@ flowchart TB
         core["@meclaw/core<br/>Drizzle + postgres-js<br/>content loader · settings"]
         rag["@meclaw/rag<br/>ingest: chunk → embed → store"]
         ui["@meclaw/ui<br/>shadcn + design system"]
+        chatui["@naingoted/meclaw-chat-ui<br/>presentational chat UI"]
     end
 
     subgraph sidecar["Python sidecar · services/ai · :8000"]
         api["FastAPI /chat (SSE)"]
+        research["FastAPI /research (SSE)"]
         triage["Triage · non-stream"]
         retrieve["Retrieve top-K (pgvector kNN)"]
         draft["Draft · streaming"]
@@ -42,21 +44,27 @@ flowchart TB
 
     agent([MCP client · Claude / agent])
     mcp["@meclaw/mcp<br/>read-only server · stdio/http<br/>telemetry · schema · corpus"]
+    embed([External site / embed host])
 
     visitor --> chat
+    embed -->|"iframe + public API"| chat
     owner --> admin
     chat -->|"POST /api/chat → proxy"| api
+    admin -->|"POST /api/admin/research → proxy"| research
     chat -. persist turn / retrieval event / miss / lead .-> core
-    admin --> core
-    admin -->|enqueue ingest| rag
+    admin -->|"documents · config · gaps · embed clients · conversations · users"| core
+    admin -->|"in-process per-doc ingest"| rag
 
     triage --> gw
     draft --> gw
+    research --> gw
+    research --> pg
     retrieve --> pg
     rag --> ollama
     rag --> pg
     gaps --> pg
     core --> pg
+    chat --> chatui
 
     agent --> mcp
     mcp -. read-only .-> pg
@@ -90,10 +98,10 @@ sequenceDiagram
         AI->>GW: draft answer (streaming)
         AI-->>N: token stream + step trace + metadata
         N-->>B: stream tokens, live "how I answered" trace
-        AI->>AI: detect miss (low score / fallback / "don't know")
+        AI->>PG: fold miss into gap cluster (if low score / fallback / "don't know")
         N->>PG: persist conversation + messages
         N->>PG: persist retrieval_events (telemetry)
-        N->>PG: persist miss → gap cluster (if any)
+        N->>PG: persist chat_misses row with cluster id (if any)
     end
 ```
 
@@ -103,8 +111,8 @@ sequenceDiagram
 2. **Proxy + config.** It forwards to the sidecar at `AI_SERVICE_URL`, attaching a live config snapshot (persona, model knobs, RAG floors, public fields) read from the `settings` table.
 3. **Agent pipeline** (`services/ai`): triage intent with the **triage model** (thinking-off, non-stream) → retrieve top-K chunks from pgvector → draft with the **draft model** (streaming). Contact/scheduler intents answer via tools instead of retrieval.
 4. **Stream + trace.** Tokens stream back to the browser, which renders markdown with auto-scroll and a live, collapsible step trace ("how I answered").
-5. **Persist (best-effort).** On stream finish the route persists the conversation + messages, plus a **retrieval_events** telemetry row (query, intent, grounding flags, top score, candidate chunks). Failures are logged, never break the stream.
-6. **Gap feedback loop.** If the corpus couldn't ground the answer (low cosine score, zero chunks, low triage confidence, or an explicit "I don't know"), the sidecar records a **miss** and folds it into the nearest **gap cluster** by embedding similarity — surfacing it in the admin Gaps inbox.
+5. **Persist (best-effort).** On stream finish the route persists the conversation + messages, plus a **retrieval_events** telemetry row (query, intent, grounded/legacy-stuffed flags, top score, candidate chunks, answer-used flag). Failures are logged, never break the stream.
+6. **Gap feedback loop.** If the corpus couldn't ground the answer (low cosine score, zero chunks, low triage confidence, or an explicit "I don't know"), the sidecar folds the query into the nearest **gap cluster** by embedding similarity and the chat route records the **chat_misses** row that links the turn to that cluster — surfacing it in the admin Gaps inbox.
 
 ## Admin console
 
@@ -113,6 +121,10 @@ sequenceDiagram
 - **Documents** — create/edit markdown knowledge, per-doc ingest with live status pills, origin filter (`manual` / `gap` / `seed`).
 - **Config** — every field drives chat live: persona, triage/draft model knobs, routing confidence, RAG score floors, and public fields (greeting, suggestion chips, contact, Cal.com URL). Saves reach the running chat process within a bounded TTL — no restart.
 - **Gaps** — ranked inbox of questions the bot couldn't answer, clustered by similarity. "Answer this gap" creates a document → enqueues ingest → resolves the cluster, all audit-logged. CSV export.
+- **Conversations** — read-only transcript dashboard with outcome filters, message search, retrieval telemetry detail, JSONL export, and 7-day stat tiles.
+- **Embed clients** — issue/revoke widget tokens, allowed origins, and per-client rate limits.
+- **Research** — operator briefing runs through the Python research graph, with live trace and persisted run detail.
+- **Users / account** — DB-backed admin user management and password changes.
 - **Audit log** — every mutation recorded.
 
 ## Stack
@@ -128,6 +140,7 @@ sequenceDiagram
 | `packages/rag`  | `@meclaw/rag`   | Ingest (chunk → embed → store) + retrieval config                |
 | `packages/ui`   | `@meclaw/ui`    | shadcn/ui + shared design system                                 |
 | `packages/mcp`  | `@meclaw/mcp`   | MCP server: read-only telemetry/schema tools (scoped + redacted) |
+| `packages/meclaw-chat-ui` | `@naingoted/meclaw-chat-ui` | Published/shared presentational chat UI reused by Meclaw and external consumers |
 | `services/ai`   | —               | Python FastAPI + LangGraph sidecar (:8000) + Ragas eval harness  |
 | `infra/`        | —               | Docker Compose (dev + Caddy prod stack), deploy config           |
 
@@ -203,6 +216,9 @@ All tables live in one `DATABASE_URL` instance; vectors use the pgvector extensi
 - **audit_log** — every admin mutation.
 - **gap_clusters**, **chat_misses** — RAG gap feedback loop (centroid-clustered misses → admin Gaps inbox).
 - **retrieval_events** — per-message retrieval telemetry (query, intent, grounded/stuffed, top score, answer-used, candidate chunks). Written by the chat edge; feeds evals + the MCP telemetry tool.
+- **embed_clients** — public widget tokens, exact-match origin allowlists, revocation timestamps, and optional per-client rate limits.
+- **admin_users** — DB-backed Auth.js credential users (`super_admin` / `admin`).
+- **agent_runs**, **agent_steps** — persisted research-graph run and trace detail.
 
 ## Evaluation & telemetry
 

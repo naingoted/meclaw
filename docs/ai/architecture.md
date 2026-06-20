@@ -65,7 +65,7 @@ Leanior is a frontend consumer of Meclaw, not a second Meclaw backend.
 
 1. Visitor hits `/` in `apps/admin/app/page.tsx` → redirects to Auth.js login.
 2. Admin auth uses a DB-backed `admin_users` table with Auth.js JWT sessions. The first admin is bootstrapped as `super_admin` from `ADMIN_USERNAME` + `ADMIN_PASSWORD_HASH` when the table is empty.
-3. Authenticated pages: **Documents** (knowledge editor), **Config**, **Gaps**, **Embed clients**, **Research**, **Audit log** → `POST/PATCH /api/admin/*` for mutations (all audit-logged).
+3. Authenticated pages: **Documents** (knowledge editor), **Config**, **Gaps**, **Embed clients**, **Research**, **Conversations**, **Audit log**, **Account**, **Users** → `GET/POST/PATCH/DELETE /api/admin/*` routes (mutations audit-logged).
 4. Knowledge lives in the `documents` table — `content/` is only the first-run seed (the `seed` one-shot). Edits happen in the Documents page.
 5. Per-document "Ingest" enqueues an `ingestion_jobs` row; the admin app chunks + embeds **in-process** (needs `OLLAMA_*` env) and writes `rag_chunks` (replace-on-edit). The `pnpm --filter @meclaw/rag seed` one-shot covers bulk/first-run: it imports `content/` markdown + PDFs + work-impact packs **into `documents`** and embeds each through the same per-doc path — so first-run and admin edits share one writer (`source = document:<id>`), with no separate file-slug corpus to drift.
 
@@ -93,6 +93,7 @@ All tables live in one `DATABASE_URL` instance; schema is Drizzle-owned (`packag
 - **gap_clusters**, **chat_misses** — gap feedback loop (Python writes capture columns, admin writes resolution columns — disjoint writers).
 - **retrieval_events** — per-message retrieval telemetry (feeds evals + MCP).
 - **embed_clients** — widget tokens + origin allowlists.
+- **admin_users** — DB-backed Auth.js credential users (`super_admin` / `admin`).
 - **agent_runs**, **agent_steps** — research-graph observability.
 
 ## Database ownership
@@ -100,7 +101,7 @@ All tables live in one `DATABASE_URL` instance; schema is Drizzle-owned (`packag
 Both Next and Python access Postgres, but they do not expose equal public API surfaces. This is intentional for the single-stack deployment: Next owns public request handling, while Python owns internal AI work. Keep table ownership explicit:
 
 - **Next chat app:** public API persistence and auth-adjacent chat state — `conversations`, `messages`, `leads`, `embed_clients`, chat-side settings snapshots, `chat_misses`, and `retrieval_events` captured from the streamed turn.
-- **Admin/ingest paths:** `documents`, `ingestion_jobs`, `settings`, `audit_log`, and `rag_chunks` writes during ingest.
+- **Admin/ingest paths:** `documents`, `ingestion_jobs`, `settings`, `audit_log`, `admin_users`, and `rag_chunks` writes during ingest. The admin Conversations dashboard reads `conversations`, `messages`, `chat_misses`, and `retrieval_events` without adding derived columns.
 - **Python sidecar:** AI-internal reads/writes — retrieval reads from `rag_chunks`, corpus-status reads, resolved-gap matching, gap clustering, and research observability writes to `agent_runs` / `agent_steps`.
 
 If this grows beyond one stack or table ownership stops being disjoint, the upgrade path is to move Python writes behind internal Next/core APIs or a dedicated worker boundary. That is unnecessary for the current personal/single-customer scale.

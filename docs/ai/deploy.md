@@ -85,7 +85,7 @@ publishes host ports. **Volumes:** `pgdata`, `ollama_storage`, `caddy_data`, `ca
 
 ## Provision a new box (from scratch)
 
-1. **EC2** — Ubuntu 24.04 **amd64**; size for 3 Next apps + Ollama + Postgres (≈t3.small with swap
+1. **EC2** — Ubuntu 24.04 **amd64**; size for two Next apps + the Python sidecar + Ollama + Postgres (≈t3.small with swap
    is the proven floor; give more headroom if budget allows). Disk: gp3 ≥ 30 GB. Allocate +
    associate an Elastic IP. Security group inbound: `22` (SSH), `80`, `443`.
 2. **Docker** — install Docker Engine + the Compose plugin. Create the deploy user, add it to the

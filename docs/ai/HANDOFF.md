@@ -46,6 +46,7 @@ ANTHROPIC_MODEL=qwen3.6-plus
 - Spec B: retrieval telemetry (`retrieval_events`) + Ragas eval harness
 - Spec A U1+U2: read-only MCP tool layer (server + operator client)
 - Spec C1+C2: multi-agent research graph (headless core + admin UX)
+- Conversation dashboard (admin, read-only): outcome-filtered transcript list/detail, message search, retrieval telemetry view, stats, and JSONL export
 - Embeddable chat widget + resume tokens + main-chat session persistence
 - Resolved-gap pickup (curated-answer fast path; stuffing removed)
 - Chat UI upgrade (single-bot loading fix, timestamps, New chat, history drawer)
@@ -55,10 +56,6 @@ ANTHROPIC_MODEL=qwen3.6-plus
 - Embed multi-session history — namespaced localStorage index per embedToken, legacy migration, History drawer in embed mode
 - Pre-commit/CI hardening; auto-migration on deploy (CI-proven)
 - Single seed path (v1.1.4-alpha): `pnpm --filter @meclaw/rag seed` imports `content/` (markdown + PDFs + work-impact) into the `documents` table (origin=seed, admin-manageable) and embeds each as `document:<id>` — the same writer the admin UI uses. File-slug `ingest` CLI + admin `seed:docs` removed; doc CRUD + `contentHash` moved to `@meclaw/core/documents`. Resolves the `rag_chunks` dual-writer collision. New-EC2 one-shot validated on a throwaway box from a clean DB: `ops db:migrate` + `ops seed` → 15 docs / 51 `document:` chunks / 0 orphan, chat grounded.
-
-**Complete on `worktree-conversation-dashboard` (pending merge):**
-
-- Conversation dashboard (admin, read-only): list with outcome filter · debounced message search · cursor "Load more" · 30s poll · stat tiles (total / gap rate / avg turns); thread + retrieval-telemetry detail view (low-score `<0.65` flagged); multi-select JSONL export (≤50, >10 warning); gap-miss rows deep-link into the conversation Retrieval tab. New `apps/admin/lib/admin/conversations.ts` (on-read metrics, no persisted columns) + 4 API routes (`/api/admin/conversations` list/detail/export/stats) + migration `0011` (conversation/message pagination indexes). All unit-tested; `pnpm verify` + `pnpm test` green. Interactive browser smoke (admin login + seeded data) still pending.
 
 **Shelved — instance-per-customer multi-tenancy** (`worktree-first-customer-readiness`):
 
