@@ -42,7 +42,7 @@ jobs:
       ADMIN_PASSWORD_HASH: deadbeef:deadbeef
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
