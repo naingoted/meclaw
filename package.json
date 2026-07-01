@@ -30,18 +30,18 @@
     "prepare": "husky"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.4.16",
+    "@biomejs/biome": "2.5.2",
     "@commitlint/cli": "19.8.1",
     "@commitlint/config-conventional": "19.8.1",
     "@secretlint/secretlint-rule-preset-recommend": "12.0.0",
     "@types/node": "^20",
-    "@vitest/coverage-istanbul": "^4.1.7",
-    "fallow": "^2.87.0",
+    "@vitest/coverage-istanbul": "^4.1.9",
+    "fallow": "^2.103.0",
     "husky": "^9.1.7",
     "lint-staged": "15.5.2",
     "secretlint": "12.0.0",
     "turbo": "^2",
     "typescript": "^5",
-    "vitest": "^4.1.7"
+    "vitest": "^4.1.9"
   }
 }
