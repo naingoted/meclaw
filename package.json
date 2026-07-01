@@ -34,7 +34,7 @@
     "@commitlint/cli": "19.8.1",
     "@commitlint/config-conventional": "19.8.1",
     "@secretlint/secretlint-rule-preset-recommend": "12.0.0",
-    "@types/node": "^20",
+    "@types/node": "^26",
     "@vitest/coverage-istanbul": "^4.1.7",
     "fallow": "^2.87.0",
     "husky": "^9.1.7",
